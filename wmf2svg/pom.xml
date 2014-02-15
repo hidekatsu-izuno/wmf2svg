@@ -9,7 +9,7 @@
 	<name>wmf2svg</name>
 	<version>0.9.6</version>
 	<description>WMF to SVG Converting Tool &amp; Library</description>
-	<url>http://code.google.com/p/wmf2svg/</url>
+	<url>http://wmf2svg.sourceforge.jp/</url>
 	<licenses>
 		<license>
 			<name>The Apache Software License, Version 2.0</name>
@@ -18,8 +18,8 @@
 		</license>
 	</licenses>
 	<scm>
-		<url>http://wmf2svg.googlecode.com/svn/</url>
-		<connection>scm:svn:http://wmf2svg.googlecode.com/svn/</connection>
+		<url>https://scm.sourceforge.jp/gitroot/wmf2svg/wmf2svg.git/</url>
+		<connection>scm:git:https://scm.sourceforge.jp/gitroot/wmf2svg/wmf2svg.git/</connection>
 	</scm>
 	<developers>
 		<developer>

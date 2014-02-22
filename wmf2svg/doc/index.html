@@ -3,5 +3,50 @@
 <head>
 <meta charset="UTF-8" />
 <title>wmf2svg - WMF to SVG Converting Tool & Library</title>
+<style type="text/css">
+#sflogo { position: absolute; top: 5px; right: 5px; }
+</style>
 </head>
+<body>
+<h1>wmf2svg - WMF to SVG Converting Tool & Library</h1>
+<a id="sflogo" href="http://sourceforge.jp/"><img src="http://sourceforge.jp/sflogo.php?group_id=9115&type=1" width="96" height="31" border="0" alt="SourceForge.JP"></a>
+
+<p>This project's goal is to make tool & library for converting wmf to svg.</p>
+
+<h2>Download</h2>
+<script src="http://sourceforge.jp/projects/wmf2svg/releases/compact.js" type="text/javascript" charset="utf-8"></script>
+
+<h2>Example</h2>
+<pre>
+java -jar wmf2svg-0.9.6.jar [options...] [wmf filename] [svg filename]
+</pre>
+
+<h2>Options</h2>
+<ul>
+<li>-compatible: output IE9 compatible style. but it's dirty and approximative.</li>
+<li>-replace-symbol-font: replace SYMBOL Font to serif or sans-serif Unicode SYMBOL.</li>
+</ul>
+
+<p>If you need to compress by gzip, you should use .svgz suffix as svg filename.</p>
+<p>It's necessary to Java 1.4 or later.</p>
+
+<h2>History</h2>
+<ul>
+<li>2014-02-23: Added -replace-symbol-font option.</li>
+<li>2013-09-29: Fixed a invalid css property.</li>
+<li>2012-08-28: Improved arc radious and Fixed negative size image bug.</li>
+<li>2012-07-05: Improved arc problem, and fixed TextOut? background position bug.</li>
+<li>2012-02-11: Improved arc problem, and fixed font-size bug.</li>
+<li>2011-09-28: Fixed restoreDC and cyrillic bug. And add wmf writer function.</li>
+<li>2011-08-20: Some bugs fixed.</li>
+<li>2011-03-10: Arc bug fixed and extTextOut is enhanced.</li>
+<li>2011-01-08: Arc bug fixed and add fillRgn/paintRgn support.</li>
+<li>2010-12-01: Some bugs fixed.</li>
+<li>2010-11-20: Text position bug fixed.</li>
+<li>2010-09-11: Some bugs fixed.</li>
+<li>2009-05-24: wmf2svg version 0.8.3 is supported on Google App Engine/Java.</li>
+</ul>
+<hr />
+<p>Copyright (c) 2007-2011 Hidekatsu Izuno, Shunsuke Mori All right reserved.</p>
+</body>
 </html>

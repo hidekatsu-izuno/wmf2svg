@@ -1498,7 +1498,7 @@ public class SvgGdi implements Gdi {
 
 					if (nstate != state) {
 						if (start < i) {
-							Node text = doc.createTextNode(String.valueOf(ca, start, i));
+							Node text = doc.createTextNode(String.valueOf(ca, start, i-start));
 							if (state == 0) {
 								elem.appendChild(text);
 							} else if (state == 1) {
@@ -1519,7 +1519,7 @@ public class SvgGdi implements Gdi {
 				}
 
 				if (start < ca.length) {
-					Node text = doc.createTextNode(String.valueOf(ca, start, ca.length));
+					Node text = doc.createTextNode(String.valueOf(ca, start, ca.length-start));
 					if (state == 0) {
 						elem.appendChild(text);
 					} else if (state == 1) {
@@ -1543,6 +1543,10 @@ public class SvgGdi implements Gdi {
 
 	private void bmpToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
 			int sw, int sh, int usage, long rop) {
+		if (image == null || image.length == 0) {
+			return;
+		}
+
 		image = ImageUtil.convert(dibToBmp(image), "png", dh < 0);
 
 		StringBuffer buffer = new StringBuffer("data:image/png;base64,");

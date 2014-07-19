@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
@@ -23,11 +23,6 @@ import java.lang.reflect.Proxy;
 import java.util.logging.Logger;
 import java.util.zip.GZIPOutputStream;
 
-import org.w3c.dom.*;
-import javax.xml.transform.*;
-import javax.xml.transform.dom.*;
-import javax.xml.transform.stream.*;
-
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.svg.*;
 import net.arnx.wmf2svg.gdi.wmf.*;
@@ -37,15 +32,15 @@ import net.arnx.wmf2svg.gdi.wmf.*;
  */
 public class Main {
 	private static Logger log = Logger.getLogger(Main.class.getName());
-	
+
 	public static void main(String[] args) {
 		String src = null;
 		String dest = null;
-		
+
 		boolean debug = false;
 		boolean compatible = false;
 		boolean replaceSymbolFont = false;
-		
+
 		for (int i = 0; i < args.length; i++) {
 			if (args[i].startsWith("-")) {
 				if (args[i].equals("-debug")) {
@@ -64,7 +59,7 @@ public class Main {
 				dest = args[i];
 			}
 		}
-		
+
 		if (src == null || dest == null) {
 			usage();
 			return;
@@ -80,7 +75,7 @@ public class Main {
 				Class[] interfaces = new Class[] { Gdi.class };
 				parser.parse(in, (Gdi)Proxy.newProxyInstance(cl, interfaces, new InvocationHandler() {
 					StringBuffer sb = new StringBuffer(1000);
-					
+
 					public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 						sb.setLength(0);
 						sb.append(method.getName()).append("(");
@@ -133,7 +128,7 @@ public class Main {
 						sb.append(")");
 						log.fine(sb.toString());
 						try {
-							return method.invoke(gdi, args);							
+							return method.invoke(gdi, args);
 						} catch (InvocationTargetException e) {
 							throw e.getTargetException();
 						}
@@ -142,35 +137,23 @@ public class Main {
 			} else {
 				parser.parse(in, gdi);
 			}
-		
-			Document doc = gdi.getDocument();
-			OutputStream out = new FileOutputStream(dest);
-			if (args[1].endsWith(".svgz")) {
-				out = new GZIPOutputStream(out);
+
+			OutputStream out = null;
+			try {
+				out = new FileOutputStream(dest);
+				if (args[1].endsWith(".svgz")) {
+					out = new GZIPOutputStream(out);
+				}
+
+				gdi.write(out);
+			} finally {
+				if (out != null) out.close();
 			}
-			
-			output(doc, out);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static void output(Document doc, OutputStream out)
-		throws Exception {
-		TransformerFactory factory = TransformerFactory.newInstance();
-		Transformer transformer = factory.newTransformer();
-		transformer.setOutputProperty(OutputKeys.METHOD, "xml");
-		transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-		transformer.setOutputProperty(OutputKeys.DOCTYPE_PUBLIC, 
-				"-//W3C//DTD SVG 1.0//EN");
-		transformer.setOutputProperty(OutputKeys.DOCTYPE_SYSTEM, 
-				"http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd");
-		transformer.transform(new DOMSource(doc), new StreamResult(out));
-		out.flush();
-		out.close();
-	}
-	
 	private static void usage() {
 		System.out.println("java -jar wmf2svg.jar [wmf filename] [svg filename(svg, xml, or .svgz)]");
 		System.exit(-1);

@@ -18,21 +18,39 @@ package net.arnx.wmf2svg.gdi.svg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Properties;
 import java.util.logging.Logger;
 
-import javax.xml.parsers.*;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.w3c.dom.*;
-
-import net.arnx.wmf2svg.gdi.*;
+import net.arnx.wmf2svg.gdi.Gdi;
+import net.arnx.wmf2svg.gdi.GdiBrush;
+import net.arnx.wmf2svg.gdi.GdiFont;
+import net.arnx.wmf2svg.gdi.GdiObject;
+import net.arnx.wmf2svg.gdi.GdiPalette;
+import net.arnx.wmf2svg.gdi.GdiPatternBrush;
+import net.arnx.wmf2svg.gdi.GdiPen;
+import net.arnx.wmf2svg.gdi.GdiRegion;
+import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.gdi.Point;
+import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.util.Base64;
 import net.arnx.wmf2svg.util.ImageUtil;
+
+import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 /**
  * @author Hidekatsu Izuno
@@ -1548,6 +1566,9 @@ public class SvgGdi implements Gdi {
 		}
 
 		image = ImageUtil.convert(dibToBmp(image), "png", dh < 0);
+		if (image == null || image.length == 0) {
+			return;
+		}
 
 		StringBuffer buffer = new StringBuffer("data:image/png;base64,");
 		buffer.append(Base64.encode(image));

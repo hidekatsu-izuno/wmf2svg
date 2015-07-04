@@ -7,7 +7,7 @@ This project's goal is to make tool & library for converting wmf to svg.
 ```
 java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
 ```
-### Options
+## Options
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
 - -replace-symbol-font: replace SYMBOL Font to serif or sans-serif Unicode SYMBOL.
@@ -15,7 +15,7 @@ java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
 If you need to compress by gzip, you should use .svgz suffix as svg filename.
 It's necessary to Java 6 or later.
 
-### History
+## History
 
 - 2014-07-19: Fixed pie method bug.
 - 2014-02-23: Added -replace-symbol-font option.

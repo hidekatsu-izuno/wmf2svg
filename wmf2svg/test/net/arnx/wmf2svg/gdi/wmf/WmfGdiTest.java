@@ -5,14 +5,16 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
+import org.junit.Test;
+
 import net.arnx.wmf2svg.Main;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiUtils;
-import junit.framework.TestCase;
 
-public class WmfGdiTest extends TestCase {
+public class WmfGdiTest {
+	@Test
 	public void testEllipse() throws IOException {
 		WmfGdi gdi = new WmfGdi();
 		gdi.placeableHeader(0, 0, 9000, 4493, 1440);
@@ -27,7 +29,8 @@ public class WmfGdiTest extends TestCase {
 		gdi.lineTo(100, 100);
 		gdi.footer();
 
-		File file = new File(System.getProperty("user.home") + "/My Documents/wmf2svg", "ellipse_test.wmf");
+		File file = new File(System.getProperty("user.home") + "/wmf2svg", "ellipse_test.wmf");
+		file.getParentFile().mkdirs();
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(file));
 		try {
 			gdi.write(out);
@@ -38,6 +41,7 @@ public class WmfGdiTest extends TestCase {
 		convert(file);
 	}
 
+	@Test
 	public void testExtTextOut() throws IOException {
 		WmfGdi gdi = new WmfGdi();
 		gdi.placeableHeader(0, 0, 500, 500, 96);
@@ -65,7 +69,8 @@ public class WmfGdiTest extends TestCase {
 
 		gdi.footer();
 
-		File file = new File(System.getProperty("user.home") + "/My Documents/wmf2svg", "font_test.wmf");
+		File file = new File(System.getProperty("user.home") + "/wmf2svg", "font_test.wmf");
+		file.getParentFile().mkdirs();
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(file));
 		try {
 			gdi.write(out);
@@ -84,6 +89,7 @@ public class WmfGdiTest extends TestCase {
 		Main.main(new String[] {"-debug", name + ".wmf", name + ".svg"});
 	}
 
+	@Test
 	public void testPie() throws Exception {
 		WmfGdi gdi = new WmfGdi();
 		gdi.placeableHeader(0, 0, 9000, 9000, 1440);
@@ -99,7 +105,8 @@ public class WmfGdiTest extends TestCase {
 		gdi.pie(10, 10, 110, 110, 60, 10, 110, 60);
 		gdi.footer();
 
-		File file = new File(System.getProperty("user.home") + "/My Documents/wmf2svg", "pie_test.wmf");
+		File file = new File(System.getProperty("user.home") + "/wmf2svg", "pie_test.wmf");
+		file.getParentFile().mkdirs();
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(file));
 		try {
 			gdi.write(out);

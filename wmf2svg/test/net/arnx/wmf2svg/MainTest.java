@@ -3,12 +3,10 @@ package net.arnx.wmf2svg;
 import java.io.File;
 import java.io.FileFilter;
 
-import junit.framework.TestCase;
+import org.junit.Test;
 
-public class MainTest extends TestCase {
-	/*
-	 * TestCase for 'net.arnx.wmf2svg.Main.main(String[])'
-	 */
+public class MainTest {
+	@Test
 	public void testMain() {
 		System.setProperty("java.util.logging.config.file", "./logging.properties");
 

@@ -13,10 +13,12 @@ java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
 - -replace-symbol-font: replace SYMBOL Font to serif or sans-serif Unicode SYMBOL.
 
 If you need to compress by gzip, you should use .svgz suffix as svg filename.
-It's necessary to Java 6 or later.
+
+It now requires Java 6.0 or later.
 
 ## History
 
+- 2015-07-04: wmf2svg now requires Java 6.0 or later.
 - 2014-07-19: Fixed pie method bug.
 - 2014-02-23: Added -replace-symbol-font option.
 - 2013-09-29: Fixed a invalid css property.

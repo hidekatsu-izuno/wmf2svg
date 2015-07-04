@@ -9,17 +9,20 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
 package net.arnx.wmf2svg.gdi.svg;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import org.w3c.dom.Text;
 
-import net.arnx.wmf2svg.gdi.*;
+import net.arnx.wmf2svg.gdi.GdiFont;
+import net.arnx.wmf2svg.gdi.GdiUtils;
 
 /**
  * @author Hidekatsu Izuno
@@ -38,7 +41,7 @@ class SvgFont extends SvgObject implements GdiFont {
 	private int clipPrecision;
 	private int quality;
 	private int pitchAndFamily;
-	
+
 	private String faceName;
 	private double heightMultiply = 1.0;
 	private String lang;
@@ -59,7 +62,7 @@ class SvgFont extends SvgObject implements GdiFont {
 		int quality,
 		int pitchAndFamily,
 		byte[] faceName) {
-		
+
 		super(gdi);
 		this.height = height;
 		this.width = width;
@@ -75,10 +78,10 @@ class SvgFont extends SvgObject implements GdiFont {
 		this.quality = quality;
 		this.pitchAndFamily = pitchAndFamily;
 		this.faceName = GdiUtils.convertString(faceName, charset);
-		
+
 		// xml:lang
 		this.lang = GdiUtils.getLanguage(charset);
-		
+
 		String emheight = gdi.getProperty("font-emheight." + this.faceName);
 		if (emheight == null) {
 			String alter = gdi.getProperty("alternative-font." + this.faceName);
@@ -86,64 +89,64 @@ class SvgFont extends SvgObject implements GdiFont {
 				emheight = gdi.getProperty("font-emheight." + alter);
 			}
 		}
-		
+
 		if (emheight != null) {
 			this.heightMultiply = Double.parseDouble(emheight);
 		}
 	}
-	
+
 	public int getHeight() {
 		return height;
 	}
-	
+
 	public int getWidth() {
 		return width;
 	}
-	
+
 	public int getEscapement() {
 		return escapement;
 	}
-	
+
 	public int getOrientation() {
 		return orientation;
 	}
-	
+
 	public int getWeight() {
 		return weight;
 	}
-	
+
 	public boolean isItalic() {
 		return italic;
 	}
-	
+
 	public boolean isUnderlined() {
 		return underline;
 	}
-	
+
 	public boolean isStrikedOut() {
 		return strikeout;
 	}
-	
+
 	public int getCharset() {
 		return charset;
 	}
-	
+
 	public int getOutPrecision() {
 		return outPrecision;
 	}
-	
+
 	public int getClipPrecision() {
 		return clipPrecision;
 	}
-	
+
 	public int getQuality() {
 		return quality;
 	}
-	
+
 	public int getPitchAndFamily() {
 		return pitchAndFamily;
 	}
-	
+
 	public String getFaceName() {
 		return faceName;
 	}
@@ -189,7 +192,7 @@ class SvgFont extends SvgObject implements GdiFont {
 
 		return ndx;
 	}
-	
+
 	public int getFontSize() {
 		return Math.abs((int)getGDI().getDC().toRelativeY(height * heightMultiply));
 	}
@@ -255,11 +258,11 @@ class SvgFont extends SvgObject implements GdiFont {
 			return false;
 		return true;
 	}
-	
+
 	public Text createTextNode(String id) {
 		return getGDI().getDocument().createTextNode("." + id + " { " + toString() + " }\n");
 	}
-	
+
 	public String toString() {
 		StringBuffer buffer = new StringBuffer();
 
@@ -284,12 +287,12 @@ class SvgFont extends SvgObject implements GdiFont {
 				buffer.append("font-weight: " + weight + "; ");
 			}
 		}
-		
+
 		int fontSize = getFontSize();
 		if (fontSize != 0) buffer.append("font-size: ").append(fontSize).append("px; ");
 
 		// font-family
-		List fontList = new ArrayList();
+		List<String> fontList = new ArrayList<String>();
 		if (faceName.length() != 0) {
 			String fontFamily = faceName;
 			if (faceName.charAt(0) == '@') fontFamily = faceName.substring(1);
@@ -300,7 +303,7 @@ class SvgFont extends SvgObject implements GdiFont {
 				fontList.add(altfont);
 			}
 		}
-		
+
 		// int pitch = pitchAndFamily & 0x00000003;
 		int family = pitchAndFamily & 0x000000F0;
 		switch (family) {
@@ -320,7 +323,7 @@ class SvgFont extends SvgObject implements GdiFont {
 				fontList.add("sans-serif");
 				break;
 		}
-		
+
 		if (!fontList.isEmpty()) {
 			buffer.append("font-family:");
 			boolean isVertical = false;
@@ -350,8 +353,8 @@ class SvgFont extends SvgObject implements GdiFont {
 			}
 			buffer.append("; ");
 		}
-		
+
 		if (buffer.length() > 0) buffer.setLength(buffer.length()-1);
 		return buffer.toString();
-	}	
+	}
 }

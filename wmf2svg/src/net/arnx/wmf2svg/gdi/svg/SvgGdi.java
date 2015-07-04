@@ -33,6 +33,11 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiFont;
@@ -46,11 +51,6 @@ import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.util.Base64;
 import net.arnx.wmf2svg.util.ImageUtil;
-
-import org.w3c.dom.DOMImplementation;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 
 /**
  * @author Hidekatsu Izuno
@@ -67,7 +67,7 @@ public class SvgGdi implements Gdi {
 
 	private SvgDc dc;
 
-	private LinkedList saveDC = new LinkedList();
+	private LinkedList<SvgDc> saveDC = new LinkedList<SvgDc>();
 
 	private Document doc = null;
 
@@ -91,7 +91,7 @@ public class SvgGdi implements Gdi {
 
 	private int maskNo = 0;
 
-	private Map nameMap = new HashMap();
+	private Map<GdiObject, String> nameMap = new HashMap<GdiObject, String>();
 
 	private StringBuffer buffer = new StringBuffer();
 
@@ -1049,7 +1049,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void seveDC() {
-		saveDC.add(dc.clone());
+		saveDC.add((SvgDc)dc.clone());
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {

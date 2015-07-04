@@ -7,7 +7,7 @@
 	<artifactId>wmf2svg</artifactId>
 	<packaging>jar</packaging>
 	<name>wmf2svg</name>
-	<version>0.9.7</version>
+	<version>0.9.8</version>
 	<description>WMF to SVG Converting Tool &amp; Library</description>
 	<url>http://wmf2svg.sourceforge.jp/</url>
 	<licenses>

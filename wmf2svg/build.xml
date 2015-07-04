@@ -2,32 +2,35 @@
 
 <project name="wmf2svg" default="dist"
 	xmlns:artifact="antlib:org.apache.maven.artifact.ant">
-	
+
 	<xmlproperty file="pom.xml"/>
-	
+
 	<property name="tmp" location="${java.io.tmpdir}/${ant.project.name}" />
+	<property name="javac.bootclasspath" location="C:/Program Files/Java/jdk1.6.0_45/jre/lib/rt.jar" />
 	<property name="src" location="src" />
 	<property name="build" location="build" />
 	<property name="dist" location="." />
-	
+
 	<property name="maven-staging-repository-id" value="sonatype-nexus-staging" />
 	<property name="maven-staging-repository-url" value="https://oss.sonatype.org/service/local/staging/deploy/maven2" />
-	
+
 	<typedef uri="antlib:org.apache.maven.artifact.ant"
 		resource="org/apache/maven/artifact/ant/antlib.xml"
 		classpath="lib/maven-ant-tasks-2.1.3.jar" />
-		
+
 	<path id="compile.path">
 		<fileset dir="lib" includes="*.jar" />
 	</path>
-		
+
 	<target name="dist" description="generate the distribution">
 		<tstamp />
-		
+
 		<delete dir="${tmp}" />
 		<mkdir dir="${tmp}/build" />
-		<javac source="1.4" target="1.4" srcdir="${src}" destdir="${tmp}/build" includeantruntime="false" debug="true">
+		<javac source="1.6" target="1.6" srcdir="${src}" destdir="${tmp}/build" includeantruntime="false" debug="true">
+			<compilerarg value="-Xlint:unchecked"/>
 			<classpath refid="compile.path"/>
+			<bootclasspath location="${javac.bootclasspath}" />
 		</javac>
 		<jar destfile="${tmp}/${project.name}-${project.version}.jar">
 			<manifest>
@@ -48,7 +51,7 @@
 		</javadoc>
 		<jar destfile="${tmp}/${project.name}-${project.version}-javadoc.jar">
 			<fileset dir="${tmp}/javadoc" />
-		</jar>		
+		</jar>
 		<delete dir="${tmp}/javadoc" />
 		<zip destfile="${dist}/${project.name}-${project.version}.zip" encoding="Windows-31J">
 			<fileset dir="${tmp}" />
@@ -56,24 +59,24 @@
 			<file name="LICENSE.txt"/>
 			<file name="pom.xml"/>
 		</zip>
-		
+
 		<delete dir="${tmp}" failonerror="off" />
 	</target>
-	
+
 	<target name="release">
 		<delete dir="${tmp}" />
 		<mkdir dir="${tmp}" />
-		
+
 		<unzip src="${dist}/${project.name}-${project.version}.zip" dest="${tmp}">
 			<patternset>
 				<include name="*.jar" />
 			</patternset>
 		</unzip>
-		
+
 		<property name="binaries-jar" value="${tmp}/${project.name}-${project.version}.jar" />
 		<property name="javadoc-jar" value="${tmp}/${project.name}-${project.version}-javadoc.jar" />
 		<property name="sources-jar" value="${tmp}/${project.name}-${project.version}-sources.jar" />
-		
+
 		<!-- sign and deploy the main artifact -->
 		<artifact:mvn>
 			<arg value="org.apache.maven.plugins:maven-gpg-plugin:1.3:sign-and-deploy-file" />
@@ -105,7 +108,7 @@
 			<arg value="-Dclassifier=javadoc" />
 			<arg value="-Pgpg" />
 		</artifact:mvn>
-		
+
 		<delete dir="${tmp}" failonerror="off" />
 	</target>
 </project>

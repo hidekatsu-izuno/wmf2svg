@@ -21,8 +21,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 	private byte[] placeableHeader;
 	private byte[] header;
 
-	private List objects = new ArrayList();
-	private List records = new ArrayList();
+	private List<GdiObject> objects = new ArrayList<GdiObject>();
+	private List<byte[]> records = new ArrayList<byte[]>();
 
 	public WmfGdi() {
 	}

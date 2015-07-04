@@ -17,9 +17,12 @@ public class MainTest {
 			}
 		});
 
+		File outdir = new File(System.getProperty("user.home"), "wmf2svg");
+		outdir.mkdirs();
+
 		for (int i = 0; i < files.length; i++) {
 			String wmf = files[i].getAbsolutePath();
-			String svg = wmf.substring(0, wmf.length() - 4) + ".svg";
+			String svg = new File(outdir, files[i].getName().substring(0, files[i].getName().length() - 4) + ".svg").getAbsolutePath();
 			System.out.println(wmf + " transforming...");
 			Main.main(new String[] {"-debug", "-replace-symbol-font", wmf, svg});
 		}

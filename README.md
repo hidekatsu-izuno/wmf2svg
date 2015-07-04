@@ -16,6 +16,13 @@ If you need to compress by gzip, you should use .svgz suffix as svg filename.
 
 It now requires Java 6.0 or later.
 
+## Maven repository
+
+```xml
+<groupId>net.arnx</groupId>
+<artifactId>wmf2svg</artifactId>
+```
+
 ## History
 
 - 2015-07-04: wmf2svg now requires Java 6.0 or later.

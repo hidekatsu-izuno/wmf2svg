@@ -12,7 +12,7 @@ public class MainTest extends TestCase {
 	public void testMain() {
 		System.setProperty("java.util.logging.config.file", "./logging.properties");
 
-		File dir = new File(System.getProperty("user.home"), "My Documents/wmf2svg");
+		File dir = new File(System.getProperty("user.home"), "home/wmf2svg");
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File file) {
 				return file.getName().toLowerCase().endsWith(".wmf");

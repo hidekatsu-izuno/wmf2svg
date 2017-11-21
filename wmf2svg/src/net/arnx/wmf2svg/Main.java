@@ -22,7 +22,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.logging.Logger;
 import java.util.zip.GZIPOutputStream;
-
+import com.google.typography.font.sfntly.FontFactory;
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.svg.*;
 import net.arnx.wmf2svg.gdi.wmf.*;
@@ -34,29 +34,50 @@ public class Main {
 	private static Logger log = Logger.getLogger(Main.class.getName());
 
 	public static void main(String[] args) {
+		FontFactory factory = FontFactory.getInstance();
+		factory.fingerprintFont();
 		String src = null;
 		String dest = null;
-
+		String fontsRegEntryPath = null;
 		boolean debug = false;
 		boolean compatible = false;
 		boolean replaceSymbolFont = false;
 
 		for (int i = 0; i < args.length; i++) {
-			if (args[i].startsWith("-")) {
-				if (args[i].equals("-debug")) {
+			if (args[i].startsWith("-"))
+			{
+				if (args[i].equals("-debug"))
+				{
 					debug = true;
-				} else if (args[i].equals("-compatible")) {
+				}
+				else if (args[i].equals("-compatible"))
+				{
 					compatible = true;
-				} else if (args[i].equals("-replace-symbol-font")) {
+				}
+				else if (args[i].equals("-replace-symbol-font"))
+				{
 					replaceSymbolFont = true;
-				} else {
+				}
+				else
+				{
 					usage();
 					return;
 				}
-			} else if (i == args.length-2) {
-				src = args[i];
-			} else if (i == args.length-1) {
-				dest = args[i];
+			}
+			else
+			{
+				if(i == args.length-3)
+				{
+					fontsRegEntryPath = args[i];
+				}
+				else if (i == args.length-2)
+				{
+				        src = args[i];
+				}
+				else if (i == args.length-1)
+				{
+				        dest = args[i];
+				}
 			}
 		}
 
@@ -68,7 +89,11 @@ public class Main {
 		try {
 			InputStream in = new FileInputStream(src);
 			WmfParser parser = new WmfParser();
-			final SvgGdi gdi = new SvgGdi(compatible);
+			final SvgGdi gdi;
+			if(null == fontsRegEntryPath)
+				gdi = new SvgGdi(compatible);
+			else
+				gdi = new SvgGdi(compatible, fontsRegEntryPath);
 			gdi.setReplaceSymbolFont(replaceSymbolFont);
 			if (debug) {
 				ClassLoader cl = gdi.getClass().getClassLoader();

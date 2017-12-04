@@ -194,7 +194,7 @@ class SvgFont extends SvgObject implements GdiFont {
 	}
 
 	public int getFontSize() {
-		return Math.abs((int)getGDI().getDC().toRelativeY(height * heightMultiply));
+		return Math.abs((int)getGDI().getDC().toRelativeY(height /* * heightMultiply*/));
 	}
 
 	public int hashCode() {

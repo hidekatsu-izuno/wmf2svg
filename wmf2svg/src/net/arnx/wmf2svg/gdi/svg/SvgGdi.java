@@ -15,9 +15,15 @@
  */
 package net.arnx.wmf2svg.gdi.svg;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -37,6 +43,11 @@ import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import com.google.typography.font.sfntly.Font;
+import com.google.typography.font.sfntly.FontFactory;
+import com.google.typography.font.sfntly.table.core.CMap;
+import com.google.typography.font.sfntly.table.core.CMapTable;
+import com.google.typography.font.sfntly.table.truetype.GlyphTable;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
@@ -101,6 +112,10 @@ public class SvgGdi implements Gdi {
 
 	private SvgFont defaultFont;
 
+	private int maxWidth;
+	private int maxHeight;
+	private String fontsRegEntryPath;
+	private HashMap<String, String> fontMap;
 	public SvgGdi() throws SvgGdiException {
 		this(false);
 	}
@@ -108,6 +123,63 @@ public class SvgGdi implements Gdi {
 	public SvgGdi(boolean compatible) throws SvgGdiException {
 		this.compatible = compatible;
 
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+		DocumentBuilder builder = null;
+		try {
+			builder = factory.newDocumentBuilder();
+		} catch (ParserConfigurationException e) {
+			throw new SvgGdiException(e);
+		}
+
+		DOMImplementation dom = builder.getDOMImplementation();
+		doc = dom.createDocument("http://www.w3.org/2000/svg", "svg", null);
+
+		InputStream in = null;
+		try {
+			in = getClass().getResourceAsStream("SvgGdi.properties");
+			props.load(in);
+		} catch (Exception e) {
+			throw new SvgGdiException("properties format error: SvgGDI.properties");
+		} finally {
+			try {
+				if (in != null) in.close();
+			} catch (IOException e) {
+				// no handle
+			}
+		}
+	}
+
+	public SvgGdi(boolean compatible, String fontsRegEntry) throws SvgGdiException {
+		this.compatible = compatible;
+		this.fontsRegEntryPath = fontsRegEntry;
+		this.fontMap = new HashMap<String, String>();
+		try
+		{
+			BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(this.fontsRegEntryPath), "UTF-16"));
+			String line;
+			while((line = reader.readLine()) != null)
+			{
+				String[] parts = line.split("=");
+				if(parts.length == 2)
+				{
+					String val = parts[1].substring(1, parts[1].length() -1);
+					if(val.endsWith(".ttf"))
+					{
+						String key = parts[0].substring(1, parts[0].length() -1);
+						int idxOfOpenBracket = key.indexOf("(");
+						key = key.substring(0, idxOfOpenBracket - 1);
+						//System.out.println(key + val + " " + idxOfOpenBracket);
+						this.fontMap.put(key, val);
+					}
+
+				}
+			}	//end while
+			reader.close();
+		}
+		catch (Exception e) {
+			// TODO: handle exception
+			System.out.println("Exception caught while reading fonts file: " + this.fontsRegEntryPath + "  " + e);
+		}
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		DocumentBuilder builder = null;
 		try {
@@ -704,13 +776,61 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("clip-path", "url(#" + name + ")");
 		}
 
-		String str = null;
-		if (dc.getFont() != null) {
-			str = GdiUtils.convertString(text, dc.getFont().getCharset());
-		} else {
-			str = GdiUtils.convertString(text, GdiFont.DEFAULT_CHARSET);
+		String str = "";
+		String regfilepath = fontsRegEntryPath;
+		if(regfilepath != null  && regfilepath != "")
+		{
+			String windowsDir = System.getenv("WINDIR");
+			File winFontDir = new File(windowsDir, "Fonts");
+			String winFontsPath = winFontDir.getAbsolutePath();
+			//System.out.println(winFontsPath);
+			String fontFileName = "";
+			try {
+				fontFileName = fontMap.get(dc.getFont().getFaceName());
+				//System.out.println(fontFileName);
+				if(fontFileName != "")
+				{
+					java.nio.file.Path path = Paths.get(winFontsPath+"\\"+ fontFileName);
+					byte[] fontFileData = Files.readAllBytes(path);
+					FontFactory fontFactory = FontFactory.getInstance();
+					Font[] fontArray = null;
+					fontArray = fontFactory.loadFonts(fontFileData);
+					Font font = fontArray[0];
+					CMapTable cMapTable = font.getTable(com.google.typography.font.sfntly.Tag.cmap);
+					GlyphTable glyfTable = font.getTable(com.google.typography.font.sfntly.Tag.glyf);
+					CMap cmap = cMapTable.cmap(3, 0);
+					if(null != cmap)
+					{
+						for (int mt=0; mt < text.length; mt++)
+						{
+							int code = text[mt];
+							if(code < 0)
+								code = 127 + (code - (-129));
+							code = 0xf000 | code;
+							str += Character.toString((char)code);
+
+						}
+					}
+					else
+					{
+						//System.out.println("cmap does not exist");
+					}
+				}
+			}
+			catch (Exception e) {
+				// TODO: handle exception
+				System.out.println("exception caught : " + e);
+			}
 		}
 
+		if(str.isEmpty())
+		{
+			if (dc.getFont() != null) {
+				str = GdiUtils.convertString(text, dc.getFont().getCharset());
+			} else {
+				str = GdiUtils.convertString(text, GdiFont.DEFAULT_CHARSET);
+			}
+		}
 		if (dc.getFont() != null && dc.getFont().getLang() != null) {
 			elem.setAttribute("xml:lang", dc.getFont().getLang());
 		}
@@ -1187,6 +1307,12 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void setWindowExtEx(int width, int height, Size old) {
+		if (width > maxWidth) {
+			maxWidth = width;
+		}
+		if (height > maxHeight) {
+			maxHeight = height;
+		}
 		dc.setWindowExtEx(width, height, old);
 	}
 
@@ -1265,7 +1391,52 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("transform", "rotate(" + (-escapement/10.0) + ", " + ax + ", " + ay + ")");
 		}
 
-		String str = null;
+		String str = "";
+		String regfilepath = fontsRegEntryPath;
+		if(regfilepath != null  && regfilepath != "")
+		{
+			String windowsDir = System.getenv("WINDIR");
+			File winFontDir = new File(windowsDir, "Fonts");
+			String winFontsPath = winFontDir.getAbsolutePath();
+			//System.out.println(winFontsPath);
+			String fontFileName = "";
+			try {
+				fontFileName = fontMap.get(dc.getFont().getFaceName());
+				//System.out.println(fontFileName);
+				if(fontFileName != "")
+				{
+					java.nio.file.Path path = Paths.get(winFontsPath+"\\"+ fontFileName);
+					byte[] fontFileData = Files.readAllBytes(path);
+					FontFactory fontFactory = FontFactory.getInstance();
+					Font[] fontArray = null;
+					fontArray = fontFactory.loadFonts(fontFileData);
+					Font font = fontArray[0];
+					CMapTable cMapTable = font.getTable(com.google.typography.font.sfntly.Tag.cmap);
+					GlyphTable glyfTable = font.getTable(com.google.typography.font.sfntly.Tag.glyf);
+					CMap cmap = cMapTable.cmap(3, 0);
+					if(null != cmap)
+					{
+						for (int mt=0; mt < text.length; mt++)
+						{
+							int code = text[mt];
+							if(code < 0)
+								code = 127 + (code - (-129));
+							code = 0xf000 | code;
+							str += Character.toString((char)code);
+
+						}
+					}
+					else
+					{
+						//System.out.println("cmap does not exist");
+					}
+				}
+			}
+			catch (Exception e) {
+				// TODO: handle exception
+				System.out.println("exception caught : " + e);
+			}
+		}
 		if (dc.getFont() != null) {
 			str = GdiUtils.convertString(text, dc.getFont().getCharset());
 		} else {
@@ -1295,14 +1466,14 @@ public class SvgGdi implements Gdi {
 
 	public void footer() {
 		Element root = doc.getDocumentElement();
-		if (!root.hasAttribute("width") && dc.getWindowWidth() != 0) {
-			root.setAttribute("width", "" + Math.abs(dc.getWindowWidth()));
+		if (!root.hasAttribute("width") && maxWidth != 0) {
+			root.setAttribute("width", "" + maxWidth);
 		}
-		if (!root.hasAttribute("height") && dc.getWindowHeight() != 0) {
-			root.setAttribute("height", "" + Math.abs(dc.getWindowHeight()));
+		if (!root.hasAttribute("height") && maxHeight != 0) {
+			root.setAttribute("height", "" + maxHeight);
 		}
-		if (dc.getWindowWidth() != 0 && dc.getWindowHeight() != 0) {
-			root.setAttribute("viewBox", "0 0 " + Math.abs(dc.getWindowWidth()) + " " + Math.abs(dc.getWindowHeight()));
+		if (maxWidth != 0 && maxHeight != 0) {
+			root.setAttribute("viewBox", "0 0 " + maxWidth + " " + maxHeight);
 			root.setAttribute("preserveAspectRatio", "none");
 		}
 		root.setAttribute("stroke-linecap", "round");

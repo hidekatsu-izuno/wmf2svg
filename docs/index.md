@@ -7,6 +7,7 @@ This project's goal is to make tool & library for converting wmf to svg.
 ```
 java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
 ```
+
 ## Options
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
@@ -21,6 +22,14 @@ It now requires Java 6.0 or later.
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
+```
+
+## Build
+
+This project uses Apache Ant to build a wmf2svg jar file.
+
+```
+ant [dist]
 ```
 
 ## History

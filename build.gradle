@@ -1,0 +1,111 @@
+apply plugin: 'java-library'
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+group = 'net.arnx'
+archivesBaseName = 'wmf2svg'
+version = '0.9.9'
+
+sourceCompatibility = 1.6
+targetCompatibility = 1.6
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+	testImplementation 'junit:junit:4.12'
+}
+
+sourceSets {
+	main {
+		java {
+			srcDir 'src/main/java'
+			srcDir 'src/stub/java'
+		}
+	}
+}
+
+compileJava {
+	options.encoding = 'UTF-8'
+}
+
+compileTestJava {
+	options.encoding = 'UTF-8'
+}
+
+jar {
+	manifest {
+        attributes 'Main-Class': 'net.arnx.wmf2svg.Main'
+    }
+	exclude("android/")
+	exclude("com/")
+}
+
+javadoc {
+	options {
+		links 'https://docs.oracle.com/javase/6/docs/api/'
+		locale = 'en_US'
+		encoding = 'UTF-8'
+		docEncoding = 'UTF-8'
+		charSet = 'UTF-8'
+		author = true
+	}
+}
+
+task javadocJar(type: Jar) {
+	classifier = 'javadoc'
+	from javadoc
+}
+
+task sourcesJar(type: Jar) {
+	classifier = 'sources'
+	from sourceSets.main.allSource
+}
+
+artifacts {
+	archives javadocJar, sourcesJar
+}
+
+signing {
+	sign configurations.archives
+}
+
+uploadArchives {
+	repositories {
+		mavenDeployer {
+			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+			repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+				authentication(userName: "${sonatypeUsername}", password: "${sonatypePassword}")
+			}
+
+			pom.project {
+				name 'wmf2svg'
+				packaging 'jar'
+				description 'WMF to SVG Converting Tool & Library'
+				url 'http://hidekatsu-izuno.github.io/wmf2svg/'
+
+				scm {
+					url 'https://github.com/hidekatsu-izuno/wmf2svg'
+					connection 'scm:git:git://github.com/hidekatsu-izuno/wmf2svg.git'
+				}
+
+				licenses {
+					license {
+						name 'The Apache Software License, Version 2.0'
+						url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+					}
+				}
+
+				developers {
+					developer {
+						id 'hidekatsu.izuno'
+						name 'Hidekatsu Izuno'
+						email 'hidekatsu.izuno@gmail.com'
+					}
+				}
+			}
+		}
+	}
+}

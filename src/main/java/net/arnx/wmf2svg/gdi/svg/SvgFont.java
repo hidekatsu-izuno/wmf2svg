@@ -72,12 +72,18 @@ class SvgFont extends SvgObject implements GdiFont {
 		this.italic = italic;
 		this.underline = underline;
 		this.strikeout = strikeout;
-		this.charset = charset;
 		this.outPrecision = outPrecision;
 		this.clipPrecision = clipPrecision;
 		this.quality = quality;
 		this.pitchAndFamily = pitchAndFamily;
 		this.faceName = GdiUtils.convertString(faceName, charset);
+
+		String altCharset = gdi.getProperty("font-charset." + this.faceName);
+		if (altCharset != null) {
+			this.charset = Integer.parseInt(altCharset);
+		} else {
+			this.charset = charset;
+		}
 
 		// xml:lang
 		this.lang = GdiUtils.getLanguage(charset);

@@ -4,7 +4,7 @@ apply plugin: 'signing'
 
 group = 'net.arnx'
 archivesBaseName = 'wmf2svg'
-version = '0.9.9'
+version = '0.9.10'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6

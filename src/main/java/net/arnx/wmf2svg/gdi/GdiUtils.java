@@ -28,7 +28,7 @@ public final class GdiUtils {
 		case GdiFont.ANSI_CHARSET:
 			return "Cp1252";
 		case GdiFont.SYMBOL_CHARSET:
-			return "Cp1252";
+			return "ISO-8859-1";
 		case GdiFont.MAC_CHARSET:
 			return "MacRoman";
 		case GdiFont.SHIFTJIS_CHARSET:

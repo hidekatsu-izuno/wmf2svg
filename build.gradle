@@ -1,16 +1,17 @@
-apply plugin: 'java-library'
-apply plugin: 'maven'
-apply plugin: 'signing'
+plugins {
+	id 'java-library'
+	id 'maven-publish'
+	id 'signing'
+}
 
 group = 'net.arnx'
-archivesBaseName = 'wmf2svg'
 version = '0.9.10'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6
 
 repositories {
-    jcenter()
+    mavenCentral()
 }
 
 dependencies {
@@ -44,68 +45,78 @@ jar {
 
 javadoc {
 	options {
-		links 'https://docs.oracle.com/javase/6/docs/api/'
+		links(JavaVersion.current().isJava11Compatible() ? 
+			'https://docs.oracle.com/en/java/javase/11/docs/api' : 
+			'https://docs.oracle.com/javase/8/docs/api/')
 		locale = 'en_US'
 		encoding = 'UTF-8'
 		docEncoding = 'UTF-8'
 		charSet = 'UTF-8'
 		author = true
 	}
-}
-
-task javadocJar(type: Jar) {
-	classifier = 'javadoc'
-	from javadoc
+	options.addBooleanOption('html5', 
+		JavaVersion.current().isJava9Compatible())
 }
 
 task sourcesJar(type: Jar) {
-	classifier = 'sources'
-	from sourceSets.main.allSource
+    classifier 'sources'
+    from sourceSets.main.allSource
 }
 
-artifacts {
-	archives javadocJar, sourcesJar
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier 'javadoc'
+    from javadoc.destinationDir
 }
 
-signing {
-	sign configurations.archives
-}
 
-uploadArchives {
-	repositories {
-		mavenDeployer {
-			beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
 
-			repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-				authentication(userName: "${sonatypeUsername}", password: "${sonatypePassword}")
-			}
+            artifact sourcesJar
+            artifact javadocJar
 
-			pom.project {
-				name 'wmf2svg'
-				packaging 'jar'
-				description 'WMF to SVG Converting Tool & Library'
-				url 'http://hidekatsu-izuno.github.io/wmf2svg/'
-
-				scm {
-					url 'https://github.com/hidekatsu-izuno/wmf2svg'
-					connection 'scm:git:git://github.com/hidekatsu-izuno/wmf2svg.git'
-				}
+			pom {
+				name = 'wmf2svg'
+				description = 'WMF to SVG Converting Tool & Library'
+				url = 'http://hidekatsu-izuno.github.io/wmf2svg/'
 
 				licenses {
 					license {
-						name 'The Apache Software License, Version 2.0'
-						url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+						name = 'The Apache Software License, Version 2.0'
+						url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
 					}
 				}
 
 				developers {
 					developer {
-						id 'hidekatsu.izuno'
-						name 'Hidekatsu Izuno'
-						email 'hidekatsu.izuno@gmail.com'
+						id = 'hidekatsu.izuno'
+						name = 'Hidekatsu Izuno'
+						email = 'hidekatsu.izuno@gmail.com'
 					}
 				}
+
+				scm {
+					url = 'https://github.com/hidekatsu-izuno/wmf2svg'
+					connection = 'scm:git:git://github.com/hidekatsu-izuno/wmf2svg.git'
+					developerConnection = 'scm:git:ssh:git@github.com:hidekatsu-izuno/wmf2svg.git'
+				}
+            }
+		}
+	}
+	
+	repositories {
+		maven {
+			url = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
+			credentials {
+				username = sonatypeUsername
+				password = sonatypePassword
 			}
 		}
 	}
+}
+
+signing {
+	sign publishing.publications.mavenJava
 }

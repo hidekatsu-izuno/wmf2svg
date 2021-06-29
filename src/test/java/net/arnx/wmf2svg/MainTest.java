@@ -10,14 +10,14 @@ public class MainTest {
 	public void testMain() {
 		System.setProperty("java.util.logging.config.file", "./logging.properties");
 
-		File dir = new File(System.getProperty("user.home"), "home/wmf2svg");
+		File dir = new File("./etc/data/src");
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File file) {
 				return file.getName().toLowerCase().endsWith(".wmf");
 			}
 		});
 
-		File outdir = new File(System.getProperty("user.home"), "wmf2svg");
+		File outdir = new File("./etc/data/dst");
 		outdir.mkdirs();
 
 		for (int i = 0; i < files.length; i++) {

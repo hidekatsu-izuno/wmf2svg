@@ -34,6 +34,7 @@ This project uses Gradle to build a wmf2svg jar file.
 
 ## History
 
+- 2021-07-12: Fix a bug about images with palette.
 - 2021-06-30: Fix a bug that occured when using Symbol type fonts.
 - 2018-11-24: Changed to gradle build system.
 - 2015-07-04: wmf2svg now requires Java 6.0 or later.

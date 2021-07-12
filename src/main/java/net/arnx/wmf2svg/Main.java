@@ -99,8 +99,11 @@ public class Main {
 									} else {
 										sb.append("[");
 										for (int j = 0; j < array.length; j++) {
-											if (j > 0) sb.append(", ");
-											sb.append(Integer.toHexString(array[j]));
+											String hex = Integer.toHexString(array[j] & 0xFF);
+											if (hex.length() == 1) {
+												sb.append("0");
+											}
+											sb.append(hex);
 										}
 										sb.append("]");
 									}

@@ -1646,22 +1646,13 @@ public class SvgGdi implements Gdi {
 
 		switch (biBitCount) {
 		case 1:
-			bfOffBits += (0x1L + 1) * 4;
+			bfOffBits += (clrUsed == 0L ? 2 : clrUsed) * 4;
 			break;
 		case 4:
-			bfOffBits += (0xFL + 1) * 4;
+			bfOffBits += (clrUsed == 0L ? 16 : clrUsed) * 4;
 			break;
 		case 8:
-			bfOffBits += (0xFFL + 1) * 4;
-			break;
-		case 16:
-			bfOffBits += (clrUsed == 0L) ? 0 : (0xFFFFL + 1) * 4;
-			break;
-		case 24:
-			bfOffBits += (clrUsed == 0L) ? 0 : (0xFFFFFFL + 1) * 4;
-			break;
-		case 32:
-			bfOffBits += (clrUsed == 0L) ? 0 : (0xFFFFFFFFL + 1) * 4;
+			bfOffBits += (clrUsed == 0L ? 256 : clrUsed) * 4;
 			break;
 		}
 

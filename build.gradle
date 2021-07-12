@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'net.arnx'
-version = '0.9.10'
+version = '0.9.11'
 
 sourceCompatibility = 1.6
 targetCompatibility = 1.6

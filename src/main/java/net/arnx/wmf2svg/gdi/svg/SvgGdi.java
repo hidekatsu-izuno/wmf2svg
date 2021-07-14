@@ -549,7 +549,7 @@ public class SvgGdi implements Gdi {
 			if (dc.getFont() != null) width = Math.abs(dc.getFont().getFontSize());
 		} else {
 			if (dc.getFont() != null) {
-				dx = dc.getFont().validateDx(text, dx);
+				dx = GdiUtils.fixTextDx(dc.getFont().getCharset(), text, dx);
 			}
 
 			if (dx != null && dx.length > 0) {
@@ -586,7 +586,7 @@ public class SvgGdi implements Gdi {
 		int height = 0;
 		if (vertical) {
 			if (dc.getFont() != null) {
-				dx = dc.getFont().validateDx(text, dx);
+				dx = GdiUtils.fixTextDx(dc.getFont().getCharset(), text, dx);
 			}
 
 			buffer.setLength(0);

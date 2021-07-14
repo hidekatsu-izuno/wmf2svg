@@ -161,44 +161,6 @@ class SvgFont extends SvgObject implements GdiFont {
 		return lang;
 	}
 
-	public int[] validateDx(byte[] chars, int[] dx) {
-		if (dx == null || dx.length == 0) {
-			return null;
-		}
-
-		int[][] area = GdiUtils.getFirstByteArea(charset);
-		if (area == null) {
-			return dx;
-		}
-
-		int n = 0;
-		boolean skip = false;
-
-		for (int i = 0; i < chars.length && i < dx.length; i++) {
-			int c = (0xFF & chars[i]);
-
-			if (skip) {
-				dx[n - 1] += dx[i];
-				skip = false;
-				continue;
-			}
-
-			for (int j = 0; j < area.length; j++) {
-				if (area[j][0] <= c && c <= area[j][1]) {
-					skip = true;
-					break;
-				}
-			}
-
-			dx[n++] = dx[i];
-		}
-
-		int[] ndx = new int[n];
-		System.arraycopy(dx, 0, ndx, 0, n);
-
-		return ndx;
-	}
-
 	public int getFontSize() {
 		return Math.abs((int)getGDI().getDC().toRelativeY(height * heightMultiply));
 	}

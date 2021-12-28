@@ -29,11 +29,14 @@ It now requires Java 6.0 or later.
 This project uses Apache Ant to build a wmf2svg jar file.
 
 ```
-ant [dist]
+./gradlew jar
 ```
 
 ## History
 
+- 2021-07-12: Fix a bug about images with palette.
+- 2021-06-30: Fix a bug that occured when using Symbol type fonts.
+- 2018-11-24: Changed to gradle build system.
 - 2015-07-04: wmf2svg now requires Java 6.0 or later.
 - 2014-07-19: Fixed pie method bug.
 - 2014-02-23: Added -replace-symbol-font option.
@@ -50,4 +53,4 @@ ant [dist]
 - 2010-09-11: Some bugs fixed.
 - 2009-05-24: wmf2svg version 0.8.3 is supported on Google App Engine/Java.
 
-Copyright (c) 2007-2015 Hidekatsu Izuno, Shunsuke Mori All right reserved.
+Copyright (c) 2007-2021 Hidekatsu Izuno, Shunsuke Mori All right reserved.

@@ -72,7 +72,7 @@ public class Main {
 			gdi.setReplaceSymbolFont(replaceSymbolFont);
 			if (debug) {
 				ClassLoader cl = gdi.getClass().getClassLoader();
-				Class[] interfaces = new Class[] { Gdi.class };
+				Class<?>[] interfaces = new Class[] { Gdi.class };
 				parser.parse(in, (Gdi)Proxy.newProxyInstance(cl, interfaces, new InvocationHandler() {
 					StringBuffer sb = new StringBuffer(1000);
 

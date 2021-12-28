@@ -50,7 +50,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		if (placeableHeader != null) out.write(placeableHeader);
 		if (header != null) out.write(header);
 
-		Iterator i = records.iterator();
+		Iterator<?> i = records.iterator();
 		while (i.hasNext()) {
 			out.write((byte[])i.next());
 		}
@@ -1034,7 +1034,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		if (header != null) {
 			long size = header.length;
 			long maxRecordSize = 0;
-			Iterator i = records.iterator();
+			Iterator<?> i = records.iterator();
 			while (i.hasNext()) {
 				byte[] record = (byte[])i.next();
 				size += record.length;

@@ -294,7 +294,7 @@ class SvgFont extends SvgObject implements GdiFont {
 
 		if (!fontList.isEmpty()) {
 			buffer.append("font-family:");
-			for (Iterator i = fontList.iterator(); i.hasNext();) {
+			for (Iterator<?> i = fontList.iterator(); i.hasNext();) {
 				String font = (String)i.next();
 				if (font.indexOf(" ") != -1) {
 					buffer.append(" \"" + font + "\"");

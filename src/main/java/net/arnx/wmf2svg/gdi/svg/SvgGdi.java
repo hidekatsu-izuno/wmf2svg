@@ -830,10 +830,34 @@ public class SvgGdi implements Gdi {
 		fillRgn(rgn, dc.getBrush());
 	}
 
-	public void patBlt(int x, int y, int width, int height, long rop) {
-		// TODO
-		log.fine("not implemented: patBlt");
-	}
+        public void patBlt(int x, int y, int width, int height, long rop) {
+                Element elem = doc.createElement("rect");
+
+                SvgBrush brush = dc.getBrush();
+                if (brush != null) {
+                        elem.setAttribute("class", getClassString(brush));
+                        if (brush.getStyle() == GdiBrush.BS_HATCHED) {
+                                String id = "pattern" + (patternNo++);
+                                elem.setAttribute("fill", "url(#" + id + ")");
+                                defsNode.appendChild(brush.createFillPattern(id));
+                        }
+                } else {
+                        elem.setAttribute("fill", "none");
+                }
+
+                elem.setAttribute("stroke", "none");
+                elem.setAttribute("x", "" + (int) dc.toAbsoluteX(x));
+                elem.setAttribute("y", "" + (int) dc.toAbsoluteY(y));
+                elem.setAttribute("width", "" + (int) dc.toRelativeX(width));
+                elem.setAttribute("height", "" + (int) dc.toRelativeY(height));
+
+                String ropFilter = dc.getRopFilter(rop);
+                if (ropFilter != null) {
+                        elem.setAttribute("filter", ropFilter);
+                }
+
+                parentNode.appendChild(elem);
+        }
 
 	public void pie(int sxr, int syr, int exr, int eyr, int sxa, int sya,
 			int exa, int eya) {

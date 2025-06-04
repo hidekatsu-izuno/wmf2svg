@@ -167,14 +167,19 @@ public class DataInput {
 		throw new EOFException();
 	}
 
-	public byte[] readBytes(int n) throws IOException, EOFException {
-		byte[] array = new byte[n];
-		if (in.read(array) == n) {
-			count += n;
-			return array;
-		}
-		throw new EOFException();
-	}
+       public byte[] readBytes(int n) throws IOException, EOFException {
+               byte[] array = new byte[n];
+               int offset = 0;
+               while (offset < n) {
+                       int r = in.read(array, offset, n - offset);
+                       if (r == -1) {
+                               throw new EOFException();
+                       }
+                       offset += r;
+               }
+               count += n;
+               return array;
+       }
 
 	public void setCount(int count) {
 		this.count = count;

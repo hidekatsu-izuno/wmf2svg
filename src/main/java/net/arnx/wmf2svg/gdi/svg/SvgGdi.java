@@ -752,10 +752,28 @@ public class SvgGdi implements Gdi {
 		log.fine("not implemented: floodFill");
 	}
 
-	public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
-		// TODO
-		log.fine("not implemented: frameRgn");
-	}
+        public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
+                if (rgn == null) return;
+
+                Element elem = doc.createElement("use");
+                elem.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+
+                if (brush != null && brush.getStyle() != GdiBrush.BS_HOLLOW
+                                && brush.getStyle() != GdiBrush.BS_NULL) {
+                        elem.setAttribute("fill", "none");
+                        elem.setAttribute("stroke",
+                                        SvgObject.toColor(((SvgBrush) brush).getColor()));
+                        double sw = Math.max(Math.abs(dc.toRelativeX(width)),
+                                        Math.abs(dc.toRelativeY(height)));
+                        if (sw <= 0) sw = 1;
+                        elem.setAttribute("stroke-width", Integer.toString((int) sw));
+                } else {
+                        elem.setAttribute("fill", "none");
+                        elem.setAttribute("stroke", "none");
+                }
+
+                parentNode.appendChild(elem);
+        }
 
 	public void intersectClipRect(int left, int top, int right, int bottom) {
 		// TODO

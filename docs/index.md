@@ -35,13 +35,13 @@ This project uses Apache Ant to build a wmf2svg jar file.
 ## History
 
 - 2021-07-12: Fix a bug about images with palette.
-- 2021-06-30: Fix a bug that occured when using Symbol type fonts.
+- 2021-06-30: Fix a bug that occurred when using Symbol type fonts.
 - 2018-11-24: Changed to gradle build system.
 - 2015-07-04: wmf2svg now requires Java 6.0 or later.
 - 2014-07-19: Fixed pie method bug.
 - 2014-02-23: Added -replace-symbol-font option.
 - 2013-09-29: Fixed a invalid css property.
-- 2012-08-28: Improved arc radious and Fixed negative size image bug.
+- 2012-08-28: Improved arc radius and Fixed negative size image bug.
 - 2012-07-05: Improved arc problem, and fixed TextOut? background position bug.
 - 2012-02-11: Improved arc problem, and fixed font-size bug.
 - 2011-09-28: Fixed restoreDC and cyrillic bug. And add wmf writer function.

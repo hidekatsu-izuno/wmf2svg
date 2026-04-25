@@ -15,7 +15,7 @@ java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
 
 If you need to compress by gzip, you should use .svgz suffix as svg filename.
 
-It now requires Java 6.0 or later.
+It now requires Java 8.0 or later.
 
 ## Maven repository
 
@@ -26,14 +26,15 @@ It now requires Java 6.0 or later.
 
 ## Build
 
-This project uses Gradle to build a wmf2svg jar file.
+This project uses Maven to build a wmf2svg jar file.
 
 ```
-./gradlew jar
+mvn package
 ```
 
 ## History
 
+- 2026-04-26: Migrated to Maven build system.
 - 2021-07-12: Fix a bug about images with palette.
 - 2021-06-30: Fix a bug that occurred when using Symbol type fonts.
 - 2018-11-24: Changed to gradle build system.

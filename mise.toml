@@ -1,0 +1,3 @@
+[tools]
+maven = "3.9.15"
+java = "21"

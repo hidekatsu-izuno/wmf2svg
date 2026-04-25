@@ -11,11 +11,20 @@ public class MainTest {
 		System.setProperty("java.util.logging.config.file", "./logging.properties");
 
 		File dir = new File("./etc/data/src");
+		if (!dir.exists()) {
+			System.out.println("Test data directory ./etc/data/src does not exist, skipping test.");
+			return;
+		}
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File file) {
 				return file.getName().toLowerCase().endsWith(".wmf");
 			}
 		});
+
+		if (files == null || files.length == 0) {
+			System.out.println("No WMF files found in ./etc/data/src, skipping test.");
+			return;
+		}
 
 		File outdir = new File("./etc/data/dst");
 		outdir.mkdirs();

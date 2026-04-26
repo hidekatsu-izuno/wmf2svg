@@ -391,6 +391,18 @@ public class SvgDc implements Cloneable {
 	public Element getMask() {
 		return mask;
 	}
+
+	private Element createRopFilter(Document doc, String name) {
+		Element filter = doc.createElement("filter");
+		filter.setAttribute("id", name);
+		filter.setIdAttribute("id", true);
+		filter.setAttribute("x", "0");
+		filter.setAttribute("y", "0");
+		filter.setAttribute("width", "100%");
+		filter.setAttribute("height", "100%");
+		filter.setAttribute("color-interpolation-filters", "sRGB");
+		return filter;
+	}
 	
 	public String getRopFilter(long rop) {
 		String name = null;
@@ -400,9 +412,7 @@ public class SvgDc implements Cloneable {
 			name = "BLACKNESS_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
@@ -416,9 +426,7 @@ public class SvgDc implements Cloneable {
 			name = "NOTSRCERASE_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
@@ -439,9 +447,7 @@ public class SvgDc implements Cloneable {
 			name = "NOTSRCCOPY_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
@@ -455,9 +461,7 @@ public class SvgDc implements Cloneable {
 			name = "SRCERASE_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
@@ -484,9 +488,7 @@ public class SvgDc implements Cloneable {
 			name = "DSTINVERT_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
@@ -500,9 +502,7 @@ public class SvgDc implements Cloneable {
 			name = "SRCAND_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
@@ -517,9 +517,7 @@ public class SvgDc implements Cloneable {
 			name = "MERGEPAINT_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
@@ -543,9 +541,7 @@ public class SvgDc implements Cloneable {
 			name = "SRCPAINT_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
@@ -565,9 +561,7 @@ public class SvgDc implements Cloneable {
 			name = "WHITENESS_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
-				filter = gdi.getDocument().createElement("filter");
-				filter.setAttribute("id", name);
-				filter.setIdAttribute("id", true);
+				filter = createRopFilter(doc, name);
 				
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");

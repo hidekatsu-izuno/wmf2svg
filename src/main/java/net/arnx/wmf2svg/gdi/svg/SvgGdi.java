@@ -1397,7 +1397,7 @@ public class SvgGdi implements Gdi {
 			root.setAttribute("viewBox", "0 0 " + Math.abs(dc.getWindowWidth()) + " " + Math.abs(dc.getWindowHeight()));
 			root.setAttribute("preserveAspectRatio", "none");
 		}
-		root.setAttribute("stroke-linecap", "round");
+		root.setAttribute("stroke-linecap", "butt");
 		root.setAttribute("fill-rule", "evenodd");
 
 		if (!styleNode.hasChildNodes()) {

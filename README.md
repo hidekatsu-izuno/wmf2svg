@@ -56,3 +56,10 @@ mvn package
 - 2009-05-24: wmf2svg version 0.8.3 is supported on Google App Engine/Java.
 
 Copyright (c) 2007-2021 Hidekatsu Izuno, Shunsuke Mori All right reserved.
+
+<!--
+- mvn verify
+- git tag vX.XX.X && git push origin --tags
+- 取り消す場合: git tag -d vX.XX.X && git push origin :refs/tags/vX.XX.X
+- mvn -Prelease clean deploy
+-->

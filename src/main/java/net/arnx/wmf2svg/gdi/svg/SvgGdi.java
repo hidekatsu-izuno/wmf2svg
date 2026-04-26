@@ -353,6 +353,35 @@ public class SvgGdi implements Gdi {
 		bmpToSvg(image, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.DIB_RGB_COLORS, rop);
 	}
 
+	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, byte[] mask, int mx, int my, long rop) {
+		if (mask != null) {
+			log.fine("unsupported in SVG output: maskBlt mask");
+		}
+		bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
+	}
+
+	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
+			byte[] mask, int mx, int my) {
+		if (points == null || points.length < 3) {
+			return;
+		}
+		if (mask != null) {
+			log.fine("unsupported in SVG output: plgBlt mask");
+		}
+
+		Point upperLeft = points[0];
+		Point upperRight = points[1];
+		Point lowerLeft = points[2];
+		if (upperLeft.y == upperRight.y && upperLeft.x == lowerLeft.x) {
+			stretchBlt(image, upperLeft.x, upperLeft.y,
+					upperRight.x - upperLeft.x, lowerLeft.y - upperLeft.y,
+					sx, sy, sw, sh, Gdi.SRCCOPY);
+		} else {
+			log.fine("unsupported in SVG output: plgBlt transform");
+		}
+	}
+
 	public void chord(int sxr, int syr, int exr, int eyr, int sxa, int sya,
 			int exa, int eya) {
 		double rx = Math.abs(exr - sxr) / 2.0;

@@ -128,6 +128,10 @@ public interface Gdi {
     public void abortPath();
     public void beginPath();
     public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop);
+    public void maskBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, byte[] mask, int mx, int my, long rop);
+    public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
+			byte[] mask, int mx, int my);
     public void chord(int sxr, int syr, int exr, int eyr,
 		      int sxa, int sya, int exa, int eya);
     public void closeFigure();

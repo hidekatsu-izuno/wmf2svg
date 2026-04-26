@@ -163,6 +163,16 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, byte[] mask, int mx, int my, long rop) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
+			byte[] mask, int mx, int my) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void chord(int sxr, int syr, int exr, int eyr, int sxa, int sya, int exa, int eya) {
 		byte[] record = new byte[22];
 		int pos = 0;

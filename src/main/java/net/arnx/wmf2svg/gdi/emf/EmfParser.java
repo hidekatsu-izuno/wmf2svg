@@ -120,6 +120,8 @@ public class EmfParser implements Parser {
 	private static final int EMR_EXTSELECTCLIPRGN = 75;
 	private static final int EMR_BITBLT = 76;
 	private static final int EMR_STRETCHBLT = 77;
+	private static final int EMR_MASKBLT = 78;
+	private static final int EMR_PLGBLT = 79;
 	private static final int EMR_SETDIBITSTODEVICE = 80;
 	private static final int EMR_STRETCHDIBITS = 81;
 	private static final int EMR_EXTCREATEFONTINDIRECTW = 82;
@@ -586,6 +588,12 @@ public class EmfParser implements Parser {
 			case EMR_STRETCHBLT:
 				readStretchBlt(data, transform, gdi);
 				break;
+			case EMR_MASKBLT:
+				readMaskBlt(data, transform, gdi);
+				break;
+			case EMR_PLGBLT:
+				readPlgBlt(data, transform, gdi);
+				break;
 			case EMR_SETDIBITSTODEVICE:
 				readSetDIBitsToDevice(data, transform, gdi);
 				break;
@@ -931,6 +939,49 @@ public class EmfParser implements Parser {
 		gdi.stretchBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
 				readInt32(data, 24), readInt32(data, 28), readInt32(data, 40), readInt32(data, 44),
 				rop);
+	}
+
+	private static void readMaskBlt(byte[] data, double[] transform, Gdi gdi) {
+		if (data.length < 120) {
+			return;
+		}
+
+		int[] rect = transformDestRect(transform, data, 16, 20, 24, 28);
+		long rop = readUInt32(data, 32);
+		byte[] image = readBitmap(data, 76, 80, 84, 88);
+		if (image == null) {
+			if (canPatBltWithoutSource(rop)) {
+				gdi.patBlt(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], rop);
+			}
+			return;
+		}
+
+		gdi.maskBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
+				readInt32(data, 36), readInt32(data, 40),
+				readBitmap(data, 104, 108, 112, 116),
+				readInt32(data, 92), readInt32(data, 96), rop);
+	}
+
+	private static void readPlgBlt(byte[] data, double[] transform, Gdi gdi) {
+		if (data.length < 132) {
+			return;
+		}
+
+		byte[] image = readBitmap(data, 88, 92, 96, 100);
+		if (image == null) {
+			return;
+		}
+
+		Point[] points = new Point[3];
+		int offset = 16;
+		for (int i = 0; i < points.length; i++) {
+			points[i] = transformPoint(transform, readInt32(data, offset), readInt32(data, offset + 4));
+			offset += 8;
+		}
+		gdi.plgBlt(image, points,
+				readInt32(data, 40), readInt32(data, 44), readInt32(data, 48), readInt32(data, 52),
+				readBitmap(data, 116, 120, 124, 128),
+				readInt32(data, 104), readInt32(data, 108));
 	}
 
 	private static boolean canPatBltWithoutSource(long rop) {

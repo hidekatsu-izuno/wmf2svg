@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -29,6 +30,7 @@ import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.imageio.ImageIO;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
@@ -42,6 +44,7 @@ import org.w3c.dom.Node;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
+import net.arnx.wmf2svg.gdi.GdiColorSpace;
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiObject;
 import net.arnx.wmf2svg.gdi.GdiPalette;
@@ -112,6 +115,8 @@ public class SvgGdi implements Gdi {
 	private SvgFont defaultFont;
 
 	private SvgPalette selectedPalette;
+
+	private SvgPath currentPath;
 
 	public SvgGdi() throws SvgGdiException {
 		this(false);
@@ -253,6 +258,21 @@ public class SvgGdi implements Gdi {
 		setPaletteEntries(palette, startIndex, entries);
 	}
 
+	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int blendFunction) {
+		int sourceConstantAlpha = (blendFunction >> 16) & 0xFF;
+		float opacity = sourceConstantAlpha / 255.0f;
+		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, SRCCOPY, opacity, null);
+	}
+
+	public void angleArc(int x, int y, int radius, float startAngle, float sweepAngle) {
+		Point start = circlePoint(x, y, radius, startAngle);
+		Point end = circlePoint(x, y, radius, startAngle + sweepAngle);
+		lineTo(start.x, start.y);
+		arc(x - radius, y - radius, x + radius, y + radius, start.x, start.y, end.x, end.y);
+		dc.moveToEx(end.x, end.y, null);
+	}
+
 	public void arc(int sxr, int syr, int exr, int eyr, int sxa, int sya,
 			int exa, int eya) {
 
@@ -262,6 +282,12 @@ public class SvgGdi implements Gdi {
 
 		double cx = Math.min(sxr, exr) + rx;
 		double cy = Math.min(syr, eyr) + ry;
+		if (currentPath != null) {
+			double ea = Math.atan2((eya - cy) * rx, (exa - cx) * ry);
+			currentPath.lineTo(new Point((int)Math.round(rx * Math.cos(ea) + cx),
+					(int)Math.round(ry * Math.sin(ea) + cy)));
+			return;
+		}
 
 		Element elem = null;
 		if (sxa == exa && sya == eya) {
@@ -291,15 +317,30 @@ public class SvgGdi implements Gdi {
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " 0"
+					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy));
 		}
 
 		if (dc.getPen() != null) {
 			elem.setAttribute("class", getClassString(dc.getPen()));
+			setMiterLimit(elem);
 		}
 		elem.setAttribute("fill", "none");
 		parentNode.appendChild(elem);
+	}
+
+	public void arcTo(int sxr, int syr, int exr, int eyr, int sxa, int sya,
+			int exa, int eya) {
+		arc(sxr, syr, exr, eyr, sxa, sya, exa, eya);
+		dc.moveToEx(exa, eya, null);
+	}
+
+	public void abortPath() {
+		currentPath = null;
+	}
+
+	public void beginPath() {
+		currentPath = new SvgPath();
 	}
 
 	public void bitBlt(byte[] image, int dx, int dy, int dw, int dh,
@@ -344,12 +385,13 @@ public class SvgGdi implements Gdi {
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " 0"
+					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
 			elem.setAttribute("class", getClassString(dc.getPen(), dc.getBrush()));
+			setMiterLimit(elem);
 			if (dc.getBrush() != null
 					&& dc.getBrush().getStyle() == GdiBrush.BS_HATCHED) {
 				String id = "pattern" + (patternNo++);
@@ -361,6 +403,12 @@ public class SvgGdi implements Gdi {
 		parentNode.appendChild(elem);
 	}
 
+	public void closeFigure() {
+		if (currentPath != null) {
+			currentPath.close();
+		}
+	}
+
 	public GdiBrush createBrushIndirect(int style, int color, int hatch) {
 		SvgBrush brush = new SvgBrush(this, style, color, hatch);
 		if (!nameMap.containsKey(brush)) {
@@ -369,6 +417,10 @@ public class SvgGdi implements Gdi {
 			styleNode.appendChild(brush.createTextNode(name));
 		}
 		return brush;
+	}
+
+	public GdiColorSpace createColorSpace(byte[] logColorSpace) {
+		return new SvgColorSpace(this, logColorSpace);
 	}
 
 	public GdiFont createFontIndirect(int height, int width, int escapement,
@@ -413,6 +465,13 @@ public class SvgGdi implements Gdi {
 		return rgn;
 	}
 
+	public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData) {
+		SvgRegion rgn = new SvgComplexRegion(this, xform, rgnData, count);
+		nameMap.put(rgn, "rgn" + (rgnNo++));
+		defsNode.appendChild(rgn.createElement());
+		return rgn;
+	}
+
 	public void deleteObject(GdiObject obj) {
 		if (dc.getBrush() == obj) {
 			dc.setBrush(defaultBrush);
@@ -420,7 +479,16 @@ public class SvgGdi implements Gdi {
 			dc.setFont(defaultFont);
 		} else if (dc.getPen() == obj) {
 			dc.setPen(defaultPen);
+		} else if (dc.getColorSpace() == obj) {
+			dc.setColorSpace(null);
 		}
+	}
+
+	public boolean deleteColorSpace(GdiColorSpace colorSpace) {
+		if (dc.getColorSpace() == colorSpace) {
+			dc.setColorSpace(null);
+		}
+		return colorSpace instanceof SvgColorSpace;
 	}
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh,
@@ -439,6 +507,15 @@ public class SvgGdi implements Gdi {
     }
 
 	public void ellipse(int sx, int sy, int ex, int ey) {
+		if (currentPath != null) {
+			currentPath.addClosedPolyline(new Point[] {
+					new Point(sx, sy),
+					new Point(ex, sy),
+					new Point(ex, ey),
+					new Point(sx, ey) });
+			return;
+		}
+
 		Element elem = doc.createElement("ellipse");
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -457,6 +534,9 @@ public class SvgGdi implements Gdi {
 		elem.setAttribute("rx", "" + (int)dc.toRelativeX((ex - sx) / 2));
 		elem.setAttribute("ry", "" + (int)dc.toRelativeY((ey - sy) / 2));
 		parentNode.appendChild(elem);
+	}
+
+	public void endPath() {
 	}
 
 	public void escape(byte[] data) {
@@ -839,15 +919,21 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
-		if (!(rgn instanceof SvgRectRegion) || !(brush instanceof SvgBrush)) return;
+		if (!(rgn instanceof SvgRegion) || !(brush instanceof SvgBrush)) return;
 
-		SvgRectRegion rectRgn = (SvgRectRegion)rgn;
 		SvgBrush sbrush = (SvgBrush)brush;
-		Element elem = doc.createElement("rect");
-		elem.setAttribute("x", "" + (int)dc.toAbsoluteX(rectRgn.getLeft()));
-		elem.setAttribute("y", "" + (int)dc.toAbsoluteY(rectRgn.getTop()));
-		elem.setAttribute("width", "" + (int)dc.toRelativeX(rectRgn.getRight() - rectRgn.getLeft()));
-		elem.setAttribute("height", "" + (int)dc.toRelativeY(rectRgn.getBottom() - rectRgn.getTop()));
+		Element elem;
+		if (rgn instanceof SvgRectRegion) {
+			SvgRectRegion rectRgn = (SvgRectRegion)rgn;
+			elem = doc.createElement("rect");
+			elem.setAttribute("x", "" + (int)dc.toAbsoluteX(rectRgn.getLeft()));
+			elem.setAttribute("y", "" + (int)dc.toAbsoluteY(rectRgn.getTop()));
+			elem.setAttribute("width", "" + (int)dc.toRelativeX(rectRgn.getRight() - rectRgn.getLeft()));
+			elem.setAttribute("height", "" + (int)dc.toRelativeY(rectRgn.getBottom() - rectRgn.getTop()));
+		} else {
+			elem = doc.createElement("use");
+			elem.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+		}
 		elem.setAttribute("fill", "none");
 		elem.setAttribute("stroke", SvgObject.toColor(sbrush.getColor()));
 		elem.setAttribute("stroke-width", "" + Math.max(
@@ -884,6 +970,12 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void lineTo(int ex, int ey) {
+		if (currentPath != null) {
+			currentPath.lineTo(new Point(ex, ey));
+			dc.moveToEx(ex, ey, null);
+			return;
+		}
+
 		Element elem = doc.createElement("line");
 		if (dc.getPen() != null) {
 			elem.setAttribute("class", getClassString(dc.getPen()));
@@ -901,6 +993,9 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void moveToEx(int x, int y, Point old) {
+		if (currentPath != null) {
+			currentPath.moveTo(new Point(x, y));
+		}
 		dc.moveToEx(x, y, old);
 	}
 
@@ -1000,13 +1095,14 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(cx) + "," + dc.toAbsoluteY(cy)
 					+ " L " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " 0"
+					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
 			elem.setAttribute("class", getClassString(dc.getPen(), dc
 					.getBrush()));
+			setMiterLimit(elem);
 			if (dc.getBrush() != null
 					&& dc.getBrush().getStyle() == GdiBrush.BS_HATCHED) {
 				String id = "pattern" + (patternNo++);
@@ -1017,7 +1113,28 @@ public class SvgGdi implements Gdi {
 		parentNode.appendChild(elem);
 	}
 
+	public void polyBezier(Point[] points) {
+		if (currentPath != null) {
+			currentPath.addPolyBezier(points);
+			return;
+		}
+		appendBezier(points, false);
+	}
+
+	public void polyBezierTo(Point[] points) {
+		if (currentPath != null) {
+			currentPath.addPolyBezierTo(points);
+			return;
+		}
+		appendBezier(points, true);
+	}
+
 	public void polygon(Point[] points) {
+		if (currentPath != null) {
+			currentPath.addClosedPolyline(points);
+			return;
+		}
+
 		Element elem = doc.createElement("polygon");
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -1048,6 +1165,11 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void polyline(Point[] points) {
+		if (currentPath != null) {
+			currentPath.addPolyline(points);
+			return;
+		}
+
 		String normalizedPointsValue = toSvgPoints(points, true);
 		if (pendingOutlineOnlyPolygon != null
 				&& parentNode.getLastChild() == pendingOutlineOnlyPolygon
@@ -1075,6 +1197,13 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void polyPolygon(Point[][] points) {
+		if (currentPath != null) {
+			for (int i = 0; i < points.length; i++) {
+				currentPath.addClosedPolyline(points[i]);
+			}
+			return;
+		}
+
 		Element elem = doc.createElement("path");
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -1113,6 +1242,25 @@ public class SvgGdi implements Gdi {
 		parentNode.appendChild(elem);
 	}
 
+	public void fillPath() {
+		appendPath(currentPath, false, true);
+		currentPath = null;
+	}
+
+	public void flattenPath() {
+		// SVG can render cubic Bezier path commands directly.
+	}
+
+	public void strokePath() {
+		appendPath(currentPath, true, false);
+		currentPath = null;
+	}
+
+	public void strokeAndFillPath() {
+		appendPath(currentPath, true, true);
+		currentPath = null;
+	}
+
 	public void realizePalette() {
 		// Palette realization has no direct SVG equivalent. Palette entries are
 		// applied when DIB images are converted.
@@ -1136,6 +1284,15 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void rectangle(int sx, int sy, int ex, int ey) {
+		if (currentPath != null) {
+			currentPath.addClosedPolyline(new Point[] {
+					new Point(sx, sy),
+					new Point(ex, sy),
+					new Point(ex, ey),
+					new Point(sx, ey) });
+			return;
+		}
+
 		Element elem = doc.createElement("rect");
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -1161,6 +1318,11 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh) {
+		if (currentPath != null) {
+			rectangle(sx, sy, ex, ey);
+			return;
+		}
+
 		Element elem = doc.createElement("rect");
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -1216,14 +1378,14 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
-	public void selectClipPath(Point[][] points) {
-		if (points == null || points.length == 0) {
+	public void selectClipPath(int mode) {
+		if (currentPath == null || currentPath.isEmpty()) {
 			return;
 		}
 
 		Element mask = createMask();
 		Element clip = doc.createElement("path");
-		clip.setAttribute("d", toSvgPath(points));
+		clip.setAttribute("d", toSvgPath(currentPath));
 		clip.setAttribute("fill", "white");
 		if (dc.getPolyFillMode() == WINDING) {
 			clip.setAttribute("fill-rule", "nonzero");
@@ -1232,6 +1394,14 @@ public class SvgGdi implements Gdi {
 
 		dc.setMask(mask);
 		beginMaskedGroup(mask);
+		currentPath = null;
+	}
+
+	public GdiColorSpace setColorSpace(GdiColorSpace colorSpace) {
+		if (colorSpace instanceof SvgColorSpace) {
+			return dc.setColorSpace((SvgColorSpace)colorSpace);
+		}
+		return null;
 	}
 
 	public void selectObject(GdiObject obj) {
@@ -1248,6 +1418,10 @@ public class SvgGdi implements Gdi {
 		selectedPalette = (SvgPalette)palette;
 	}
 
+	public void setBrushOrgEx(int x, int y, Point old) {
+		dc.setBrushOrgEx(x, y, old);
+	}
+
 	public void setBkColor(int color) {
 		dc.setBkColor(color);
 	}
@@ -1260,6 +1434,16 @@ public class SvgGdi implements Gdi {
 				&& brush.getColor() == 0x00FFFFFF
 				&& pen != null
 				&& pen.getStyle() == GdiPen.PS_NULL;
+	}
+
+	private String getArcSweepFlag() {
+		return (dc.getArcDirection() == Gdi.AD_CLOCKWISE) ? "1" : "0";
+	}
+
+	private void setMiterLimit(Element elem) {
+		if (dc.getPen() != null && dc.getMiterLimit() > 0) {
+			elem.setAttribute("stroke-miterlimit", Float.toString(dc.getMiterLimit()));
+		}
 	}
 
 	private String toSvgPoints(Point[] points, boolean normalizeDuplicates) {
@@ -1285,6 +1469,52 @@ public class SvgGdi implements Gdi {
 	}
 
 	private String toSvgPath(Point[][] points) {
+		return toSvgPath(points, true);
+	}
+
+	private String toSvgPath(SvgPath path) {
+		buffer.setLength(0);
+		SvgPath.Command[] commands = path.getCommands();
+		for (int i = 0; i < commands.length; i++) {
+			SvgPath.Command command = commands[i];
+			Point[] points = command.getPoints();
+			switch (command.getType()) {
+			case SvgPath.MOVE_TO:
+				if (points.length > 0) {
+					buffer.append("M ");
+					appendSvgPoint(points[0]);
+					buffer.append(" ");
+				}
+				break;
+			case SvgPath.LINE_TO:
+				if (points.length > 0) {
+					buffer.append("L ");
+					appendSvgPoint(points[0]);
+					buffer.append(" ");
+				}
+				break;
+			case SvgPath.BEZIER_TO:
+				if (points.length >= 3) {
+					buffer.append("C ");
+					appendSvgPoint(points[0]);
+					buffer.append(" ");
+					appendSvgPoint(points[1]);
+					buffer.append(" ");
+					appendSvgPoint(points[2]);
+					buffer.append(" ");
+				}
+				break;
+			case SvgPath.CLOSE:
+				buffer.append("z ");
+				break;
+			default:
+				break;
+			}
+		}
+		return buffer.toString();
+	}
+
+	private String toSvgPath(Point[][] points, boolean close) {
 		buffer.setLength(0);
 		for (int i = 0; i < points.length; i++) {
 			if (points[i].length == 0) {
@@ -1302,9 +1532,204 @@ public class SvgGdi implements Gdi {
 				buffer.append((int) dc.toAbsoluteX(points[i][j].x)).append(",");
 				buffer.append((int) dc.toAbsoluteY(points[i][j].y)).append(" ");
 			}
-			buffer.append("z");
+			if (close) {
+				buffer.append("z");
+			}
 		}
 		return buffer.toString();
+	}
+
+	private void appendPath(SvgPath path, boolean stroke, boolean fill) {
+		if (path == null || path.isEmpty()) {
+			return;
+		}
+
+		Element elem = doc.createElement("path");
+		elem.setAttribute("d", toSvgPath(path));
+		if (stroke && fill) {
+			if (dc.getPen() != null || dc.getBrush() != null) {
+				elem.setAttribute("class", getClassString(dc.getPen(), dc.getBrush()));
+				setMiterLimit(elem);
+			}
+		} else if (stroke) {
+			if (dc.getPen() != null) {
+				elem.setAttribute("class", getClassString(dc.getPen()));
+				setMiterLimit(elem);
+			}
+			elem.setAttribute("fill", "none");
+		} else if (fill) {
+			if (dc.getBrush() != null) {
+				elem.setAttribute("class", getClassString(dc.getBrush()));
+			}
+			elem.setAttribute("stroke", "none");
+		}
+		if (fill && dc.getBrush() != null && dc.getBrush().getStyle() == GdiBrush.BS_HATCHED) {
+			String id = "pattern" + (patternNo++);
+			elem.setAttribute("fill", "url(#" + id + ")");
+			defsNode.appendChild(dc.getBrush().createFillPattern(id));
+		}
+		if (fill && dc.getPolyFillMode() == WINDING) {
+			elem.setAttribute("fill-rule", "nonzero");
+		}
+		parentNode.appendChild(elem);
+	}
+
+	private void appendSvgPoint(Point point) {
+		buffer.append((int)dc.toAbsoluteX(point.x)).append(",");
+		buffer.append((int)dc.toAbsoluteY(point.y));
+	}
+
+	private static class SvgPath {
+		private static final int MOVE_TO = 1;
+		private static final int LINE_TO = 2;
+		private static final int BEZIER_TO = 3;
+		private static final int CLOSE = 4;
+
+		private LinkedList<Command> commands = new LinkedList<Command>();
+		private Point figureStart;
+		private Point current;
+
+		public void moveTo(Point point) {
+			commands.add(new Command(MOVE_TO, new Point[] { point }));
+			figureStart = point;
+			current = point;
+		}
+
+		public void lineTo(Point point) {
+			if (current == null) {
+				moveTo(point);
+			} else {
+				commands.add(new Command(LINE_TO, new Point[] { point }));
+				current = point;
+			}
+		}
+
+		public void bezierTo(Point control1, Point control2, Point end) {
+			if (current == null) {
+				moveTo(end);
+			} else {
+				commands.add(new Command(BEZIER_TO, new Point[] { control1, control2, end }));
+				current = end;
+			}
+		}
+
+		public void addPolyline(Point[] points) {
+			if (points == null || points.length == 0) {
+				return;
+			}
+			moveTo(points[0]);
+			for (int i = 1; i < points.length; i++) {
+				lineTo(points[i]);
+			}
+		}
+
+		public void addClosedPolyline(Point[] points) {
+			addPolyline(points);
+			close();
+		}
+
+		public void addPolyBezier(Point[] points) {
+			if (points == null || points.length < 4) {
+				return;
+			}
+			moveTo(points[0]);
+			for (int i = 1; i + 2 < points.length; i += 3) {
+				bezierTo(points[i], points[i + 1], points[i + 2]);
+			}
+		}
+
+		public void addPolyBezierTo(Point[] points) {
+			if (points == null || points.length < 3) {
+				return;
+			}
+			for (int i = 0; i + 2 < points.length; i += 3) {
+				bezierTo(points[i], points[i + 1], points[i + 2]);
+			}
+		}
+
+		public void close() {
+			if (current != null) {
+				commands.add(new Command(CLOSE, new Point[0]));
+				current = figureStart;
+			}
+		}
+
+		public boolean isEmpty() {
+			return commands.isEmpty();
+		}
+
+		public Command[] getCommands() {
+			return commands.toArray(new Command[commands.size()]);
+		}
+
+		private static class Command {
+			private int type;
+			private Point[] points;
+
+			private Command(int type, Point[] points) {
+				this.type = type;
+				this.points = points;
+			}
+
+			public int getType() {
+				return type;
+			}
+
+			public Point[] getPoints() {
+				return points;
+			}
+		}
+	}
+
+	private void appendBezier(Point[] points, boolean fromCurrentPosition) {
+		if (points == null || points.length == 0 || (!fromCurrentPosition && points.length < 4)) {
+			return;
+		}
+
+		Element elem = doc.createElement("path");
+		buffer.setLength(0);
+		int offset = 0;
+		if (fromCurrentPosition) {
+			buffer.append("M ");
+			buffer.append((int) dc.toAbsoluteX(dc.getCurrentX())).append(",");
+			buffer.append((int) dc.toAbsoluteY(dc.getCurrentY())).append(" ");
+		} else {
+			buffer.append("M ");
+			buffer.append((int) dc.toAbsoluteX(points[0].x)).append(",");
+			buffer.append((int) dc.toAbsoluteY(points[0].y)).append(" ");
+			offset = 1;
+		}
+
+		Point last = null;
+		for (int i = offset; i + 2 < points.length; i += 3) {
+			buffer.append("C ");
+			buffer.append((int) dc.toAbsoluteX(points[i].x)).append(",");
+			buffer.append((int) dc.toAbsoluteY(points[i].y)).append(" ");
+			buffer.append((int) dc.toAbsoluteX(points[i + 1].x)).append(",");
+			buffer.append((int) dc.toAbsoluteY(points[i + 1].y)).append(" ");
+			buffer.append((int) dc.toAbsoluteX(points[i + 2].x)).append(",");
+			buffer.append((int) dc.toAbsoluteY(points[i + 2].y)).append(" ");
+			last = points[i + 2];
+		}
+
+		if (last == null) {
+			return;
+		}
+		if (dc.getPen() != null) {
+			elem.setAttribute("class", getClassString(dc.getPen()));
+			setMiterLimit(elem);
+		}
+		elem.setAttribute("fill", "none");
+		elem.setAttribute("d", buffer.toString());
+		parentNode.appendChild(elem);
+		dc.moveToEx(last.x, last.y, null);
+	}
+
+	private Point circlePoint(int x, int y, int radius, double angle) {
+		double radians = Math.toRadians(angle);
+		int px = x + (int)Math.round(radius * Math.cos(radians));
+		int py = y - (int)Math.round(radius * Math.sin(radians));
+		return new Point(px, py);
 	}
 
 	private Point[][] splitPolyline(Point[] points) {
@@ -1334,6 +1759,10 @@ public class SvgGdi implements Gdi {
 		dc.setBkMode(mode);
 	}
 
+	public void setArcDirection(int direction) {
+		dc.setArcDirection(direction);
+	}
+
 	public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx,
 			int sy, int startscan, int scanlines, byte[] image, int colorUse) {
 		stretchDIBits(dx, dy, dw, dh, sx, sy, dw, dh, image, colorUse, SRCCOPY);
@@ -1349,6 +1778,18 @@ public class SvgGdi implements Gdi {
 
 	public void setMapperFlags(long flags) {
 		dc.setMapperFlags(flags);
+	}
+
+	public int setICMMode(int mode) {
+		return dc.setICMMode(mode);
+	}
+
+	public int setMetaRgn() {
+		return dc.getMask() != null ? GdiRegion.SIMPLEREGION : GdiRegion.NULLREGION;
+	}
+
+	public void setMiterLimit(float limit) {
+		dc.setMiterLimit(limit);
 	}
 
 	public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries) {
@@ -1426,6 +1867,12 @@ public class SvgGdi implements Gdi {
 	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy,
 			int sw, int sh, byte[] image, int usage, long rop) {
 		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop);
+	}
+
+	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int transparentColor) {
+		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, SRCCOPY, 1.0f,
+				Integer.valueOf(transparentColor));
 	}
 
 	public void textOut(int x, int y, byte[] text) {
@@ -1785,11 +2232,16 @@ public class SvgGdi implements Gdi {
 
 	private void bmpToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
 			int sw, int sh, int usage, long rop) {
+		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop, 1.0f, null);
+	}
+
+	private void bmpToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
+			int sw, int sh, int usage, long rop, float opacity, Integer transparentColor) {
 		if (image == null || image.length == 0) {
 			return;
 		}
 
-		image = ImageUtil.convert(dibToBmp(image), "png", dh < 0);
+		image = convertDibToPng(image, dh < 0, transparentColor);
 		if (image == null || image.length == 0) {
 			return;
 		}
@@ -1843,8 +2295,40 @@ public class SvgGdi implements Gdi {
 		if (ropFilter != null) {
 			elem.setAttribute("filter", ropFilter);
 		}
+		if (opacity >= 0.0f && opacity < 1.0f) {
+			elem.setAttribute("opacity", Float.toString(opacity));
+		}
 
 		parentNode.appendChild(elem);
+	}
+
+	private byte[] convertDibToPng(byte[] dib, boolean reverse, Integer transparentColor) {
+		if (transparentColor == null) {
+			return ImageUtil.convert(dibToBmp(dib), "png", reverse);
+		}
+
+		try {
+			BufferedImage source = ImageIO.read(new ByteArrayInputStream(dibToBmp(dib)));
+			if (source == null) {
+				return null;
+			}
+			BufferedImage image = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+			int transparentRgb = ((transparentColor.intValue() & 0x000000FF) << 16)
+					| (transparentColor.intValue() & 0x0000FF00)
+					| ((transparentColor.intValue() & 0x00FF0000) >> 16);
+			for (int y = 0; y < image.getHeight(); y++) {
+				int sourceY = reverse ? image.getHeight() - 1 - y : y;
+				for (int x = 0; x < image.getWidth(); x++) {
+					int rgb = source.getRGB(x, sourceY) & 0x00FFFFFF;
+					image.setRGB(x, y, rgb == transparentRgb ? rgb : (0xFF000000 | rgb));
+				}
+			}
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			ImageIO.write(image, "png", out);
+			return out.toByteArray();
+		} catch (IOException e) {
+			return null;
+		}
 	}
 
 	private byte[] dibToBmp(byte[] dib) {

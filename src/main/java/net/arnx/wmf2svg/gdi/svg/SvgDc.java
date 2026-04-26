@@ -66,6 +66,10 @@ public class SvgDc implements Cloneable {
 	// clip offset
 	private int cox = 0;
 	private int coy = 0;
+
+	// brush origin
+	private int box = 0;
+	private int boy = 0;
 	
 	private int mapMode = Gdi.MM_TEXT;
 	private int bkColor = 0x00FFFFFF;
@@ -78,12 +82,16 @@ public class SvgDc implements Cloneable {
 	private int relAbsMode = 0;
 	private int rop2Mode = Gdi.R2_COPYPEN;
 	private int stretchBltMode = Gdi.STRETCH_ANDSCANS;
+	private int arcDirection = Gdi.AD_COUNTERCLOCKWISE;
+	private float miterLimit = 10.0f;
 	private long layout = 0;
 	private long mapperFlags = 0;
-	
+	private int icmMode = 0;
+
 	private SvgBrush brush = null;
 	private SvgFont font = null;
 	private SvgPen pen = null;
+	private SvgColorSpace colorSpace = null;
 	
 	private Element mask = null;
 	
@@ -231,6 +239,23 @@ public class SvgDc implements Cloneable {
 		return coy;
 	}
 
+	public void setBrushOrgEx(int x, int y, Point old) {
+		if (old != null) {
+			old.x = box;
+			old.y = boy;
+		}
+		box = x;
+		boy = y;
+	}
+
+	public int getBrushOrgX() {
+		return box;
+	}
+
+	public int getBrushOrgY() {
+		return boy;
+	}
+
 	public void moveToEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = cx;
@@ -315,11 +340,27 @@ public class SvgDc implements Cloneable {
 	public int getStretchBltMode() {
 		return stretchBltMode;
 	}
-	
+
 	public void setStretchBltMode(int mode) {
 		stretchBltMode = mode;
 	}
-	
+
+	public int getArcDirection() {
+		return arcDirection;
+	}
+
+	public void setArcDirection(int direction) {
+		arcDirection = direction;
+	}
+
+	public float getMiterLimit() {
+		return miterLimit;
+	}
+
+	public void setMiterLimit(float limit) {
+		miterLimit = limit;
+	}
+
 	public int getTextSpace() {
 		return textSpace;
 	}
@@ -359,13 +400,33 @@ public class SvgDc implements Cloneable {
 	public void setMapperFlags(long flags) {
 		mapperFlags = flags;
 	}
-	
+
+	public int setICMMode(int mode) {
+		int old = icmMode;
+		icmMode = mode;
+		return old;
+	}
+
+	public int getICMMode() {
+		return icmMode;
+	}
+
 	public SvgBrush getBrush() {
 		return brush;
 	}
-	
+
 	public void setBrush(SvgBrush brush) {
 		this.brush = brush;
+	}
+
+	public SvgColorSpace setColorSpace(SvgColorSpace colorSpace) {
+		SvgColorSpace old = this.colorSpace;
+		this.colorSpace = colorSpace;
+		return old;
+	}
+
+	public SvgColorSpace getColorSpace() {
+		return colorSpace;
 	}
 
 	public SvgFont getFont() {

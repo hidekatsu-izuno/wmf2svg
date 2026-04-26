@@ -8,6 +8,7 @@ import java.util.List;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
+import net.arnx.wmf2svg.gdi.GdiColorSpace;
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiObject;
 import net.arnx.wmf2svg.gdi.GdiPalette;
@@ -105,6 +106,15 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int blendFunction) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void angleArc(int x, int y, int radius, float startAngle, float sweepAngle) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void arc(int sxr, int syr, int exr, int eyr, int sxa, int sya, int exa, int eya) {
 		byte[] record = new byte[22];
 		int pos = 0;
@@ -119,6 +129,18 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, syr);
 		pos = setInt16(record, pos, sxr);
 		records.add(record);
+	}
+
+	public void arcTo(int sxr, int syr, int exr, int eyr, int sxa, int sya, int exa, int eya) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void abortPath() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void beginPath() {
+		throw new UnsupportedOperationException();
 	}
 
 	public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
@@ -154,6 +176,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void closeFigure() {
+		throw new UnsupportedOperationException();
+	}
+
 	public GdiBrush createBrushIndirect(int style, int color, int hatch) {
 		byte[] record = new byte[14];
 		int pos = 0;
@@ -167,6 +193,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		WmfBrush brush = new WmfBrush(objects.size(), style, color, hatch);
 		objects.add(brush);
 		return brush;
+	}
+
+	public GdiColorSpace createColorSpace(byte[] logColorSpace) {
+		throw new UnsupportedOperationException();
 	}
 
 	public GdiFont createFontIndirect(int height, int width, int escapement,
@@ -265,6 +295,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		return rgn;
 	}
 
+	public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void deleteObject(GdiObject obj) {
 		byte[] record = new byte[8];
 		int pos = 0;
@@ -282,6 +316,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		} else if (dc.getPen() == obj) {
 			dc.setPen(defaultPen);
 		}
+	}
+
+	public boolean deleteColorSpace(GdiColorSpace colorSpace) {
+		throw new UnsupportedOperationException();
 	}
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
@@ -347,6 +385,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
 		records.add(record);
+	}
+
+	public void endPath() {
+		throw new UnsupportedOperationException();
 	}
 
 	public void escape(byte[] data) {
@@ -602,6 +644,14 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void polyBezier(Point[] points) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void polyBezierTo(Point[] points) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void polygon(Point[] points) {
 		byte[] record = new byte[8 + points.length * 4];
 		int pos = 0;
@@ -648,6 +698,22 @@ public class WmfGdi implements Gdi, WmfConstants {
 			}
 		}
 		records.add(record);
+	}
+
+	public void fillPath() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void flattenPath() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void strokePath() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void strokeAndFillPath() {
+		throw new UnsupportedOperationException();
 	}
 
 	public void realizePalette() {
@@ -747,8 +813,12 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
-	public void selectClipPath(Point[][] points) {
-		// WMF has no direct arbitrary path clipping record in this writer.
+	public void selectClipPath(int mode) {
+		throw new UnsupportedOperationException();
+	}
+
+	public GdiColorSpace setColorSpace(GdiColorSpace colorSpace) {
+		throw new UnsupportedOperationException();
 	}
 
 	public void selectObject(GdiObject obj) {
@@ -796,6 +866,14 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void setBrushOrgEx(int x, int y, Point old) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void setArcDirection(int direction) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx,
 			int sy, int startscan, int scanlines, byte[] image, int colorUse) {
 		byte[] record = new byte[24 + (image.length + image.length%2)];
@@ -841,6 +919,18 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint16(record, pos, RECORD_SET_MAPPER_FLAGS);
 		pos = setUint32(record, pos, flags);
 		records.add(record);
+	}
+
+	public int setICMMode(int mode) {
+		throw new UnsupportedOperationException();
+	}
+
+	public int setMetaRgn() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void setMiterLimit(float limit) {
+		throw new UnsupportedOperationException();
 	}
 
 	public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries) {
@@ -1022,6 +1112,11 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setBytes(record, pos, image);
 		if (image.length%2 == 1) pos = setByte(record, pos, 0);
 		records.add(record);
+	}
+
+	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int transparentColor) {
+		throw new UnsupportedOperationException();
 	}
 
 	public void textOut(int x, int y, byte[] text) {

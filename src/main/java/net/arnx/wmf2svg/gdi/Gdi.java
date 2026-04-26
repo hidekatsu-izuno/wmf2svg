@@ -104,19 +104,31 @@ public interface Gdi {
 	public static final int LAYOUT_RTL = 1;
 	
 	public static final int ABSOLUTE = 1;
-	public static final int RELATIVE = 2;
+    public static final int RELATIVE = 2;
 	
 	public static final int ASPECT_FILTERING = 1;
+
+	public static final int AD_COUNTERCLOCKWISE = 1;
+	public static final int AD_CLOCKWISE = 2;
 	
     public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi);
     public void header();
     public void animatePalette(GdiPalette palette, int startIndex, int[] entries);
+    public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int blendFunction);
+    public void angleArc(int x, int y, int radius, float startAngle, float sweepAngle);
     public void arc(int sxr, int syr, int exr, int eyr,
 		    int sxa, int sya, int exa, int eya);
+    public void arcTo(int sxr, int syr, int exr, int eyr,
+		    int sxa, int sya, int exa, int eya);
+    public void abortPath();
+    public void beginPath();
     public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop);
     public void chord(int sxr, int syr, int exr, int eyr,
 		      int sxa, int sya, int exa, int eya);
+    public void closeFigure();
     public GdiBrush createBrushIndirect(int style, int color, int hatch);
+    public GdiColorSpace createColorSpace(byte[] logColorSpace);
     public GdiFont createFontIndirect(int height, int width, int escapement,
 				      int orientation, int weight,
 				      boolean italic, boolean underline, boolean strikeout,
@@ -127,18 +139,22 @@ public interface Gdi {
     public GdiPen createPenIndirect(int style, int width, int color);
     public GdiRegion createRectRgn(int left, int top, int right, int bottom);
     public void deleteObject(GdiObject obj);
+    public boolean deleteColorSpace(GdiColorSpace colorSpace);
     public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh,
 			int sx, int sy, long rop);
     public GdiPatternBrush dibCreatePatternBrush(byte[] image, int usage);
     public void dibStretchBlt(byte[] image, int dx, int dy, int dw, int dh,
 			int sx, int sy, int sw, int sh, long rop);
     public void ellipse(int sx, int sy, int ex, int ey);
+    public void endPath();
     public void escape(byte[] data);
     public void comment(byte[] data);
     public int excludeClipRect(int left, int top, int right, int bottom);
     public void extFloodFill(int x, int y, int color, int type);
+    public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData);
     public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] lpdx);
     public void fillRgn(GdiRegion rgn, GdiBrush brush);
+    public void flattenPath();
     public void floodFill(int x, int y, int color);
     public void frameRgn(GdiRegion rgn, GdiBrush brush, int w, int h);
     public void intersectClipRect(int left, int top, int right, int bottom);
@@ -151,9 +167,14 @@ public interface Gdi {
     public void paintRgn(GdiRegion rgn);
     public void patBlt(int x, int y, int width, int height, long rop);
     public void pie(int sx, int sy, int ex, int ey, int sxr, int syr, int exr, int eyr);
+    public void polyBezier(Point[] points);
+    public void polyBezierTo(Point[] points);
     public void polygon(Point[] points);
     public void polyline(Point[] points);
     public void polyPolygon(Point[][] points);
+    public void fillPath();
+    public void strokePath();
+    public void strokeAndFillPath();
     public void realizePalette();
     public void restoreDC(int savedDC);
     public void rectangle(int sx, int sy, int ex, int ey);
@@ -163,16 +184,22 @@ public interface Gdi {
     public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old);
     public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old);
     public void selectClipRgn(GdiRegion rgn);
-    public void selectClipPath(Point[][] points);
+    public void selectClipPath(int mode);
+    public GdiColorSpace setColorSpace(GdiColorSpace colorSpace);
     public void selectObject(GdiObject obj);
     public void selectPalette(GdiPalette palette, boolean mode);
     public void setBkColor(int color);
     public void setBkMode(int mode);
+    public void setArcDirection(int direction);
+    public void setBrushOrgEx(int x, int y, Point old);
     public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx, int sy,
         			int startscan, int scanlines, byte[] image, int colorUse);
     public void setLayout(long layout);
     public void setMapMode(int mode);
     public void setMapperFlags(long flags);
+    public int setICMMode(int mode);
+    public int setMetaRgn();
+    public void setMiterLimit(float limit);
     public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries);
     public void setPixel(int x, int y, int color);
     public void setPolyFillMode(int mode);
@@ -193,5 +220,7 @@ public interface Gdi {
 					int sx, int sy, int sw, int sh,
 					byte[] image, int usage, long rop);
     public void textOut(int x, int y, byte[] text);
+    public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh, int transparentColor);
     public void footer();
 }

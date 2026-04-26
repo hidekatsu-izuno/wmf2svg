@@ -58,8 +58,8 @@ class SvgBrush extends SvgObject implements GdiBrush {
 			pattern = getGDI().getDocument().createElement("pattern");
 			pattern.setAttribute("id", id);
 			pattern.setAttribute("patternUnits", "userSpaceOnUse");
-			pattern.setAttribute("x", "" + toRealSize(0));
-			pattern.setAttribute("y", "" + toRealSize(0));
+			pattern.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
+			pattern.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
 			pattern.setAttribute("width", "" + toRealSize(8));
 			pattern.setAttribute("height", "" + toRealSize(8));
 

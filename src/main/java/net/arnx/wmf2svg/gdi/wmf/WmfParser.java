@@ -28,6 +28,7 @@ import net.arnx.wmf2svg.gdi.GdiObject;
 import net.arnx.wmf2svg.gdi.GdiPalette;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.Point;
+import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.io.DataInput;
 
 /**
@@ -444,7 +445,9 @@ public class WmfParser implements WmfConstants {
 				}
 				case RECORD_ESCAPE: {
 					byte[] data = in.readBytes(2 * size);
-					gdi.escape(data);
+					if (!EmfParser.parseEscape(data, gdi)) {
+						gdi.escape(data);
+					}
 					break;
 				}
 				case RECORD_INVERT_RGN: {

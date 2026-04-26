@@ -134,6 +134,7 @@ public interface Gdi {
 			int sx, int sy, int sw, int sh, long rop);
     public void ellipse(int sx, int sy, int ex, int ey);
     public void escape(byte[] data);
+    public void comment(byte[] data);
     public int excludeClipRect(int left, int top, int right, int bottom);
     public void extFloodFill(int x, int y, int color, int type);
     public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] lpdx);

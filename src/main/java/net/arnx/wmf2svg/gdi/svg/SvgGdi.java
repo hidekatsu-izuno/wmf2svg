@@ -15,6 +15,8 @@
  */
 package net.arnx.wmf2svg.gdi.svg;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -47,6 +49,7 @@ import net.arnx.wmf2svg.gdi.GdiPatternBrush;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.util.Base64;
@@ -64,6 +67,9 @@ public class SvgGdi implements Gdi {
 	private boolean replaceSymbolFont = false;
 
 	private Properties props = new Properties();
+
+	private ByteArrayOutputStream emfBuffer;
+	private int emfTotalSize;
 
 	private SvgDc dc;
 
@@ -119,7 +125,7 @@ public class SvgGdi implements Gdi {
 		try {
 			builder = factory.newDocumentBuilder();
 		} catch (ParserConfigurationException e) {
-			throw new SvgGdiException(e);
+			throw new IllegalStateException(e);
 		}
 
 		DOMImplementation dom = builder.getDOMImplementation();
@@ -454,6 +460,31 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void escape(byte[] data) {
+	}
+
+	public void comment(byte[] data) {
+		if (!EmfParser.isEnhancedMetafileEscape(data)) {
+			return;
+		}
+
+		if (emfBuffer == null) {
+			emfTotalSize = EmfParser.getEnhancedMetafileTotalSize(data);
+			emfBuffer = new ByteArrayOutputStream(Math.max(emfTotalSize, 1024));
+		}
+
+		byte[] bytes = EmfParser.getEnhancedMetafileBytes(data);
+		emfBuffer.write(bytes, 0, bytes.length);
+
+		if (emfBuffer.size() >= emfTotalSize) {
+			try {
+				new EmfParser().parse(new ByteArrayInputStream(emfBuffer.toByteArray(), 0, emfTotalSize), this);
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			} finally {
+				emfBuffer = null;
+				emfTotalSize = 0;
+			}
+		}
 	}
 
 	private Element createMask() {

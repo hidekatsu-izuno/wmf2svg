@@ -359,6 +359,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void comment(byte[] data) {
+		throw new UnsupportedOperationException();
+	}
+
 	public int excludeClipRect(int left, int top, int right, int bottom) {
 		byte[] record = new byte[14];
 		int pos = 0;

@@ -949,13 +949,6 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void polyline(Point[] points) {
-		Element elem = doc.createElement("polyline");
-		if (dc.getPen() != null) {
-			elem.setAttribute("class", getClassString(dc.getPen()));
-		}
-		elem.setAttribute("fill", "none");
-
-		String pointsValue = toSvgPoints(points, false);
 		String normalizedPointsValue = toSvgPoints(points, true);
 		if (pendingOutlineOnlyPolygon != null
 				&& parentNode.getLastChild() == pendingOutlineOnlyPolygon
@@ -964,8 +957,19 @@ public class SvgGdi implements Gdi {
 				&& dc.getPen().getStyle() != GdiPen.PS_NULL) {
 			pendingOutlineOnlyPolygon.setAttribute("fill", "none");
 		}
-		elem.setAttribute("points", pointsValue);
-		parentNode.appendChild(elem);
+
+		for (Point[] segment : splitPolyline(points)) {
+			if (segment.length < 2) {
+				continue;
+			}
+			Element elem = doc.createElement("polyline");
+			if (dc.getPen() != null) {
+				elem.setAttribute("class", getClassString(dc.getPen()));
+			}
+			elem.setAttribute("fill", "none");
+			elem.setAttribute("points", toSvgPoints(segment, false));
+			parentNode.appendChild(elem);
+		}
 
 		pendingOutlineOnlyPolygon = null;
 		pendingOutlineOnlyPolygonPoints = null;
@@ -1170,6 +1174,29 @@ public class SvgGdi implements Gdi {
 			hasPrevious = true;
 		}
 		return buffer.toString();
+	}
+
+	private Point[][] splitPolyline(Point[] points) {
+		java.util.List<Point[]> result = new java.util.ArrayList<Point[]>();
+		java.util.List<Point> current = new java.util.ArrayList<Point>();
+		Point previous = null;
+		for (Point point : points) {
+			if (previous != null && previous.x == point.x && previous.y == point.y) {
+				if (!current.isEmpty()) {
+					result.add(current.toArray(new Point[current.size()]));
+					current.clear();
+				}
+				current.add(point);
+				previous = point;
+				continue;
+			}
+			current.add(point);
+			previous = point;
+		}
+		if (!current.isEmpty()) {
+			result.add(current.toArray(new Point[current.size()]));
+		}
+		return result.toArray(new Point[result.size()][]);
 	}
 
 	public void setBkMode(int mode) {

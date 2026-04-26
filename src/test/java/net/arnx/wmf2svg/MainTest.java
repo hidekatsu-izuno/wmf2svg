@@ -36,7 +36,7 @@ public class MainTest {
 			String wmf = files[i].getAbsolutePath();
 			String svg = new File(outdir, files[i].getName().substring(0, files[i].getName().length() - 4) + ".svg").getAbsolutePath();
 			System.out.println(wmf + " transforming...");
-			Main.main(new String[] {"-debug", wmf, svg});
+			Main.main(new String[] {"-debug", "-replace-symbol-font", wmf, svg});
 		}
 	}
 }

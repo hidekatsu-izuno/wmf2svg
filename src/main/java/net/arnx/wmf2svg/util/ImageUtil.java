@@ -44,6 +44,18 @@ public class ImageUtil {
 		return converter.convert(image, destType, reverse);
 	}
 
+	public static int[] getSize(byte[] image) {
+		try {
+			BufferedImage source = ImageIO.read(new ByteArrayInputStream(image));
+			if (source != null) {
+				return new int[] { source.getWidth(), source.getHeight() };
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
 	private static interface Converter {
 		public byte[] convert(byte[] image, String destType, boolean reverse);
 	}

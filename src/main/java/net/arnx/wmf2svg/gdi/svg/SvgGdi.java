@@ -1669,7 +1669,8 @@ public class SvgGdi implements Gdi {
 			return;
 		}
 
-		Element elem = doc.createElement("image");
+		boolean clipSource = (sx != 0 || sy != 0 || sw != dw || sh != dh);
+		Element elem = doc.createElement(clipSource ? "svg" : "image");
 		int x = (int)dc.toAbsoluteX(dx);
 		int y = (int)dc.toAbsoluteY(dy);
 		int width = (int)dc.toRelativeX(dw);
@@ -1688,10 +1689,22 @@ public class SvgGdi implements Gdi {
 
 		elem.setAttribute("width", "" + Math.abs(width));
 		elem.setAttribute("height", "" + Math.abs(height));
-
-		if (sx != 0 || sy != 0 || sw != dw || sh != dh) {
-			elem.setAttribute("viewBox", "" + sx + " " + sy + " " + sw + " "+ sh);
+		if (clipSource) {
+			Element imageNode = doc.createElement("image");
+			int[] imageSize = ImageUtil.getSize(image);
+			if (imageSize != null) {
+				imageNode.setAttribute("width", "" + imageSize[0]);
+				imageNode.setAttribute("height", "" + imageSize[1]);
+			} else {
+				imageNode.setAttribute("width", "" + Math.abs(sw));
+				imageNode.setAttribute("height", "" + Math.abs(sh));
+			}
+			imageNode.setAttribute("xlink:href", data);
+			elem.setAttribute("viewBox", "" + sx + " " + sy + " " + sw + " " + sh);
 			elem.setAttribute("preserveAspectRatio", "none");
+			elem.appendChild(imageNode);
+		} else {
+			elem.setAttribute("xlink:href", data);
 		}
 
 		String ropFilter = dc.getRopFilter(rop);
@@ -1699,7 +1712,6 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("filter", ropFilter);
 		}
 
-		elem.setAttribute("xlink:href", data);
 		parentNode.appendChild(elem);
 	}
 

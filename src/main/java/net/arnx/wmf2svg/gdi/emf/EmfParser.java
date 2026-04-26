@@ -180,7 +180,14 @@ public class EmfParser implements Parser {
 	private static final int STOCK_BLACK_PEN = 0x80000007;
 	private static final int STOCK_NULL_PEN = 0x80000008;
 
+	private final boolean manageLifecycle;
+
 	public EmfParser() {
+		this(true);
+	}
+
+	public EmfParser(boolean manageLifecycle) {
+		this.manageLifecycle = manageLifecycle;
 	}
 
 	public void parse(InputStream is, Gdi gdi) throws IOException {
@@ -202,6 +209,10 @@ public class EmfParser implements Parser {
 			byte[] data = in.readBytes(size - 8);
 			switch (type) {
 			case EMR_HEADER:
+				if (manageLifecycle) {
+					gdi.header();
+					readHeader(data, gdi);
+				}
 				break;
 			case EMR_POLYBEZIER: {
 				Point[] points = readPoints32(data, transform);
@@ -666,6 +677,9 @@ public class EmfParser implements Parser {
 				gdi.abortPath();
 				break;
 			case EMR_EOF:
+				if (manageLifecycle) {
+					gdi.footer();
+				}
 				return;
 			default:
 				break;
@@ -699,6 +713,23 @@ public class EmfParser implements Parser {
 		byte[] bytes = new byte[size];
 		System.arraycopy(data, 38, bytes, 0, size);
 		return bytes;
+	}
+
+	private static void readHeader(byte[] data, Gdi gdi) {
+		if (data.length < 16) {
+			return;
+		}
+
+		int left = readInt32(data, 0);
+		int top = readInt32(data, 4);
+		int right = readInt32(data, 8);
+		int bottom = readInt32(data, 12);
+		int width = right - left;
+		int height = bottom - top;
+		if (width != 0 && height != 0) {
+			gdi.setWindowOrgEx(left, top, null);
+			gdi.setWindowExtEx(width, height, null);
+		}
 	}
 
 	private GdiObject getObject(Map<Integer, GdiObject> objects, Map<Integer, GdiObject> stockObjects, int id) {

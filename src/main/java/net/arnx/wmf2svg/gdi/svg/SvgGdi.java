@@ -562,7 +562,7 @@ public class SvgGdi implements Gdi {
 
 		if (emfBuffer.size() >= emfTotalSize) {
 			try {
-				new EmfParser().parse(new ByteArrayInputStream(emfBuffer.toByteArray(), 0, emfTotalSize), this);
+				new EmfParser(false).parse(new ByteArrayInputStream(emfBuffer.toByteArray(), 0, emfTotalSize), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
 			} finally {

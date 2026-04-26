@@ -110,6 +110,10 @@ public interface Gdi {
 
 	public static final int AD_COUNTERCLOCKWISE = 1;
 	public static final int AD_CLOCKWISE = 2;
+
+	public static final int GRADIENT_FILL_RECT_H = 0;
+	public static final int GRADIENT_FILL_RECT_V = 1;
+	public static final int GRADIENT_FILL_TRIANGLE = 2;
 	
     public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi);
     public void header();
@@ -156,7 +160,10 @@ public interface Gdi {
     public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] lpdx);
     public void fillRgn(GdiRegion rgn, GdiBrush brush);
     public void flattenPath();
+    public void widenPath();
     public void floodFill(int x, int y, int color);
+    public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode);
+    public void gradientFill(Trivertex[] vertex, GradientTriangle[] mesh, int mode);
     public void frameRgn(GdiRegion rgn, GdiBrush brush, int w, int h);
     public void intersectClipRect(int left, int top, int right, int bottom);
     public void invertRgn(GdiRegion rgn);

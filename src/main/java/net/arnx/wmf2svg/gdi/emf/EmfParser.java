@@ -28,12 +28,15 @@ import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiColorSpace;
 import net.arnx.wmf2svg.gdi.GdiFont;
+import net.arnx.wmf2svg.gdi.GradientRect;
+import net.arnx.wmf2svg.gdi.GradientTriangle;
 import net.arnx.wmf2svg.gdi.GdiObject;
 import net.arnx.wmf2svg.gdi.GdiPalette;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.Point;
+import net.arnx.wmf2svg.gdi.Trivertex;
 import net.arnx.wmf2svg.io.DataInput;
 
 /**
@@ -105,6 +108,7 @@ public class EmfParser {
 	private static final int EMR_STROKEANDFILLPATH = 63;
 	private static final int EMR_STROKEPATH = 64;
 	private static final int EMR_FLATTENPATH = 65;
+	private static final int EMR_WIDENPATH = 66;
 	private static final int EMR_SELECTCLIPPATH = 67;
 	private static final int EMR_ABORTPATH = 68;
 	private static final int EMR_GDICOMMENT = 70;
@@ -143,6 +147,7 @@ public class EmfParser {
 	private static final int EMR_ALPHABLEND = 114;
 	private static final int EMR_SETLAYOUT = 115;
 	private static final int EMR_TRANSPARENTBLT = 116;
+	private static final int EMR_GRADIENTFILL = 118;
 	private static final int EMR_SETTEXTJUSTIFICATION = 120;
 	private static final int EMR_CREATECOLORSPACEW = 122;
 	private static final int EMR_SMALLTEXTOUT = 108;
@@ -617,6 +622,9 @@ public class EmfParser {
 			case EMR_TRANSPARENTBLT:
 				readTransparentBlt(data, transform, gdi);
 				break;
+			case EMR_GRADIENTFILL:
+				readGradientFill(data, transform, gdi);
+				break;
 			case EMR_SMALLTEXTOUT:
 				readSmallTextOut(data, transform, gdi, textCharset);
 				break;
@@ -646,6 +654,9 @@ public class EmfParser {
 				break;
 			case EMR_FLATTENPATH:
 				gdi.flattenPath();
+				break;
+			case EMR_WIDENPATH:
+				gdi.widenPath();
 				break;
 			case EMR_SELECTCLIPPATH:
 				gdi.selectClipPath(readInt32(data, 0));
@@ -940,6 +951,55 @@ public class EmfParser {
 		gdi.transparentBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
 				readInt32(data, 36), readInt32(data, 40), readInt32(data, 92), readInt32(data, 96),
 				readInt32(data, 32));
+	}
+
+	private static void readGradientFill(byte[] data, double[] transform, Gdi gdi) {
+		if (data.length < 28) {
+			return;
+		}
+		int vertexCount = readInt32(data, 16);
+		int meshCount = readInt32(data, 20);
+		int mode = readInt32(data, 24);
+		int vertexOffset = 28;
+		if (vertexCount < 0 || meshCount < 0 || vertexOffset + vertexCount * 16 > data.length) {
+			return;
+		}
+
+		Trivertex[] vertex = new Trivertex[vertexCount];
+		for (int i = 0; i < vertex.length; i++) {
+			int offset = vertexOffset + i * 16;
+			Point point = transformPoint(transform, readInt32(data, offset), readInt32(data, offset + 4));
+			vertex[i] = new Trivertex(point.x, point.y,
+					readUInt16(data, offset + 8),
+					readUInt16(data, offset + 10),
+					readUInt16(data, offset + 12),
+					readUInt16(data, offset + 14));
+		}
+
+		int meshOffset = vertexOffset + vertexCount * 16;
+		int meshStep = mode == Gdi.GRADIENT_FILL_TRIANGLE ? 12
+				: (meshOffset + meshCount * 12 <= data.length ? 12 : 8);
+		if (meshOffset + meshCount * meshStep > data.length) {
+			return;
+		}
+
+		if (mode == Gdi.GRADIENT_FILL_TRIANGLE) {
+			GradientTriangle[] mesh = new GradientTriangle[meshCount];
+			for (int i = 0; i < mesh.length; i++) {
+				int offset = meshOffset + i * meshStep;
+				mesh[i] = new GradientTriangle(readInt32(data, offset), readInt32(data, offset + 4),
+						readInt32(data, offset + 8));
+			}
+			gdi.gradientFill(vertex, mesh, mode);
+			return;
+		}
+
+		GradientRect[] mesh = new GradientRect[meshCount];
+		for (int i = 0; i < mesh.length; i++) {
+			int offset = meshOffset + i * meshStep;
+			mesh[i] = new GradientRect(readInt32(data, offset), readInt32(data, offset + 4));
+		}
+		gdi.gradientFill(vertex, mesh, mode);
 	}
 
 	private static void readSmallTextOut(byte[] data, double[] transform, Gdi gdi, int charset) {

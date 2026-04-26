@@ -46,6 +46,8 @@ import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiColorSpace;
 import net.arnx.wmf2svg.gdi.GdiFont;
+import net.arnx.wmf2svg.gdi.GradientRect;
+import net.arnx.wmf2svg.gdi.GradientTriangle;
 import net.arnx.wmf2svg.gdi.GdiObject;
 import net.arnx.wmf2svg.gdi.GdiPalette;
 import net.arnx.wmf2svg.gdi.GdiPatternBrush;
@@ -55,6 +57,7 @@ import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
+import net.arnx.wmf2svg.gdi.Trivertex;
 import net.arnx.wmf2svg.util.Base64;
 import net.arnx.wmf2svg.util.ImageUtil;
 
@@ -99,6 +102,8 @@ public class SvgGdi implements Gdi {
 	private int clipPathNo = 0;
 
 	private int maskNo = 0;
+
+	private int gradientNo = 0;
 
 	private Map<GdiObject, String> nameMap = new HashMap<GdiObject, String>();
 
@@ -922,6 +927,18 @@ public class SvgGdi implements Gdi {
 		log.fine("unsupported in SVG output: floodFill");
 	}
 
+	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
+		for (int i = 0; i < mesh.length; i++) {
+			appendGradientRectangle(vertex, mesh[i], mode);
+		}
+	}
+
+	public void gradientFill(Trivertex[] vertex, GradientTriangle[] mesh, int mode) {
+		for (int i = 0; i < mesh.length; i++) {
+			appendGradientTriangle(vertex, mesh[i]);
+		}
+	}
+
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
 		if (!(rgn instanceof SvgRegion) || !(brush instanceof SvgBrush)) return;
 
@@ -1247,12 +1264,22 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void fillPath() {
-		appendPath(currentPath, false, true);
+		if (currentPath != null && currentPath.isWidened()) {
+			appendWidenedPath(currentPath, dc.getBrush());
+		} else {
+			appendPath(currentPath, false, true);
+		}
 		currentPath = null;
 	}
 
 	public void flattenPath() {
 		// SVG can render cubic Bezier path commands directly.
+	}
+
+	public void widenPath() {
+		if (currentPath != null) {
+			currentPath.widen();
+		}
 	}
 
 	public void strokePath() {
@@ -1261,7 +1288,11 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void strokeAndFillPath() {
-		appendPath(currentPath, true, true);
+		if (currentPath != null && currentPath.isWidened()) {
+			appendWidenedPath(currentPath, dc.getBrush());
+		} else {
+			appendPath(currentPath, true, true);
+		}
 		currentPath = null;
 	}
 
@@ -1431,8 +1462,16 @@ public class SvgGdi implements Gdi {
 	private Element createPathClip(String fill) {
 		Element clip = doc.createElement("path");
 		clip.setAttribute("d", toSvgPath(currentPath));
-		clip.setAttribute("fill", fill);
-		if (dc.getPolyFillMode() == WINDING) {
+		if (currentPath.isWidened() && dc.getPen() != null && dc.getPen().getStyle() != GdiPen.PS_NULL) {
+			clip.setAttribute("fill", "none");
+			clip.setAttribute("stroke", fill);
+			clip.setAttribute("stroke-width", Integer.toString(dc.getPen().getWidth()));
+			clip.setAttribute("stroke-linecap", "round");
+			clip.setAttribute("stroke-linejoin", "round");
+		} else {
+			clip.setAttribute("fill", fill);
+		}
+		if (!currentPath.isWidened() && dc.getPolyFillMode() == WINDING) {
 			clip.setAttribute("fill-rule", "nonzero");
 		}
 		return clip;
@@ -1615,6 +1654,106 @@ public class SvgGdi implements Gdi {
 		parentNode.appendChild(elem);
 	}
 
+	private void appendWidenedPath(SvgPath path, SvgBrush brush) {
+		if (path == null || path.isEmpty() || dc.getPen() == null || dc.getPen().getStyle() == GdiPen.PS_NULL) {
+			return;
+		}
+
+		Element elem = doc.createElement("path");
+		elem.setAttribute("d", toSvgPath(path));
+		elem.setAttribute("fill", "none");
+		elem.setAttribute("stroke-width", Integer.toString(dc.getPen().getWidth()));
+		elem.setAttribute("stroke-linecap", "round");
+		elem.setAttribute("stroke-linejoin", "round");
+
+		if (brush != null && brush.getStyle() == GdiBrush.BS_SOLID) {
+			elem.setAttribute("stroke", SvgObject.toColor(brush.getColor()));
+		} else if (brush != null && brush.getStyle() == GdiBrush.BS_HATCHED) {
+			String id = "pattern" + (patternNo++);
+			elem.setAttribute("stroke", "url(#" + id + ")");
+			defsNode.appendChild(brush.createFillPattern(id));
+		} else {
+			elem.setAttribute("stroke", "none");
+		}
+		parentNode.appendChild(elem);
+	}
+
+	private void appendGradientRectangle(Trivertex[] vertex, GradientRect rect, int mode) {
+		if (rect.upperLeft < 0 || rect.upperLeft >= vertex.length
+				|| rect.lowerRight < 0 || rect.lowerRight >= vertex.length) {
+			return;
+		}
+		Trivertex v1 = vertex[rect.upperLeft];
+		Trivertex v2 = vertex[rect.lowerRight];
+
+		Element gradient = doc.createElement("linearGradient");
+		String id = "gradient" + (gradientNo++);
+		gradient.setAttribute("id", id);
+		gradient.setIdAttribute("id", true);
+		gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+		if (mode == GRADIENT_FILL_RECT_V) {
+			gradient.setAttribute("x1", "" + (int)dc.toAbsoluteX(v1.x));
+			gradient.setAttribute("y1", "" + (int)dc.toAbsoluteY(v1.y));
+			gradient.setAttribute("x2", "" + (int)dc.toAbsoluteX(v1.x));
+			gradient.setAttribute("y2", "" + (int)dc.toAbsoluteY(v2.y));
+		} else {
+			gradient.setAttribute("x1", "" + (int)dc.toAbsoluteX(v1.x));
+			gradient.setAttribute("y1", "" + (int)dc.toAbsoluteY(v1.y));
+			gradient.setAttribute("x2", "" + (int)dc.toAbsoluteX(v2.x));
+			gradient.setAttribute("y2", "" + (int)dc.toAbsoluteY(v1.y));
+		}
+		appendGradientStop(gradient, "0%", v1.getColor());
+		appendGradientStop(gradient, "100%", v2.getColor());
+		defsNode.appendChild(gradient);
+
+		Element elem = doc.createElement("rect");
+		double x1 = dc.toAbsoluteX(v1.x);
+		double y1 = dc.toAbsoluteY(v1.y);
+		double x2 = dc.toAbsoluteX(v2.x);
+		double y2 = dc.toAbsoluteY(v2.y);
+		elem.setAttribute("x", "" + (int)Math.min(x1, x2));
+		elem.setAttribute("y", "" + (int)Math.min(y1, y2));
+		elem.setAttribute("width", "" + (int)Math.abs(x2 - x1));
+		elem.setAttribute("height", "" + (int)Math.abs(y2 - y1));
+		elem.setAttribute("fill", "url(#" + id + ")");
+		elem.setAttribute("stroke", "none");
+		parentNode.appendChild(elem);
+	}
+
+	private void appendGradientTriangle(Trivertex[] vertex, GradientTriangle triangle) {
+		if (triangle.vertex1 < 0 || triangle.vertex1 >= vertex.length
+				|| triangle.vertex2 < 0 || triangle.vertex2 >= vertex.length
+				|| triangle.vertex3 < 0 || triangle.vertex3 >= vertex.length) {
+			return;
+		}
+		Trivertex v1 = vertex[triangle.vertex1];
+		Trivertex v2 = vertex[triangle.vertex2];
+		Trivertex v3 = vertex[triangle.vertex3];
+
+		Element elem = doc.createElement("polygon");
+		elem.setAttribute("points", toSvgPoints(new Point[] {
+				new Point(v1.x, v1.y),
+				new Point(v2.x, v2.y),
+				new Point(v3.x, v3.y) }, false));
+		elem.setAttribute("fill", SvgObject.toColor(averageColor(v1, v2, v3)));
+		elem.setAttribute("stroke", "none");
+		parentNode.appendChild(elem);
+	}
+
+	private void appendGradientStop(Element gradient, String offset, int color) {
+		Element stop = doc.createElement("stop");
+		stop.setAttribute("offset", offset);
+		stop.setAttribute("stop-color", SvgObject.toColor(color));
+		gradient.appendChild(stop);
+	}
+
+	private int averageColor(Trivertex v1, Trivertex v2, Trivertex v3) {
+		int red = ((v1.red >>> 8) + (v2.red >>> 8) + (v3.red >>> 8)) / 3;
+		int green = ((v1.green >>> 8) + (v2.green >>> 8) + (v3.green >>> 8)) / 3;
+		int blue = ((v1.blue >>> 8) + (v2.blue >>> 8) + (v3.blue >>> 8)) / 3;
+		return (blue << 16) | (green << 8) | red;
+	}
+
 	private void appendSvgPoint(Point point) {
 		buffer.append((int)dc.toAbsoluteX(point.x)).append(",");
 		buffer.append((int)dc.toAbsoluteY(point.y));
@@ -1629,6 +1768,7 @@ public class SvgGdi implements Gdi {
 		private LinkedList<Command> commands = new LinkedList<Command>();
 		private Point figureStart;
 		private Point current;
+		private boolean widened;
 
 		public void moveTo(Point point) {
 			commands.add(new Command(MOVE_TO, new Point[] { point }));
@@ -1697,6 +1837,14 @@ public class SvgGdi implements Gdi {
 
 		public boolean isEmpty() {
 			return commands.isEmpty();
+		}
+
+		public void widen() {
+			widened = true;
+		}
+
+		public boolean isWidened() {
+			return widened;
 		}
 
 		public Command[] getCommands() {

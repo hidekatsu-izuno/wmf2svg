@@ -18,6 +18,9 @@ import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
+import net.arnx.wmf2svg.gdi.GradientRect;
+import net.arnx.wmf2svg.gdi.GradientTriangle;
+import net.arnx.wmf2svg.gdi.Trivertex;
 
 public class WmfGdi implements Gdi, WmfConstants {
 	private byte[] placeableHeader;
@@ -526,6 +529,14 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void gradientFill(Trivertex[] vertex, GradientTriangle[] mesh, int mode) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int w, int h) {
 		byte[] record = new byte[14];
 		int pos = 0;
@@ -716,6 +727,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void flattenPath() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void widenPath() {
 		throw new UnsupportedOperationException();
 	}
 

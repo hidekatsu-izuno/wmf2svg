@@ -10,7 +10,10 @@ public class MainTest {
 	public void testMain() {
 		System.setProperty("java.util.logging.config.file", "./logging.properties");
 
-		File dir = new File("./etc/data/src");
+		File dir = new File("../wmf-testcase/data/src");
+		if (!dir.exists()) {
+			dir = new File("./etc/data/src");
+		}
 		if (!dir.exists()) {
 			System.out.println("Test data directory ./etc/data/src does not exist, skipping test.");
 			return;

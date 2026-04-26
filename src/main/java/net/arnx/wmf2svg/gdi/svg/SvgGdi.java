@@ -95,6 +95,10 @@ public class SvgGdi implements Gdi {
 
 	private StringBuffer buffer = new StringBuffer();
 
+	private Element pendingOutlineOnlyPolygon;
+
+	private String pendingOutlineOnlyPolygonPoints;
+
 	private SvgBrush defaultBrush;
 
 	private SvgPen defaultPen;
@@ -931,16 +935,17 @@ public class SvgGdi implements Gdi {
 			}
 		}
 
-		buffer.setLength(0);
-		for (int i = 0; i < points.length; i++) {
-			if (i != 0) {
-				buffer.append(" ");
-			}
-			buffer.append((int)dc.toAbsoluteX(points[i].x)).append(",");
-			buffer.append((int)dc.toAbsoluteY(points[i].y));
-		}
-		elem.setAttribute("points", buffer.toString());
+		String pointsValue = toSvgPoints(points, false);
+		elem.setAttribute("points", pointsValue);
 		parentNode.appendChild(elem);
+
+		if (isOutlineOnlyPolygonCandidate()) {
+			pendingOutlineOnlyPolygon = elem;
+			pendingOutlineOnlyPolygonPoints = toSvgPoints(points, true);
+		} else {
+			pendingOutlineOnlyPolygon = null;
+			pendingOutlineOnlyPolygonPoints = null;
+		}
 	}
 
 	public void polyline(Point[] points) {
@@ -950,15 +955,20 @@ public class SvgGdi implements Gdi {
 		}
 		elem.setAttribute("fill", "none");
 
-		buffer.setLength(0);
-		for (int i = 0; i < points.length; i++) {
-			if (i != 0)
-				buffer.append(" ");
-			buffer.append((int)dc.toAbsoluteX(points[i].x)).append(",");
-			buffer.append((int)dc.toAbsoluteY(points[i].y));
+		String pointsValue = toSvgPoints(points, false);
+		String normalizedPointsValue = toSvgPoints(points, true);
+		if (pendingOutlineOnlyPolygon != null
+				&& parentNode.getLastChild() == pendingOutlineOnlyPolygon
+				&& normalizedPointsValue.equals(pendingOutlineOnlyPolygonPoints)
+				&& dc.getPen() != null
+				&& dc.getPen().getStyle() != GdiPen.PS_NULL) {
+			pendingOutlineOnlyPolygon.setAttribute("fill", "none");
 		}
-		elem.setAttribute("points", buffer.toString());
+		elem.setAttribute("points", pointsValue);
 		parentNode.appendChild(elem);
+
+		pendingOutlineOnlyPolygon = null;
+		pendingOutlineOnlyPolygonPoints = null;
 	}
 
 	public void polyPolygon(Point[][] points) {
@@ -1128,6 +1138,38 @@ public class SvgGdi implements Gdi {
 
 	public void setBkColor(int color) {
 		dc.setBkColor(color);
+	}
+
+	private boolean isOutlineOnlyPolygonCandidate() {
+		SvgBrush brush = dc.getBrush();
+		SvgPen pen = dc.getPen();
+		return brush != null
+				&& brush.getStyle() == GdiBrush.BS_SOLID
+				&& brush.getColor() == 0x00FFFFFF
+				&& pen != null
+				&& pen.getStyle() == GdiPen.PS_NULL;
+	}
+
+	private String toSvgPoints(Point[] points, boolean normalizeDuplicates) {
+		buffer.setLength(0);
+		int prevX = Integer.MIN_VALUE;
+		int prevY = Integer.MIN_VALUE;
+		boolean hasPrevious = false;
+		for (int i = 0; i < points.length; i++) {
+			int x = (int) dc.toAbsoluteX(points[i].x);
+			int y = (int) dc.toAbsoluteY(points[i].y);
+			if (normalizeDuplicates && hasPrevious && prevX == x && prevY == y) {
+				continue;
+			}
+			if (buffer.length() > 0) {
+				buffer.append(" ");
+			}
+			buffer.append(x).append(",").append(y);
+			prevX = x;
+			prevY = y;
+			hasPrevious = true;
+		}
+		return buffer.toString();
 	}
 
 	public void setBkMode(int mode) {

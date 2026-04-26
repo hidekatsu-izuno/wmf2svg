@@ -373,13 +373,50 @@ public class SvgGdi implements Gdi {
 		Point upperLeft = points[0];
 		Point upperRight = points[1];
 		Point lowerLeft = points[2];
-		if (upperLeft.y == upperRight.y && upperLeft.x == lowerLeft.x) {
-			stretchBlt(image, upperLeft.x, upperLeft.y,
-					upperRight.x - upperLeft.x, lowerLeft.y - upperLeft.y,
-					sx, sy, sw, sh, Gdi.SRCCOPY);
-		} else {
-			log.fine("unsupported in SVG output: plgBlt transform");
+		int sourceWidth = Math.abs(sw);
+		int sourceHeight = Math.abs(sh);
+		if (sourceWidth == 0 || sourceHeight == 0) {
+			return;
 		}
+
+		image = convertDibToPng(image, sh < 0, null);
+		String data = createPngDataUri(image);
+		if (data == null) {
+			return;
+		}
+
+		double x0 = dc.toAbsoluteX(upperLeft.x);
+		double y0 = dc.toAbsoluteY(upperLeft.y);
+		double x1 = dc.toAbsoluteX(upperRight.x);
+		double y1 = dc.toAbsoluteY(upperRight.y);
+		double x2 = dc.toAbsoluteX(lowerLeft.x);
+		double y2 = dc.toAbsoluteY(lowerLeft.y);
+
+		Element elem = doc.createElement("svg");
+		elem.setAttribute("width", Integer.toString(sourceWidth));
+		elem.setAttribute("height", Integer.toString(sourceHeight));
+		elem.setAttribute("viewBox", (sw < 0 ? sx + sw : sx) + " "
+				+ (sh < 0 ? sy + sh : sy) + " " + sourceWidth + " " + sourceHeight);
+		elem.setAttribute("preserveAspectRatio", "none");
+		elem.setAttribute("transform", "matrix("
+				+ ((x1 - x0) / sourceWidth) + " "
+				+ ((y1 - y0) / sourceWidth) + " "
+				+ ((x2 - x0) / sourceHeight) + " "
+				+ ((y2 - y0) / sourceHeight) + " "
+				+ x0 + " " + y0 + ")");
+
+		Element imageNode = doc.createElement("image");
+		int[] imageSize = ImageUtil.getSize(image);
+		if (imageSize != null) {
+			imageNode.setAttribute("width", "" + imageSize[0]);
+			imageNode.setAttribute("height", "" + imageSize[1]);
+		} else {
+			imageNode.setAttribute("width", Integer.toString(sourceWidth));
+			imageNode.setAttribute("height", Integer.toString(sourceHeight));
+		}
+		imageNode.setAttribute("xlink:href", data);
+		elem.appendChild(imageNode);
+		parentNode.appendChild(elem);
 	}
 
 	public void chord(int sxr, int syr, int exr, int eyr, int sxa, int sya,
@@ -2522,6 +2559,20 @@ public class SvgGdi implements Gdi {
 		}
 
 		parentNode.appendChild(elem);
+	}
+
+	private String createPngDataUri(byte[] image) {
+		if (image == null || image.length == 0) {
+			return null;
+		}
+
+		StringBuffer buffer = new StringBuffer("data:image/png;base64,");
+		buffer.append(Base64.encode(image));
+		String data = buffer.toString();
+		if (data == null || data.equals("")) {
+			return null;
+		}
+		return data;
 	}
 
 	private byte[] convertDibToPng(byte[] dib, boolean reverse, Integer transparentColor) {

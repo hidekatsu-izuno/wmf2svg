@@ -1216,6 +1216,24 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
+	public void selectClipPath(Point[][] points) {
+		if (points == null || points.length == 0) {
+			return;
+		}
+
+		Element mask = createMask();
+		Element clip = doc.createElement("path");
+		clip.setAttribute("d", toSvgPath(points));
+		clip.setAttribute("fill", "white");
+		if (dc.getPolyFillMode() == WINDING) {
+			clip.setAttribute("fill-rule", "nonzero");
+		}
+		mask.appendChild(clip);
+
+		dc.setMask(mask);
+		beginMaskedGroup(mask);
+	}
+
 	public void selectObject(GdiObject obj) {
 		if (obj instanceof SvgBrush) {
 			dc.setBrush((SvgBrush) obj);
@@ -1262,6 +1280,29 @@ public class SvgGdi implements Gdi {
 			prevX = x;
 			prevY = y;
 			hasPrevious = true;
+		}
+		return buffer.toString();
+	}
+
+	private String toSvgPath(Point[][] points) {
+		buffer.setLength(0);
+		for (int i = 0; i < points.length; i++) {
+			if (points[i].length == 0) {
+				continue;
+			}
+			if (buffer.length() > 0) {
+				buffer.append(" ");
+			}
+			for (int j = 0; j < points[i].length; j++) {
+				if (j == 0) {
+					buffer.append("M ");
+				} else if (j == 1) {
+					buffer.append(" L ");
+				}
+				buffer.append((int) dc.toAbsoluteX(points[i][j].x)).append(",");
+				buffer.append((int) dc.toAbsoluteY(points[i][j].y)).append(" ");
+			}
+			buffer.append("z");
 		}
 		return buffer.toString();
 	}

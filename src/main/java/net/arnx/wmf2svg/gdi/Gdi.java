@@ -163,6 +163,7 @@ public interface Gdi {
     public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old);
     public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old);
     public void selectClipRgn(GdiRegion rgn);
+    public void selectClipPath(Point[][] points);
     public void selectObject(GdiObject obj);
     public void selectPalette(GdiPalette palette, boolean mode);
     public void setBkColor(int color);

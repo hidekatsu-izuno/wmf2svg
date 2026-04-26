@@ -747,6 +747,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
+	public void selectClipPath(Point[][] points) {
+		// WMF has no direct arbitrary path clipping record in this writer.
+	}
+
 	public void selectObject(GdiObject obj) {
 		byte[] record = new byte[8];
 		int pos = 0;

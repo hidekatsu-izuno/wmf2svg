@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import net.arnx.wmf2svg.gdi.Gdi;
@@ -91,6 +92,7 @@ public class EmfParser {
 		Map<Integer, GdiObject> stockObjects = new HashMap<Integer, GdiObject>();
 		LinkedList<double[]> transforms = new LinkedList<double[]>();
 		double[] transform = identity();
+		List<Point[]> path = null;
 
 		while (true) {
 			int type = (int)in.readUint32();
@@ -165,13 +167,25 @@ public class EmfParser {
 				break;
 			}
 			case EMR_POLYGON16:
-				gdi.polygon(readPoints16(data, transform));
+				if (path != null) {
+					path.add(readPoints16(data, transform));
+				} else {
+					gdi.polygon(readPoints16(data, transform));
+				}
 				break;
 			case EMR_POLYLINE16:
-				gdi.polyline(readPoints16(data, transform));
+				if (path != null) {
+					path.add(readPoints16(data, transform));
+				} else {
+					gdi.polyline(readPoints16(data, transform));
+				}
 				break;
 			case EMR_POLYBEZIER16:
-				gdi.polyline(readPoints16(data, transform));
+				if (path != null) {
+					path.add(readPoints16(data, transform));
+				} else {
+					gdi.polyline(readPoints16(data, transform));
+				}
 				break;
 			case EMR_EXTCREATEPEN:
 				objects.put(readInt32(data, 0), gdi.createPenIndirect(readInt32(data, 20) & 0xFF, Math.max(1, Math.abs(readInt32(data, 24))), readInt32(data, 32)));
@@ -188,12 +202,21 @@ public class EmfParser {
 				break;
 			}
 			case EMR_BEGINPATH:
+				path = new LinkedList<Point[]>();
+				break;
 			case EMR_ENDPATH:
+				break;
 			case EMR_CLOSEFIGURE:
 			case EMR_FILLPATH:
 			case EMR_STROKEANDFILLPATH:
 			case EMR_STROKEPATH:
+				path = null;
+				break;
 			case EMR_SELECTCLIPPATH:
+				if (path != null && !path.isEmpty()) {
+					gdi.selectClipPath(path.toArray(new Point[path.size()][]));
+				}
+				path = null;
 				break;
 			case EMR_EOF:
 				return;

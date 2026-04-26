@@ -105,6 +105,8 @@ public class SvgGdi implements Gdi {
 
 	private SvgFont defaultFont;
 
+	private SvgPalette selectedPalette;
+
 	public SvgGdi() throws SvgGdiException {
 		this(false);
 	}
@@ -242,8 +244,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries) {
-		// TODO
-		log.fine("not implemented: animatePalette");
+		setPaletteEntries(palette, startIndex, entries);
 	}
 
 	public void arc(int sxr, int syr, int exr, int eyr, int sxa, int sya,
@@ -422,7 +423,6 @@ public class SvgGdi implements Gdi {
 	}
 
 	public GdiPatternBrush dibCreatePatternBrush(byte[] image, int usage) {
-		// TODO usage
 		return new SvgPatternBrush(this, image);
 	}
 
@@ -456,12 +456,56 @@ public class SvgGdi implements Gdi {
 	public void escape(byte[] data) {
 	}
 
+	private Element createMask() {
+		Element mask = doc.createElement("mask");
+		mask.setAttribute("id", "mask" + (maskNo++));
+		mask.setIdAttribute("id", true);
+		mask.setAttribute("maskUnits", "userSpaceOnUse");
+		mask.setAttribute("x", "-100000");
+		mask.setAttribute("y", "-100000");
+		mask.setAttribute("width", "200000");
+		mask.setAttribute("height", "200000");
+		if (dc.getOffsetClipX() != 0 || dc.getOffsetClipY() != 0) {
+			mask.setAttribute("transform", "translate(" + dc.getOffsetClipX() + "," + dc.getOffsetClipY() + ")");
+		}
+		defsNode.appendChild(mask);
+		return mask;
+	}
+
+	private void appendFullMaskRect(Element mask, String fill) {
+		Element rect = doc.createElement("rect");
+		rect.setAttribute("x", "-100000");
+		rect.setAttribute("y", "-100000");
+		rect.setAttribute("width", "200000");
+		rect.setAttribute("height", "200000");
+		rect.setAttribute("fill", fill);
+		mask.appendChild(rect);
+	}
+
+	private void beginMaskedGroup(Element mask) {
+		if (!parentNode.hasChildNodes()
+				&& !parentNode.hasAttribute("mask")
+				&& parentNode.getParentNode() != null) {
+			parentNode.getParentNode().removeChild(parentNode);
+		}
+
+		Element parent = (Element)doc.getDocumentElement();
+		if (parentNode.hasAttribute("mask")) {
+			parent = parentNode;
+		}
+
+		parentNode = doc.createElement("g");
+		parentNode.setAttribute("mask", "url(#" + mask.getAttribute("id") + ")");
+		parent.appendChild(parentNode);
+	}
+
 	public int excludeClipRect(int left, int top, int right, int bottom) {
 		Element mask = dc.getMask();
 		if (mask != null) {
 			mask = (Element)mask.cloneNode(true);
 			String name = "mask" + (maskNo++);
 			mask.setAttribute("id", name);
+			mask.setIdAttribute("id", true);
 			defsNode.appendChild(mask);
 
 			Element unclip = doc.createElement("rect");
@@ -472,17 +516,25 @@ public class SvgGdi implements Gdi {
 			unclip.setAttribute("fill", "black");
 			mask.appendChild(unclip);
 			dc.setMask(mask);
-
-			// TODO
-			return GdiRegion.COMPLEXREGION;
 		} else {
-			return GdiRegion.NULLREGION;
+			mask = createMask();
+			appendFullMaskRect(mask, "white");
+
+			Element unclip = doc.createElement("rect");
+			unclip.setAttribute("x", "" + (int)dc.toAbsoluteX(left));
+			unclip.setAttribute("y", "" + (int)dc.toAbsoluteY(top));
+			unclip.setAttribute("width", "" + (int)dc.toRelativeX(right - left));
+			unclip.setAttribute("height", "" + (int)dc.toRelativeY(bottom - top));
+			unclip.setAttribute("fill", "black");
+			mask.appendChild(unclip);
+			dc.setMask(mask);
 		}
+		beginMaskedGroup(mask);
+		return GdiRegion.COMPLEXREGION;
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
-		// TODO
-		log.fine("not implemented: extFloodFill");
+		log.fine("unsupported in SVG output: extFloodFill");
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
@@ -752,18 +804,40 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void floodFill(int x, int y, int color) {
-		// TODO
-		log.fine("not implemented: floodFill");
+		log.fine("unsupported in SVG output: floodFill");
 	}
 
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
-		// TODO
-		log.fine("not implemented: frameRgn");
+		if (!(rgn instanceof SvgRectRegion) || !(brush instanceof SvgBrush)) return;
+
+		SvgRectRegion rectRgn = (SvgRectRegion)rgn;
+		SvgBrush sbrush = (SvgBrush)brush;
+		Element elem = doc.createElement("rect");
+		elem.setAttribute("x", "" + (int)dc.toAbsoluteX(rectRgn.getLeft()));
+		elem.setAttribute("y", "" + (int)dc.toAbsoluteY(rectRgn.getTop()));
+		elem.setAttribute("width", "" + (int)dc.toRelativeX(rectRgn.getRight() - rectRgn.getLeft()));
+		elem.setAttribute("height", "" + (int)dc.toRelativeY(rectRgn.getBottom() - rectRgn.getTop()));
+		elem.setAttribute("fill", "none");
+		elem.setAttribute("stroke", SvgObject.toColor(sbrush.getColor()));
+		elem.setAttribute("stroke-width", "" + Math.max(
+				Math.abs((int)dc.toRelativeX(width)),
+				Math.abs((int)dc.toRelativeY(height))));
+		parentNode.appendChild(elem);
 	}
 
 	public void intersectClipRect(int left, int top, int right, int bottom) {
-		// TODO
-		log.fine("not implemented: intersectClipRect");
+		Element mask = createMask();
+
+		Element clip = doc.createElement("rect");
+		clip.setAttribute("x", "" + (int)dc.toAbsoluteX(left));
+		clip.setAttribute("y", "" + (int)dc.toAbsoluteY(top));
+		clip.setAttribute("width", "" + (int)dc.toRelativeX(right - left));
+		clip.setAttribute("height", "" + (int)dc.toRelativeY(bottom - top));
+		clip.setAttribute("fill", "white");
+		mask.appendChild(clip);
+
+		dc.setMask(mask);
+		beginMaskedGroup(mask);
 	}
 
 	public void invertRgn(GdiRegion rgn) {
@@ -811,14 +885,8 @@ public class SvgGdi implements Gdi {
 			}
 			defsNode.appendChild(mask);
 
-			if (!parentNode.hasChildNodes()) {
-				doc.getDocumentElement().removeChild(parentNode);
-			}
-			parentNode = doc.createElement("g");
-			parentNode.setAttribute("mask", name);
-			doc.getDocumentElement().appendChild(parentNode);
-
 			dc.setMask(mask);
+			beginMaskedGroup(mask);
 		}
 	}
 
@@ -1015,8 +1083,8 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void realizePalette() {
-		// TODO
-		log.fine("not implemented: realizePalette");
+		// Palette realization has no direct SVG equivalent. Palette entries are
+		// applied when DIB images are converted.
 	}
 
 	public void restoreDC(int savedDC) {
@@ -1058,8 +1126,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void resizePalette(GdiPalette palette) {
-		// TODO
-		log.fine("not implemented: ResizePalette");
+		// The WMF parser does not expose the requested size, so keep current entries.
 	}
 
 	public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh) {
@@ -1098,31 +1165,24 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void selectClipRgn(GdiRegion rgn) {
-		if (!parentNode.hasChildNodes()) {
-			doc.getDocumentElement().removeChild(parentNode);
-		}
-		parentNode = doc.createElement("g");
-
 		if (rgn != null) {
-			Element mask = doc.createElement("mask");
-			mask.setAttribute("id", "mask" + (maskNo++));
-			mask.setIdAttribute("id", true);
-
-			if (dc.getOffsetClipX() != 0 || dc.getOffsetClipY() != 0) {
-				mask.setAttribute("transform", "translate(" + dc.getOffsetClipX() + "," + dc.getOffsetClipY() + ")");
-			}
-			defsNode.appendChild(mask);
+			Element mask = createMask();
 
 			Element clip = doc.createElement("use");
 			clip.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
 			clip.setAttribute("fill", "white");
 
 			mask.appendChild(clip);
-
-			parentNode.setAttribute("mask", "url(#" + mask.getAttribute("id") + ")");
+			dc.setMask(mask);
+			beginMaskedGroup(mask);
+		} else {
+			dc.setMask(null);
+			if (!parentNode.hasChildNodes() && parentNode.getParentNode() != null) {
+				parentNode.getParentNode().removeChild(parentNode);
+			}
+			parentNode = doc.createElement("g");
+			doc.getDocumentElement().appendChild(parentNode);
 		}
-
-		doc.getDocumentElement().appendChild(parentNode);
 	}
 
 	public void selectObject(GdiObject obj) {
@@ -1136,8 +1196,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void selectPalette(GdiPalette palette, boolean mode) {
-		// TODO
-		log.fine("not implemented: selectPalette");
+		selectedPalette = (SvgPalette)palette;
 	}
 
 	public void setBkColor(int color) {
@@ -1221,8 +1280,9 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries) {
-		// TODO
-		log.fine("not implemented: setPaletteEntries");
+		if (palette instanceof SvgPalette) {
+			((SvgPalette)palette).setEntries(startIndex, entries);
+		}
 	}
 
 	public void setPixel(int x, int y, int color) {

@@ -22,6 +22,7 @@ It now requires Java 8.0 or later.
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
+<version>wmf2svg</version>
 ```
 
 ## Build
@@ -34,7 +35,7 @@ mvn package
 
 ## History
 
-- 2026-04-26: Migrated to Maven build system.
+- 2026-04-26: Migrated to Maven build system. And some TODO implemented.
 - 2021-07-12: Fix a bug about images with palette.
 - 2021-06-30: Fix a bug that occurred when using Symbol type fonts.
 - 2018-11-24: Changed to gradle build system.

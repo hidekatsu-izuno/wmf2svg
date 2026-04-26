@@ -22,4 +22,17 @@ class SvgPalette  extends SvgObject implements GdiPalette {
 	public int[] getEntries() {
 		return entries;
 	}
+
+	public void setEntries(int startIndex, int[] entries) {
+		if (entries == null || entries.length == 0) {
+			return;
+		}
+		int size = Math.max(this.entries.length, startIndex + entries.length);
+		if (size != this.entries.length) {
+			int[] newEntries = new int[size];
+			System.arraycopy(this.entries, 0, newEntries, 0, this.entries.length);
+			this.entries = newEntries;
+		}
+		System.arraycopy(entries, 0, this.entries, startIndex, entries.length);
+	}
 }

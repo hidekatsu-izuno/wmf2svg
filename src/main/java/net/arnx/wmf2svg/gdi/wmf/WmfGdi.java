@@ -93,7 +93,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries) {
-		byte[] record = new byte[22];
+		byte[] record = new byte[12 + entries.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_ANIMATE_PALETTE);
@@ -151,8 +151,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
 		pos = setBytes(record, pos, image);
@@ -299,6 +299,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		throw new UnsupportedOperationException();
 	}
 
+	public int extSelectClipRgn(GdiRegion rgn, int mode) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void deleteObject(GdiObject obj) {
 		byte[] record = new byte[8];
 		int pos = 0;
@@ -323,19 +327,25 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
-		byte[] record = new byte[22 + (image.length + image.length%2)];
+		int imageLength = (image != null) ? image.length : 0;
+		byte[] record = new byte[((image != null) ? 22 : 24) + (imageLength + imageLength%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_DIB_BIT_BLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
+		if (image == null) {
+			pos = setInt16(record, pos, 0);
+		}
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
-		pos = setBytes(record, pos, image);
-		if (image.length%2 == 1) pos = setByte(record, pos, 0);
+		if (image != null) {
+			pos = setBytes(record, pos, image);
+			if (image.length%2 == 1) pos = setByte(record, pos, 0);
+		}
 		records.add(record);
 	}
 
@@ -364,10 +374,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sh);
 		pos = setInt16(record, pos, sw);
-		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
+		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
 		pos = setBytes(record, pos, image);
@@ -436,7 +446,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		if (rect != null && rect.length != 4) {
 			throw new IllegalArgumentException("rect must be 4 length.");
 		}
-		byte[] record = new byte[14 + ((rect != null) ? 8 : 0) + (text.length + text.length%2) + (dx.length * 2)];
+		int dxLength = (dx != null) ? dx.length : 0;
+		byte[] record = new byte[14 + ((rect != null) ? 8 : 0) + (text.length + text.length%2) + (dxLength * 2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_EXT_TEXT_OUT);
@@ -452,7 +463,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		}
 		pos = setBytes(record, pos, text);
 		if (text.length%2 == 1) pos = setByte(record, pos, 0);
-		for (int i = 0; i < dx.length; i++) {
+		for (int i = 0; i < dxLength; i++) {
 			pos = setInt16(record, pos, dx[i]);
 		}
 		records.add(record);
@@ -498,7 +509,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_FLOOD_FILL);
+		pos = setUint16(record, pos, RECORD_FILL_RGN);
 		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		records.add(record);
@@ -686,7 +697,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[length];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_POLYLINE);
+		pos = setUint16(record, pos, RECORD_POLY_POLYGON);
 		pos = setInt16(record, pos, points.length);
 		for (int i = 0; i < points.length; i++) {
 			pos = setInt16(record, pos, points[i].length);
@@ -885,8 +896,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint16(record, pos, startscan);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
 		pos = setBytes(record, pos, image);
@@ -934,7 +945,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries) {
-		byte[] record = new byte[6 + entries.length * 4];
+		byte[] record = new byte[12 + entries.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_SET_PALETTE_ENTRIES);
@@ -1027,7 +1038,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_TEXT_COLOR);
+		pos = setUint16(record, pos, RECORD_SET_TEXT_JUSTIFICATION);
 		pos = setInt16(record, pos, breakCount);
 		pos = setInt16(record, pos, breakExtra);
 		records.add(record);
@@ -1084,8 +1095,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, sw);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
 		pos = setBytes(record, pos, image);
@@ -1105,8 +1116,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, sw);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
-		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dh);
+		pos = setInt16(record, pos, dw);
 		pos = setInt16(record, pos, dy);
 		pos = setInt16(record, pos, dx);
 		pos = setBytes(record, pos, image);

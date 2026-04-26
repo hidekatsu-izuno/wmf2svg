@@ -535,12 +535,13 @@ public class EmfParser {
 			}
 			case EMR_EXTSELECTCLIPRGN: {
 				int regionSize = readInt32(data, 0);
+				int mode = readInt32(data, 4);
 				if (regionSize == 0) {
-					gdi.selectClipRgn(null);
+					gdi.extSelectClipRgn(null, mode);
 				} else {
 					GdiRegion region = readRegion(data, 8, regionSize, transform, gdi);
 					if (region != null) {
-						gdi.selectClipRgn(region);
+						gdi.extSelectClipRgn(region, mode);
 					}
 				}
 				break;

@@ -594,6 +594,10 @@ public class SvgGdi implements Gdi {
 	}
 
 	private void beginMaskedGroup(Element mask) {
+		beginMaskedGroup(mask, true);
+	}
+
+	private void beginMaskedGroup(Element mask, boolean nestInCurrentMask) {
 		if (!parentNode.hasChildNodes()
 				&& !parentNode.hasAttribute("mask")
 				&& parentNode.getParentNode() != null) {
@@ -601,7 +605,7 @@ public class SvgGdi implements Gdi {
 		}
 
 		Element parent = (Element)doc.getDocumentElement();
-		if (parentNode.hasAttribute("mask")) {
+		if (nestInCurrentMask && parentNode.hasAttribute("mask")) {
 			parent = parentNode;
 		}
 
@@ -1358,24 +1362,56 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void selectClipRgn(GdiRegion rgn) {
+		extSelectClipRgn(rgn, GdiRegion.RGN_COPY);
+	}
+
+	public int extSelectClipRgn(GdiRegion rgn, int mode) {
 		if (rgn != null) {
-			Element mask = createMask();
-
-			Element clip = doc.createElement("use");
-			clip.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
-			clip.setAttribute("fill", "white");
-
-			mask.appendChild(clip);
+			Element mask = createClipRgnMask(mode);
+			mask.appendChild(createRegionUse(rgn, mode == GdiRegion.RGN_DIFF ? "black" : "white"));
 			dc.setMask(mask);
-			beginMaskedGroup(mask);
+			beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
+			return GdiRegion.COMPLEXREGION;
 		} else {
-			dc.setMask(null);
-			if (!parentNode.hasChildNodes() && parentNode.getParentNode() != null) {
-				parentNode.getParentNode().removeChild(parentNode);
+			if (mode == GdiRegion.RGN_COPY) {
+				dc.setMask(null);
+				if (!parentNode.hasChildNodes() && parentNode.getParentNode() != null) {
+					parentNode.getParentNode().removeChild(parentNode);
+				}
+				parentNode = doc.createElement("g");
+				doc.getDocumentElement().appendChild(parentNode);
 			}
-			parentNode = doc.createElement("g");
-			doc.getDocumentElement().appendChild(parentNode);
+			return dc.getMask() != null ? GdiRegion.COMPLEXREGION : GdiRegion.NULLREGION;
 		}
+	}
+
+	private Element createClipRgnMask(int mode) {
+		Element mask;
+		if (mode == GdiRegion.RGN_OR || mode == GdiRegion.RGN_XOR || mode == GdiRegion.RGN_DIFF) {
+			mask = dc.getMask();
+			if (mask != null) {
+				mask = (Element)mask.cloneNode(true);
+				String name = "mask" + (maskNo++);
+				mask.setAttribute("id", name);
+				mask.setIdAttribute("id", true);
+				defsNode.appendChild(mask);
+			} else {
+				mask = createMask();
+				if (mode == GdiRegion.RGN_DIFF) {
+					appendFullMaskRect(mask, "white");
+				}
+			}
+		} else {
+			mask = createMask();
+		}
+		return mask;
+	}
+
+	private Element createRegionUse(GdiRegion rgn, String fill) {
+		Element clip = doc.createElement("use");
+		clip.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+		clip.setAttribute("fill", fill);
+		return clip;
 	}
 
 	public void selectClipPath(int mode) {
@@ -1383,18 +1419,23 @@ public class SvgGdi implements Gdi {
 			return;
 		}
 
-		Element mask = createMask();
-		Element clip = doc.createElement("path");
-		clip.setAttribute("d", toSvgPath(currentPath));
-		clip.setAttribute("fill", "white");
-		if (dc.getPolyFillMode() == WINDING) {
-			clip.setAttribute("fill-rule", "nonzero");
-		}
+		Element mask = createClipRgnMask(mode);
+		Element clip = createPathClip(mode == GdiRegion.RGN_DIFF ? "black" : "white");
 		mask.appendChild(clip);
 
 		dc.setMask(mask);
-		beginMaskedGroup(mask);
+		beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
 		currentPath = null;
+	}
+
+	private Element createPathClip(String fill) {
+		Element clip = doc.createElement("path");
+		clip.setAttribute("d", toSvgPath(currentPath));
+		clip.setAttribute("fill", fill);
+		if (dc.getPolyFillMode() == WINDING) {
+			clip.setAttribute("fill-rule", "nonzero");
+		}
+		return clip;
 	}
 
 	public GdiColorSpace setColorSpace(GdiColorSpace colorSpace) {

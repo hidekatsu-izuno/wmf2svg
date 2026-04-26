@@ -152,6 +152,7 @@ public interface Gdi {
     public int excludeClipRect(int left, int top, int right, int bottom);
     public void extFloodFill(int x, int y, int color, int type);
     public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData);
+    public int extSelectClipRgn(GdiRegion rgn, int mode);
     public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] lpdx);
     public void fillRgn(GdiRegion rgn, GdiBrush brush);
     public void flattenPath();

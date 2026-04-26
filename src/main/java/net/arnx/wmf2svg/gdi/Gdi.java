@@ -191,6 +191,7 @@ public interface Gdi {
     public void selectPalette(GdiPalette palette, boolean mode);
     public void setBkColor(int color);
     public void setBkMode(int mode);
+    public void setColorAdjustment(byte[] colorAdjustment);
     public void setArcDirection(int direction);
     public void setBrushOrgEx(int x, int y, Point old);
     public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx, int sy,

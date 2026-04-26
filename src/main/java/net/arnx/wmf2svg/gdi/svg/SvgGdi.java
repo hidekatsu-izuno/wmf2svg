@@ -1800,6 +1800,10 @@ public class SvgGdi implements Gdi {
 		dc.setBkMode(mode);
 	}
 
+	public void setColorAdjustment(byte[] colorAdjustment) {
+		dc.setColorAdjustment(colorAdjustment);
+	}
+
 	public void setArcDirection(int direction) {
 		dc.setArcDirection(direction);
 	}

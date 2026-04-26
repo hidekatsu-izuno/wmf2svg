@@ -881,6 +881,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		throw new UnsupportedOperationException();
 	}
 
+	public void setColorAdjustment(byte[] colorAdjustment) {
+		throw new UnsupportedOperationException();
+	}
+
 	public void setArcDirection(int direction) {
 		throw new UnsupportedOperationException();
 	}

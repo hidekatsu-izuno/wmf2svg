@@ -62,7 +62,7 @@ public class EmfParser {
 	private static final int EMR_SETROP2 = 20;
 	private static final int EMR_SETSTRETCHBLTMODE = 21;
 	private static final int EMR_SETTEXTALIGN = 22;
-	private static final int EMR_SETTEXTCHAREXTRA = 23;
+	private static final int EMR_SETCOLORADJUSTMENT = 23;
 	private static final int EMR_SETTEXTCOLOR = 24;
 	private static final int EMR_SETBKCOLOR = 25;
 	private static final int EMR_OFFSETCLIPRGN = 26;
@@ -131,14 +131,21 @@ public class EmfParser {
 	private static final int EMR_CREATEMONOBRUSH = 93;
 	private static final int EMR_CREATEDIBPATTERNBRUSHPT = 94;
 	private static final int EMR_EXTCREATEPEN = 95;
+	private static final int EMR_POLYTEXTOUTA = 96;
+	private static final int EMR_POLYTEXTOUTW = 97;
 	private static final int EMR_SETICMMODE = 98;
 	private static final int EMR_CREATECOLORSPACE = 99;
 	private static final int EMR_SETCOLORSPACE = 100;
 	private static final int EMR_DELETECOLORSPACE = 101;
+	private static final int EMR_DRAWESCAPE = 105;
+	private static final int EMR_EXTESCAPE = 106;
+	private static final int EMR_NAMEDESCAPE = 110;
 	private static final int EMR_ALPHABLEND = 114;
 	private static final int EMR_SETLAYOUT = 115;
 	private static final int EMR_TRANSPARENTBLT = 116;
 	private static final int EMR_SETTEXTJUSTIFICATION = 120;
+	private static final int EMR_CREATECOLORSPACEW = 122;
+	private static final int EMR_SMALLTEXTOUT = 108;
 	private static final int EMR_EOF = 14;
 
 	private static final int META_ESCAPE_ENHANCED_METAFILE = 0x000F;
@@ -153,6 +160,9 @@ public class EmfParser {
 	private static final int PT_LINETO = 0x02;
 	private static final int PT_BEZIERTO = 0x04;
 	private static final int PT_MOVETO = 0x06;
+
+	private static final int ETO_NO_RECT = 0x00000100;
+	private static final int ETO_SMALL_CHARS = 0x00000200;
 
 	private static final int STOCK_WHITE_BRUSH = 0x80000000;
 	private static final int STOCK_LTGRAY_BRUSH = 0x80000001;
@@ -257,8 +267,8 @@ public class EmfParser {
 			case EMR_SETTEXTALIGN:
 				gdi.setTextAlign(readInt32(data, 0));
 				break;
-			case EMR_SETTEXTCHAREXTRA:
-				gdi.setTextCharacterExtra(readInt32(data, 0));
+			case EMR_SETCOLORADJUSTMENT:
+				gdi.setColorAdjustment(copyRange(data, 0, data.length));
 				break;
 			case EMR_SETTEXTCOLOR:
 				gdi.setTextColor(readInt32(data, 0));
@@ -492,6 +502,13 @@ public class EmfParser {
 				}
 				break;
 			}
+			case EMR_DRAWESCAPE:
+			case EMR_EXTESCAPE:
+				readEscape(data, gdi);
+				break;
+			case EMR_NAMEDESCAPE:
+				readNamedEscape(data, gdi);
+				break;
 			case EMR_GDICOMMENT: {
 				if (data.length >= 4) {
 					int commentSize = readInt32(data, 0);
@@ -585,6 +602,12 @@ public class EmfParser {
 			case EMR_EXTTEXTOUTW:
 				readExtTextOut(data, transform, gdi, true, textCharset);
 				break;
+			case EMR_POLYTEXTOUTA:
+				readPolyTextOut(data, transform, gdi, false, textCharset);
+				break;
+			case EMR_POLYTEXTOUTW:
+				readPolyTextOut(data, transform, gdi, true, textCharset);
+				break;
 			case EMR_ALPHABLEND:
 				readAlphaBlend(data, transform, gdi);
 				break;
@@ -594,8 +617,14 @@ public class EmfParser {
 			case EMR_TRANSPARENTBLT:
 				readTransparentBlt(data, transform, gdi);
 				break;
+			case EMR_SMALLTEXTOUT:
+				readSmallTextOut(data, transform, gdi, textCharset);
+				break;
 			case EMR_SETTEXTJUSTIFICATION:
 				gdi.setTextJustification(readInt32(data, 0), readInt32(data, 4));
+				break;
+			case EMR_CREATECOLORSPACEW:
+				objects.put(readInt32(data, 0), gdi.createColorSpace(copyRange(data, 4, data.length - 4)));
 				break;
 			case EMR_BEGINPATH:
 				gdi.beginPath();
@@ -728,6 +757,51 @@ public class EmfParser {
 		return entries;
 	}
 
+	private static void readEscape(byte[] data, Gdi gdi) {
+		if (data.length < 8) {
+			return;
+		}
+		int escapeFunction = readInt32(data, 0);
+		int count = readInt32(data, 4);
+		if (count < 0 || count > data.length - 8) {
+			return;
+		}
+
+		byte[] escape = new byte[4 + count];
+		escape[0] = (byte)escapeFunction;
+		escape[1] = (byte)(escapeFunction >>> 8);
+		escape[2] = (byte)count;
+		escape[3] = (byte)(count >>> 8);
+		System.arraycopy(data, 8, escape, 4, count);
+		if (!parseEscape(escape, gdi)) {
+			gdi.escape(escape);
+		}
+	}
+
+	private static void readNamedEscape(byte[] data, Gdi gdi) {
+		if (data.length < 12) {
+			return;
+		}
+		int escapeFunction = readInt32(data, 0);
+		int driverLength = readInt32(data, 4);
+		int count = readInt32(data, 8);
+		int dataOffset = 12 + driverLength;
+		if (driverLength < 0 || count < 0 || dataOffset < 12 || dataOffset > data.length
+				|| count > data.length - dataOffset) {
+			return;
+		}
+
+		byte[] escape = new byte[4 + count];
+		escape[0] = (byte)escapeFunction;
+		escape[1] = (byte)(escapeFunction >>> 8);
+		escape[2] = (byte)count;
+		escape[3] = (byte)(count >>> 8);
+		System.arraycopy(data, dataOffset, escape, 4, count);
+		if (!parseEscape(escape, gdi)) {
+			gdi.escape(escape);
+		}
+	}
+
 	private static void readPolyDraw(byte[] data, double[] transform, Gdi gdi, boolean shortPoints) {
 		int count = readInt32(data, 16);
 		int pointOffset = 20;
@@ -789,23 +863,39 @@ public class EmfParser {
 
 	private static void readBitBlt(byte[] data, double[] transform, Gdi gdi) {
 		int[] rect = transformDestRect(transform, data, 16, 20, 40, 44);
+		long rop = readUInt32(data, 32);
 		byte[] image = readBitmap(data, 52, 56, 60, 64);
 		if (image == null) {
+			if (canPatBltWithoutSource(rop)) {
+				gdi.patBlt(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], rop);
+			}
 			return;
 		}
 		gdi.bitBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 24), readInt32(data, 28), readUInt32(data, 32));
+				readInt32(data, 24), readInt32(data, 28), rop);
 	}
 
 	private static void readStretchBlt(byte[] data, double[] transform, Gdi gdi) {
 		int[] rect = transformDestRect(transform, data, 16, 20, 48, 52);
+		long rop = readUInt32(data, 32);
 		byte[] image = readBitmap(data, 60, 64, 68, 72);
 		if (image == null) {
+			if (canPatBltWithoutSource(rop)) {
+				gdi.patBlt(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], rop);
+			}
 			return;
 		}
 		gdi.stretchBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
 				readInt32(data, 24), readInt32(data, 28), readInt32(data, 40), readInt32(data, 44),
-				readUInt32(data, 32));
+				rop);
+	}
+
+	private static boolean canPatBltWithoutSource(long rop) {
+		return rop == Gdi.BLACKNESS
+				|| rop == Gdi.DSTINVERT
+				|| rop == Gdi.PATCOPY
+				|| rop == Gdi.PATINVERT
+				|| rop == Gdi.WHITENESS;
 	}
 
 	private static void readSetDIBitsToDevice(byte[] data, double[] transform, Gdi gdi) {
@@ -852,8 +942,58 @@ public class EmfParser {
 				readInt32(data, 32));
 	}
 
-	private static void readExtTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset) {
+	private static void readSmallTextOut(byte[] data, double[] transform, Gdi gdi, int charset) {
+		if (data.length < 28) {
+			return;
+		}
+		int count = readInt32(data, 8);
+		int options = readInt32(data, 12);
 		int textOffset = 28;
+
+		int[] rect = null;
+		if ((options & ETO_NO_RECT) == 0) {
+			if (textOffset + 16 > data.length) {
+				return;
+			}
+			if ((options & (Gdi.ETO_CLIPPED | Gdi.ETO_OPAQUE)) != 0) {
+				rect = transformRect(transform, data, textOffset);
+			}
+			textOffset += 16;
+		}
+
+		Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
+		byte[] text;
+		if ((options & ETO_SMALL_CHARS) != 0) {
+			text = copyRange(data, textOffset, count);
+		} else {
+			text = readUtf16StringBytes(data, textOffset, count, charset);
+		}
+		gdi.extTextOut(point.x, point.y, options, rect, text, null);
+	}
+
+	private static void readExtTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset) {
+		readEmrText(data, 28, transform, gdi, unicode, charset);
+	}
+
+	private static void readPolyTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset) {
+		if (data.length < 32) {
+			return;
+		}
+		int count = readInt32(data, 28);
+		int textOffset = 32;
+		for (int i = 0; i < count; i++) {
+			if (textOffset + 40 > data.length) {
+				return;
+			}
+			readEmrText(data, textOffset, transform, gdi, unicode, charset);
+			textOffset += 40;
+		}
+	}
+
+	private static void readEmrText(byte[] data, int textOffset, double[] transform, Gdi gdi, boolean unicode, int charset) {
+		if (textOffset < 0 || textOffset + 40 > data.length) {
+			return;
+		}
 		Point point = transformPoint(transform, readInt32(data, textOffset), readInt32(data, textOffset + 4));
 		int count = readInt32(data, textOffset + 8);
 		int stringOffset = readInt32(data, textOffset + 12) - 8;

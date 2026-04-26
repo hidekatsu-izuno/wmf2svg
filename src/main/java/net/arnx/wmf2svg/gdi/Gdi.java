@@ -135,6 +135,7 @@ public interface Gdi {
     public void chord(int sxr, int syr, int exr, int eyr,
 		      int sxa, int sya, int exa, int eya);
     public void closeFigure();
+    public void colorCorrectPalette(GdiPalette palette, int startIndex, int entries);
     public GdiBrush createBrushIndirect(int style, int color, int hatch);
     public GdiColorSpace createColorSpace(byte[] logColorSpace);
     public GdiFont createFontIndirect(int height, int width, int escapement,

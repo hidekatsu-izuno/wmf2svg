@@ -355,10 +355,25 @@ public class SvgGdi implements Gdi {
 
 	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh,
 			int sx, int sy, byte[] mask, int mx, int my, long rop) {
-		if (mask != null) {
-			log.fine("unsupported in SVG output: maskBlt mask");
+		if (mask == null) {
+			bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
+			return;
 		}
-		bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
+
+		Element parent = parentNode;
+		Element maskNode = createBitmapMask(mask, dx, dy, dw, dh, mx, my, dw, dh);
+		if (maskNode == null) {
+			bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
+			return;
+		}
+		try {
+			parentNode = doc.createElement("g");
+			parentNode.setAttribute("mask", "url(#" + maskNode.getAttribute("id") + ")");
+			parent.appendChild(parentNode);
+			bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
+		} finally {
+			parentNode = parent;
+		}
 	}
 
 	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
@@ -366,10 +381,6 @@ public class SvgGdi implements Gdi {
 		if (points == null || points.length < 3) {
 			return;
 		}
-		if (mask != null) {
-			log.fine("unsupported in SVG output: plgBlt mask");
-		}
-
 		Point upperLeft = points[0];
 		Point upperRight = points[1];
 		Point lowerLeft = points[2];
@@ -416,6 +427,13 @@ public class SvgGdi implements Gdi {
 		}
 		imageNode.setAttribute("xlink:href", data);
 		elem.appendChild(imageNode);
+		if (mask != null) {
+			Element maskNode = createTransformedBitmapMask(mask, mx, my, sourceWidth, sourceHeight,
+					x0, y0, x1, y1, x2, y2);
+			if (maskNode != null) {
+				elem.setAttribute("mask", "url(#" + maskNode.getAttribute("id") + ")");
+			}
+		}
 		parentNode.appendChild(elem);
 	}
 
@@ -478,6 +496,10 @@ public class SvgGdi implements Gdi {
 		if (currentPath != null) {
 			currentPath.close();
 		}
+	}
+
+	public void colorCorrectPalette(GdiPalette palette, int startIndex, int entries) {
+		log.fine("unsupported in SVG output: colorCorrectPalette");
 	}
 
 	public GdiBrush createBrushIndirect(int style, int color, int hatch) {
@@ -720,7 +742,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
-		log.fine("unsupported in SVG output: extFloodFill");
+		setPixel(x, y, color);
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
@@ -990,7 +1012,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void floodFill(int x, int y, int color) {
-		log.fine("unsupported in SVG output: floodFill");
+		setPixel(x, y, color);
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
@@ -2573,6 +2595,98 @@ public class SvgGdi implements Gdi {
 			return null;
 		}
 		return data;
+	}
+
+	private Element createBitmapMask(byte[] maskImage, int dx, int dy, int dw, int dh,
+			int sx, int sy, int sw, int sh) {
+		int x = (int)dc.toAbsoluteX(dx);
+		int y = (int)dc.toAbsoluteY(dy);
+		int width = (int)dc.toRelativeX(dw);
+		int height = (int)dc.toRelativeY(dh);
+		int maskX = Math.min(x, x + width);
+		int maskY = Math.min(y, y + height);
+		int maskWidth = Math.abs(width);
+		int maskHeight = Math.abs(height);
+		Element mask = createImageMask(maskX, maskY, maskWidth, maskHeight);
+		Element svg = appendMaskImage(mask, maskImage, sx, sy, sw, sh, maskWidth, maskHeight);
+		if (svg == null) {
+			defsNode.removeChild(mask);
+			return null;
+		}
+		svg.setAttribute("x", Integer.toString(maskX));
+		svg.setAttribute("y", Integer.toString(maskY));
+		return mask;
+	}
+
+	private Element createTransformedBitmapMask(byte[] maskImage, int sx, int sy, int sw, int sh,
+			double x0, double y0, double x1, double y1, double x2, double y2) {
+		int width = Math.abs(sw);
+		int height = Math.abs(sh);
+		Element mask = createImageMask(
+				(int)Math.floor(Math.min(Math.min(x0, x1), x2)),
+				(int)Math.floor(Math.min(Math.min(y0, y1), y2)),
+				(int)Math.ceil(Math.max(Math.max(x0, x1), x2) - Math.min(Math.min(x0, x1), x2)),
+				(int)Math.ceil(Math.max(Math.max(y0, y1), y2) - Math.min(Math.min(y0, y1), y2)));
+		Element svg = appendMaskImage(mask, maskImage, sx, sy, sw, sh);
+		if (svg == null) {
+			defsNode.removeChild(mask);
+			return null;
+		}
+		svg.setAttribute("transform", "matrix("
+				+ ((x1 - x0) / width) + " "
+				+ ((y1 - y0) / width) + " "
+				+ ((x2 - x0) / height) + " "
+				+ ((y2 - y0) / height) + " "
+				+ x0 + " " + y0 + ")");
+		return mask;
+	}
+
+	private Element createImageMask(int x, int y, int width, int height) {
+		Element mask = doc.createElement("mask");
+		mask.setAttribute("id", "mask" + (maskNo++));
+		mask.setIdAttribute("id", true);
+		mask.setAttribute("maskUnits", "userSpaceOnUse");
+		mask.setAttribute("x", Integer.toString(x));
+		mask.setAttribute("y", Integer.toString(y));
+		mask.setAttribute("width", Integer.toString(Math.max(1, width)));
+		mask.setAttribute("height", Integer.toString(Math.max(1, height)));
+		defsNode.appendChild(mask);
+		return mask;
+	}
+
+	private Element appendMaskImage(Element mask, byte[] maskImage, int sx, int sy, int sw, int sh) {
+		return appendMaskImage(mask, maskImage, sx, sy, sw, sh, Math.abs(sw), Math.abs(sh));
+	}
+
+	private Element appendMaskImage(Element mask, byte[] maskImage, int sx, int sy, int sw, int sh,
+			int width, int height) {
+		if (maskImage == null || maskImage.length == 0) {
+			return null;
+		}
+		maskImage = convertDibToPng(maskImage, sh < 0, null);
+		String data = createPngDataUri(maskImage);
+		if (data == null) {
+			return null;
+		}
+		Element svg = doc.createElement("svg");
+		svg.setAttribute("width", Integer.toString(width));
+		svg.setAttribute("height", Integer.toString(height));
+		svg.setAttribute("viewBox", (sw < 0 ? sx + sw : sx) + " "
+				+ (sh < 0 ? sy + sh : sy) + " " + width + " " + height);
+		svg.setAttribute("preserveAspectRatio", "none");
+		Element imageNode = doc.createElement("image");
+		int[] imageSize = ImageUtil.getSize(maskImage);
+		if (imageSize != null) {
+			imageNode.setAttribute("width", "" + imageSize[0]);
+			imageNode.setAttribute("height", "" + imageSize[1]);
+		} else {
+			imageNode.setAttribute("width", Integer.toString(width));
+			imageNode.setAttribute("height", Integer.toString(height));
+		}
+		imageNode.setAttribute("xlink:href", data);
+		svg.appendChild(imageNode);
+		mask.appendChild(svg);
+		return svg;
 	}
 
 	private byte[] convertDibToPng(byte[] dib, boolean reverse, Integer transparentColor) {

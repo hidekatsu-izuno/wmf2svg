@@ -147,6 +147,7 @@ public class EmfParser implements Parser {
 	private static final int EMR_DRAWESCAPE = 105;
 	private static final int EMR_EXTESCAPE = 106;
 	private static final int EMR_NAMEDESCAPE = 110;
+	private static final int EMR_COLORCORRECTPALETTE = 111;
 	private static final int EMR_ALPHABLEND = 114;
 	private static final int EMR_SETLAYOUT = 115;
 	private static final int EMR_TRANSPARENTBLT = 116;
@@ -528,6 +529,13 @@ public class EmfParser implements Parser {
 			case EMR_NAMEDESCAPE:
 				readNamedEscape(data, gdi);
 				break;
+			case EMR_COLORCORRECTPALETTE: {
+				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+				if (obj instanceof GdiPalette) {
+					gdi.colorCorrectPalette((GdiPalette)obj, readInt32(data, 4), readInt32(data, 8));
+				}
+				break;
+			}
 			case EMR_GDICOMMENT: {
 				if (data.length >= 4) {
 					int commentSize = readInt32(data, 0);

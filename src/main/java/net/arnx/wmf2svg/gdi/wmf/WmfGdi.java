@@ -193,6 +193,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		throw new UnsupportedOperationException();
 	}
 
+	public void colorCorrectPalette(GdiPalette palette, int startIndex, int entries) {
+		throw new UnsupportedOperationException();
+	}
+
 	public GdiBrush createBrushIndirect(int style, int color, int hatch) {
 		byte[] record = new byte[14];
 		int pos = 0;

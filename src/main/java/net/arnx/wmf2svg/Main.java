@@ -24,8 +24,10 @@ import java.util.logging.Logger;
 import java.util.zip.GZIPOutputStream;
 
 import net.arnx.wmf2svg.gdi.Gdi;
+import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.svg.*;
 import net.arnx.wmf2svg.gdi.wmf.*;
+import net.arnx.wmf2svg.io.Parser;
 
 /**
  * @author Hidekatsu Izuno
@@ -67,7 +69,7 @@ public class Main {
 
 		try {
 			InputStream in = new FileInputStream(src);
-			WmfParser parser = new WmfParser();
+			Parser parser = src.toLowerCase().endsWith(".emf") ? new EmfParser() : new WmfParser();
 			final SvgGdi gdi = new SvgGdi(compatible);
 			gdi.setReplaceSymbolFont(replaceSymbolFont);
 			if (debug) {
@@ -144,7 +146,7 @@ public class Main {
 			OutputStream out = null;
 			try {
 				out = new FileOutputStream(dest);
-				if (args[1].endsWith(".svgz")) {
+				if (dest.endsWith(".svgz")) {
 					out = new GZIPOutputStream(out);
 				}
 
@@ -158,7 +160,7 @@ public class Main {
 	}
 
 	private static void usage() {
-		System.out.println("java -jar wmf2svg.jar [wmf filename] [svg filename(svg, xml, or .svgz)]");
+		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [svg filename(svg, xml, or .svgz)]");
 		System.exit(-1);
 	}
 }

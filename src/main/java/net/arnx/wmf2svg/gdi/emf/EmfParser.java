@@ -38,12 +38,13 @@ import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Trivertex;
 import net.arnx.wmf2svg.io.DataInput;
+import net.arnx.wmf2svg.io.Parser;
 
 /**
  * Minimal EMF parser scaffold focused on overlay geometry stored in
  * META_ESCAPE_ENHANCED_METAFILE comments.
  */
-public class EmfParser {
+public class EmfParser implements Parser {
 	private static final int EMR_HEADER = 1;
 	private static final int EMR_POLYBEZIER = 2;
 	private static final int EMR_POLYGON = 3;

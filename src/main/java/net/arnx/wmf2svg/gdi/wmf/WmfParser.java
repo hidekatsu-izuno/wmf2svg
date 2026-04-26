@@ -30,12 +30,13 @@ import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.io.DataInput;
+import net.arnx.wmf2svg.io.Parser;
 
 /**
  * @author Hidekatsu Izuno
  * @author Shunsuke Mori
  */
-public class WmfParser implements WmfConstants {
+public class WmfParser implements Parser, WmfConstants {
 
 	private static Logger log = Logger.getLogger(WmfParser.class.getName());
 

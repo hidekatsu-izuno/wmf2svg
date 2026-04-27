@@ -88,6 +88,7 @@ public class SvgDc implements Cloneable {
 	private long mapperFlags = 0;
 	private int icmMode = 0;
 	private byte[] colorAdjustment = null;
+	private byte[] icmProfile = null;
 
 	private SvgBrush brush = null;
 	private SvgFont font = null;
@@ -427,6 +428,24 @@ public class SvgDc implements Cloneable {
 		}
 		byte[] copy = new byte[colorAdjustment.length];
 		System.arraycopy(colorAdjustment, 0, copy, 0, colorAdjustment.length);
+		return copy;
+	}
+
+	public void setICMProfile(byte[] profileName) {
+		if (profileName == null) {
+			icmProfile = null;
+		} else {
+			icmProfile = new byte[profileName.length];
+			System.arraycopy(profileName, 0, icmProfile, 0, profileName.length);
+		}
+	}
+
+	public byte[] getICMProfile() {
+		if (icmProfile == null) {
+			return null;
+		}
+		byte[] copy = new byte[icmProfile.length];
+		System.arraycopy(icmProfile, 0, copy, 0, icmProfile.length);
 		return copy;
 	}
 

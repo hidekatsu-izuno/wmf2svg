@@ -969,6 +969,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		throw new UnsupportedOperationException();
 	}
 
+	public boolean setICMProfile(byte[] profileName) {
+		throw new UnsupportedOperationException();
+	}
+
 	public int setMetaRgn() {
 		throw new UnsupportedOperationException();
 	}

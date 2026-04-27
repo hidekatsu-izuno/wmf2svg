@@ -144,17 +144,27 @@ public class EmfParser implements Parser {
 	private static final int EMR_CREATECOLORSPACE = 99;
 	private static final int EMR_SETCOLORSPACE = 100;
 	private static final int EMR_DELETECOLORSPACE = 101;
+	private static final int EMR_GLSRECORD = 102;
+	private static final int EMR_GLSBOUNDEDRECORD = 103;
+	private static final int EMR_PIXELFORMAT = 104;
 	private static final int EMR_DRAWESCAPE = 105;
 	private static final int EMR_EXTESCAPE = 106;
+	private static final int EMR_STARTDOC = 107;
+	private static final int EMR_SMALLTEXTOUT = 108;
+	private static final int EMR_FORCEUFIMAPPING = 109;
 	private static final int EMR_NAMEDESCAPE = 110;
 	private static final int EMR_COLORCORRECTPALETTE = 111;
+	private static final int EMR_SETICMPROFILEA = 112;
+	private static final int EMR_SETICMPROFILEW = 113;
 	private static final int EMR_ALPHABLEND = 114;
 	private static final int EMR_SETLAYOUT = 115;
 	private static final int EMR_TRANSPARENTBLT = 116;
+	private static final int EMR_RESERVED_117 = 117;
 	private static final int EMR_GRADIENTFILL = 118;
+	private static final int EMR_SETLINKEDUFIS = 119;
 	private static final int EMR_SETTEXTJUSTIFICATION = 120;
+	private static final int EMR_COLORMATCHTOTARGETW = 121;
 	private static final int EMR_CREATECOLORSPACEW = 122;
-	private static final int EMR_SMALLTEXTOUT = 108;
 	private static final int EMR_EOF = 14;
 
 	private static final int META_ESCAPE_ENHANCED_METAFILE = 0x000F;
@@ -193,7 +203,7 @@ public class EmfParser implements Parser {
 		this.manageLifecycle = manageLifecycle;
 	}
 
-	public void parse(InputStream is, Gdi gdi) throws IOException {
+	public void parse(InputStream is, Gdi gdi) throws IOException, EmfParseException {
 		DataInput in = new DataInput(new BufferedInputStream(is), ByteOrder.LITTLE_ENDIAN);
 		Map<Integer, GdiObject> objects = new HashMap<Integer, GdiObject>();
 		Map<Integer, GdiObject> stockObjects = new HashMap<Integer, GdiObject>();
@@ -206,7 +216,7 @@ public class EmfParser implements Parser {
 			int type = (int)in.readUint32();
 			int size = (int)in.readUint32();
 			if (size < 8) {
-				throw new IOException("Invalid EMF record size: " + size);
+				throw new EmfParseException("invalid EMF record size: " + size);
 			}
 
 			byte[] data = in.readBytes(size - 8);
@@ -522,6 +532,15 @@ public class EmfParser implements Parser {
 				}
 				break;
 			}
+			case EMR_GLSRECORD:
+			case EMR_GLSBOUNDEDRECORD:
+			case EMR_PIXELFORMAT:
+			case EMR_STARTDOC:
+			case EMR_FORCEUFIMAPPING:
+			case EMR_RESERVED_117:
+			case EMR_SETLINKEDUFIS:
+			case EMR_COLORMATCHTOTARGETW:
+				break;
 			case EMR_DRAWESCAPE:
 			case EMR_EXTESCAPE:
 				readEscape(data, gdi);
@@ -530,12 +549,18 @@ public class EmfParser implements Parser {
 				readNamedEscape(data, gdi);
 				break;
 			case EMR_COLORCORRECTPALETTE: {
-				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
-				if (obj instanceof GdiPalette) {
-					gdi.colorCorrectPalette((GdiPalette)obj, readInt32(data, 4), readInt32(data, 8));
+				if (data.length >= 12) {
+					GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+					if (obj instanceof GdiPalette) {
+						gdi.colorCorrectPalette((GdiPalette)obj, readInt32(data, 4), readInt32(data, 8));
+					}
 				}
 				break;
 			}
+			case EMR_SETICMPROFILEA:
+			case EMR_SETICMPROFILEW:
+				readSetICMProfile(data, gdi);
+				break;
 			case EMR_GDICOMMENT: {
 				if (data.length >= 4) {
 					int commentSize = readInt32(data, 0);
@@ -859,6 +884,17 @@ public class EmfParser implements Parser {
 		if (!parseEscape(escape, gdi)) {
 			gdi.escape(escape);
 		}
+	}
+
+	private static void readSetICMProfile(byte[] data, Gdi gdi) {
+		if (data.length < 12) {
+			return;
+		}
+		int nameSize = readInt32(data, 4);
+		if (nameSize < 0 || nameSize > data.length - 12) {
+			return;
+		}
+		gdi.setICMProfile(copyRange(data, 12, nameSize));
 	}
 
 	private static void readPolyDraw(byte[] data, double[] transform, Gdi gdi, boolean shortPoints) {

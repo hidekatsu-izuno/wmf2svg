@@ -212,6 +212,7 @@ public interface Gdi {
     public void setMapMode(int mode);
     public void setMapperFlags(long flags);
     public int setICMMode(int mode);
+    public boolean setICMProfile(byte[] profileName);
     public int setMetaRgn();
     public void setMiterLimit(float limit);
     public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries);

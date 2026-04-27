@@ -54,6 +54,7 @@ import net.arnx.wmf2svg.gdi.GdiPatternBrush;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.gdi.emf.EmfParseException;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
@@ -267,7 +268,9 @@ public class SvgGdi implements Gdi {
 			int sx, int sy, int sw, int sh, int blendFunction) {
 		int sourceConstantAlpha = (blendFunction >> 16) & 0xFF;
 		float opacity = sourceConstantAlpha / 255.0f;
-		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, SRCCOPY, opacity, null);
+		boolean sourceAlpha = ((blendFunction >>> 24) & 0x01) != 0;
+		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, SRCCOPY, opacity, null,
+				sourceAlpha);
 	}
 
 	public void angleArc(int x, int y, int radius, float startAngle, float sweepAngle) {
@@ -653,6 +656,8 @@ public class SvgGdi implements Gdi {
 				new EmfParser(false).parse(new ByteArrayInputStream(emfBuffer.toByteArray(), 0, emfTotalSize), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
+			} catch (EmfParseException e) {
+				throw new IllegalStateException(e);
 			} finally {
 				emfBuffer = null;
 				emfTotalSize = 0;
@@ -742,7 +747,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
-		setPixel(x, y, color);
+		appendFloodFillSeed(x, y);
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
@@ -1012,7 +1017,7 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void floodFill(int x, int y, int color) {
-		setPixel(x, y, color);
+		appendFloodFillSeed(x, y);
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
@@ -2065,6 +2070,11 @@ public class SvgGdi implements Gdi {
 		return dc.setICMMode(mode);
 	}
 
+	public boolean setICMProfile(byte[] profileName) {
+		dc.setICMProfile(profileName);
+		return true;
+	}
+
 	public int setMetaRgn() {
 		return dc.getMask() != null ? GdiRegion.SIMPLEREGION : GdiRegion.NULLREGION;
 	}
@@ -2087,6 +2097,28 @@ public class SvgGdi implements Gdi {
 		elem.setAttribute("y", "" + (int)dc.toAbsoluteY(y));
 		elem.setAttribute("width", "" + (int)dc.toRelativeX(1));
 		elem.setAttribute("height", "" + (int)dc.toRelativeY(1));
+		parentNode.appendChild(elem);
+	}
+
+	private void appendFloodFillSeed(int x, int y) {
+		SvgBrush brush = dc.getBrush();
+		if (brush == null) {
+			return;
+		}
+
+		Element elem = doc.createElement("rect");
+		elem.setAttribute("stroke", "none");
+		elem.setAttribute("x", "" + (int)dc.toAbsoluteX(x));
+		elem.setAttribute("y", "" + (int)dc.toAbsoluteY(y));
+		elem.setAttribute("width", "" + (int)dc.toRelativeX(1));
+		elem.setAttribute("height", "" + (int)dc.toRelativeY(1));
+		if (brush.getStyle() == GdiBrush.BS_HATCHED) {
+			String id = "pattern" + (patternNo++);
+			elem.setAttribute("fill", "url(#" + id + ")");
+			defsNode.appendChild(brush.createFillPattern(id));
+		} else {
+			elem.setAttribute("class", getClassString(brush));
+		}
 		parentNode.appendChild(elem);
 	}
 
@@ -2518,19 +2550,23 @@ public class SvgGdi implements Gdi {
 
 	private void bmpToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
 			int sw, int sh, int usage, long rop, float opacity, Integer transparentColor) {
+		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop, opacity, transparentColor, false);
+	}
+
+	private void bmpToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
+			int sw, int sh, int usage, long rop, float opacity, Integer transparentColor,
+			boolean preserveAlpha) {
 		if (image == null || image.length == 0) {
 			return;
 		}
 
-		image = convertDibToPng(image, dh < 0, transparentColor);
+		image = convertDibToPng(image, usage, sh < 0, transparentColor, preserveAlpha);
 		if (image == null || image.length == 0) {
 			return;
 		}
 
-		StringBuffer buffer = new StringBuffer("data:image/png;base64,");
-		buffer.append(Base64.encode(image));
-		String data = buffer.toString();
-		if (data == null || data.equals("")) {
+		String data = createPngDataUri(image);
+		if (data == null) {
 			return;
 		}
 
@@ -2565,7 +2601,8 @@ public class SvgGdi implements Gdi {
 				imageNode.setAttribute("height", "" + Math.abs(sh));
 			}
 			imageNode.setAttribute("xlink:href", data);
-			elem.setAttribute("viewBox", "" + sx + " " + sy + " " + sw + " " + sh);
+			elem.setAttribute("viewBox", "" + (sw < 0 ? sx + sw : sx) + " "
+					+ (sh < 0 ? sy + sh : sy) + " " + Math.abs(sw) + " " + Math.abs(sh));
 			elem.setAttribute("preserveAspectRatio", "none");
 			elem.appendChild(imageNode);
 		} else {
@@ -2690,7 +2727,17 @@ public class SvgGdi implements Gdi {
 	}
 
 	private byte[] convertDibToPng(byte[] dib, boolean reverse, Integer transparentColor) {
-		if (transparentColor == null) {
+		return convertDibToPng(dib, Gdi.DIB_RGB_COLORS, reverse, transparentColor, false);
+	}
+
+	private byte[] convertDibToPng(byte[] dib, int usage, boolean reverse, Integer transparentColor) {
+		return convertDibToPng(dib, usage, reverse, transparentColor, false);
+	}
+
+	private byte[] convertDibToPng(byte[] dib, int usage, boolean reverse, Integer transparentColor,
+			boolean preserveAlpha) {
+		dib = applyPaletteToDib(dib, usage);
+		if (transparentColor == null && !preserveAlpha) {
 			return ImageUtil.convert(dibToBmp(dib), "png", reverse);
 		}
 
@@ -2700,14 +2747,23 @@ public class SvgGdi implements Gdi {
 				return null;
 			}
 			BufferedImage image = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
-			int transparentRgb = ((transparentColor.intValue() & 0x000000FF) << 16)
-					| (transparentColor.intValue() & 0x0000FF00)
-					| ((transparentColor.intValue() & 0x00FF0000) >> 16);
+			int transparentRgb = transparentColor != null
+					? ((transparentColor.intValue() & 0x000000FF) << 16)
+							| (transparentColor.intValue() & 0x0000FF00)
+							| ((transparentColor.intValue() & 0x00FF0000) >> 16)
+					: -1;
 			for (int y = 0; y < image.getHeight(); y++) {
 				int sourceY = reverse ? image.getHeight() - 1 - y : y;
 				for (int x = 0; x < image.getWidth(); x++) {
-					int rgb = source.getRGB(x, sourceY) & 0x00FFFFFF;
-					image.setRGB(x, y, rgb == transparentRgb ? rgb : (0xFF000000 | rgb));
+					int argb = source.getRGB(x, sourceY);
+					int rgb = argb & 0x00FFFFFF;
+					if (transparentColor != null && rgb == transparentRgb) {
+						image.setRGB(x, y, rgb);
+					} else if (preserveAlpha) {
+						image.setRGB(x, y, argb);
+					} else {
+						image.setRGB(x, y, 0xFF000000 | rgb);
+					}
 				}
 			}
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -2716,6 +2772,76 @@ public class SvgGdi implements Gdi {
 		} catch (IOException e) {
 			return null;
 		}
+	}
+
+	private byte[] applyPaletteToDib(byte[] dib, int usage) {
+		if (usage != Gdi.DIB_PAL_COLORS || selectedPalette == null || dib == null || dib.length < 40) {
+			return dib;
+		}
+
+		int headerSize = readInt32(dib, 0);
+		if (headerSize < 40 || dib.length < headerSize) {
+			return dib;
+		}
+
+		int bitCount = readUInt16(dib, 14);
+		int colorCount = getDibColorCount(dib, headerSize, bitCount);
+		int indexTableSize = colorCount * 2;
+		if (colorCount == 0 || dib.length < headerSize + indexTableSize) {
+			return dib;
+		}
+
+		int[] entries = selectedPalette.getEntries();
+		byte[] rgbDib = new byte[dib.length + colorCount * 2];
+		System.arraycopy(dib, 0, rgbDib, 0, headerSize);
+		for (int i = 0; i < colorCount; i++) {
+			int paletteIndex = readUInt16(dib, headerSize + i * 2);
+			int entry = (paletteIndex >= 0 && paletteIndex < entries.length) ? entries[paletteIndex] : 0;
+			int red = entry & 0xFF;
+			int green = (entry >>> 8) & 0xFF;
+			int blue = (entry >>> 16) & 0xFF;
+			int offset = headerSize + i * 4;
+			rgbDib[offset] = (byte)blue;
+			rgbDib[offset + 1] = (byte)green;
+			rgbDib[offset + 2] = (byte)red;
+			rgbDib[offset + 3] = 0;
+		}
+		System.arraycopy(dib, headerSize + indexTableSize, rgbDib, headerSize + colorCount * 4,
+				dib.length - headerSize - indexTableSize);
+		return rgbDib;
+	}
+
+	private int getDibColorCount(byte[] dib, int headerSize, int bitCount) {
+		long clrUsed = readUInt32(dib, 32);
+		if (clrUsed > 0 && clrUsed <= Integer.MAX_VALUE) {
+			return (int)clrUsed;
+		}
+
+		switch (bitCount) {
+		case 1:
+			return 2;
+		case 4:
+			return 16;
+		case 8:
+			return 256;
+		default:
+			return 0;
+		}
+	}
+
+	private static int readInt32(byte[] data, int offset) {
+		return (data[offset] & 0xFF)
+				| ((data[offset + 1] & 0xFF) << 8)
+				| ((data[offset + 2] & 0xFF) << 16)
+				| (data[offset + 3] << 24);
+	}
+
+	private static int readUInt16(byte[] data, int offset) {
+		return (data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8);
+	}
+
+	private static long readUInt32(byte[] data, int offset) {
+		return readInt32(data, offset) & 0xFFFFFFFFL;
 	}
 
 	private byte[] dibToBmp(byte[] dib) {

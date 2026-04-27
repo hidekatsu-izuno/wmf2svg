@@ -635,7 +635,7 @@ public class EmfParser implements Parser {
 				break;
 			case EMR_EXTCREATEFONTINDIRECTW: {
 				int id = readInt32(data, 0);
-				int charset = readUInt8(data, 31);
+				int charset = readUInt8(data, 27);
 				fontCharsets.put(id, Integer.valueOf(charset));
 				objects.put(id, gdi.createFontIndirect(
 						readInt32(data, 4),
@@ -650,8 +650,8 @@ public class EmfParser implements Parser {
 						readUInt8(data, 28),
 						readUInt8(data, 29),
 						readUInt8(data, 30),
-						readUInt8(data, 32),
-						readUtf16StringBytes(data, 36, 32, charset)));
+						readUInt8(data, 31),
+						readUtf16StringBytes(data, 32, 32, charset)));
 				break;
 			}
 			case EMR_EXTTEXTOUTA:

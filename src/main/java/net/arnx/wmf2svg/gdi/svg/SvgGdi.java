@@ -604,11 +604,7 @@ public class SvgGdi implements Gdi {
 
 	public void ellipse(int sx, int sy, int ex, int ey) {
 		if (currentPath != null) {
-			currentPath.addClosedPolyline(new Point[] {
-					new Point(sx, sy),
-					new Point(ex, sy),
-					new Point(ex, ey),
-					new Point(sx, ey) });
+			currentPath.addEllipse(sx, sy, ex, ey);
 			return;
 		}
 
@@ -1005,7 +1001,7 @@ public class SvgGdi implements Gdi {
 		if (rgn == null) return;
 
 		Element elem = doc.createElement("use");
-		elem.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
 		elem.setAttribute("class", getClassString(brush));
 		SvgBrush sbrush = (SvgBrush)brush;
 		if(sbrush.getStyle() == GdiBrush.BS_HATCHED) {
@@ -1046,7 +1042,7 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("height", "" + (int)dc.toRelativeY(rectRgn.getBottom() - rectRgn.getTop()));
 		} else {
 			elem = doc.createElement("use");
-			elem.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+			elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
 		}
 		elem.setAttribute("fill", "none");
 		elem.setAttribute("stroke", SvgObject.toColor(sbrush.getColor()));
@@ -1075,7 +1071,7 @@ public class SvgGdi implements Gdi {
 		if (rgn == null) return;
 
 		Element elem = doc.createElement("use");
-		elem.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
 		String ropFilter = dc.getRopFilter(DSTINVERT);
 		if (ropFilter != null) {
 			elem.setAttribute("filter", ropFilter);
@@ -1533,7 +1529,7 @@ public class SvgGdi implements Gdi {
 
 	private Element createRegionUse(GdiRegion rgn, String fill) {
 		Element clip = doc.createElement("use");
-		clip.setAttribute("xlink:href", "url(#" + nameMap.get(rgn) + ")");
+		clip.setAttribute("xlink:href", "#" + nameMap.get(rgn));
 		clip.setAttribute("fill", fill);
 		return clip;
 	}
@@ -1921,6 +1917,39 @@ public class SvgGdi implements Gdi {
 			}
 		}
 
+		public void addEllipse(int sx, int sy, int ex, int ey) {
+			double kappa = 0.5522847498307936;
+			double left = Math.min(sx, ex);
+			double right = Math.max(sx, ex);
+			double top = Math.min(sy, ey);
+			double bottom = Math.max(sy, ey);
+			double cx = (left + right) / 2.0;
+			double cy = (top + bottom) / 2.0;
+			double rx = (right - left) / 2.0;
+			double ry = (bottom - top) / 2.0;
+			double ox = rx * kappa;
+			double oy = ry * kappa;
+
+			moveTo(new Point((int)Math.round(cx + rx), (int)Math.round(cy)));
+			bezierTo(
+					new Point((int)Math.round(cx + rx), (int)Math.round(cy + oy)),
+					new Point((int)Math.round(cx + ox), (int)Math.round(cy + ry)),
+					new Point((int)Math.round(cx), (int)Math.round(cy + ry)));
+			bezierTo(
+					new Point((int)Math.round(cx - ox), (int)Math.round(cy + ry)),
+					new Point((int)Math.round(cx - rx), (int)Math.round(cy + oy)),
+					new Point((int)Math.round(cx - rx), (int)Math.round(cy)));
+			bezierTo(
+					new Point((int)Math.round(cx - rx), (int)Math.round(cy - oy)),
+					new Point((int)Math.round(cx - ox), (int)Math.round(cy - ry)),
+					new Point((int)Math.round(cx), (int)Math.round(cy - ry)));
+			bezierTo(
+					new Point((int)Math.round(cx + ox), (int)Math.round(cy - ry)),
+					new Point((int)Math.round(cx + rx), (int)Math.round(cy - oy)),
+					new Point((int)Math.round(cx + rx), (int)Math.round(cy)));
+			close();
+		}
+
 		public void close() {
 			if (current != null) {
 				commands.add(new Command(CLOSE, new Point[0]));
@@ -2091,13 +2120,19 @@ public class SvgGdi implements Gdi {
 
 	public void setPixel(int x, int y, int color) {
 		Element elem = doc.createElement("rect");
+		int width = Math.max(Math.abs((int)dc.toRelativeX(1)), Math.max(1, defaultPixelSize()));
+		int height = Math.max(Math.abs((int)dc.toRelativeY(1)), Math.max(1, defaultPixelSize()));
 		elem.setAttribute("stroke", "none");
 		elem.setAttribute("fill", SvgPen.toColor(color));
 		elem.setAttribute("x", "" + (int)dc.toAbsoluteX(x));
 		elem.setAttribute("y", "" + (int)dc.toAbsoluteY(y));
-		elem.setAttribute("width", "" + (int)dc.toRelativeX(1));
-		elem.setAttribute("height", "" + (int)dc.toRelativeY(1));
+		elem.setAttribute("width", "" + width);
+		elem.setAttribute("height", "" + height);
 		parentNode.appendChild(elem);
+	}
+
+	private int defaultPixelSize() {
+		return dc.getDpi() / 90;
 	}
 
 	private void appendFloodFillSeed(int x, int y) {
@@ -2737,6 +2772,20 @@ public class SvgGdi implements Gdi {
 	private byte[] convertDibToPng(byte[] dib, int usage, boolean reverse, Integer transparentColor,
 			boolean preserveAlpha) {
 		dib = applyPaletteToDib(dib, usage);
+		BufferedImage decoded = decodeWmfBitmap(dib, reverse, transparentColor, preserveAlpha);
+		if (decoded == null) {
+			decoded = decodeDib(dib, reverse, transparentColor, preserveAlpha);
+		}
+		if (decoded != null) {
+			try {
+				ByteArrayOutputStream out = new ByteArrayOutputStream();
+				ImageIO.write(decoded, "png", out);
+				return out.toByteArray();
+			} catch (IOException e) {
+				return null;
+			}
+		}
+
 		if (transparentColor == null && !preserveAlpha) {
 			return ImageUtil.convert(dibToBmp(dib), "png", reverse);
 		}
@@ -2772,6 +2821,141 @@ public class SvgGdi implements Gdi {
 		} catch (IOException e) {
 			return null;
 		}
+	}
+
+	private BufferedImage decodeWmfBitmap(byte[] bitmap, boolean reverse, Integer transparentColor,
+			boolean preserveAlpha) {
+		if (bitmap == null || bitmap.length < 10 || readUInt16(bitmap, 0) != 0) {
+			return null;
+		}
+
+		int width = readUInt16(bitmap, 2);
+		int height = readUInt16(bitmap, 4);
+		int stride = readUInt16(bitmap, 6);
+		int planes = bitmap[8] & 0xFF;
+		int bitCount = bitmap[9] & 0xFF;
+		if (width <= 0 || height <= 0 || planes <= 0 || stride <= 0 || bitCount != 24) {
+			return null;
+		}
+
+		int bitsOffset = 10;
+		if (bitmap.length < bitsOffset + stride * height) {
+			return null;
+		}
+
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < height; y++) {
+			int sourceY = reverse ? height - 1 - y : y;
+			int row = bitsOffset + sourceY * stride;
+			for (int x = 0; x < width; x++) {
+				int pos = row + x * 3;
+				int blue = bitmap[pos] & 0xFF;
+				int green = bitmap[pos + 1] & 0xFF;
+				int red = bitmap[pos + 2] & 0xFF;
+				image.setRGB(x, y, applyAlpha(red, green, blue, 0xFF, transparentColor, preserveAlpha));
+			}
+		}
+		return image;
+	}
+
+	private BufferedImage decodeDib(byte[] dib, boolean reverse, Integer transparentColor, boolean preserveAlpha) {
+		if (dib == null || dib.length < 40) {
+			return null;
+		}
+
+		int headerSize = readInt32(dib, 0);
+		if (headerSize < 40 || dib.length < headerSize) {
+			return null;
+		}
+
+		int width = readInt32(dib, 4);
+		int heightValue = readInt32(dib, 8);
+		int planes = readUInt16(dib, 12);
+		int bitCount = readUInt16(dib, 14);
+		int compression = readInt32(dib, 16);
+		if (width <= 0 || heightValue == 0 || planes != 1 || compression != 0) {
+			return null;
+		}
+
+		int height = Math.abs(heightValue);
+		int colorCount = getDibColorCount(dib, headerSize, bitCount);
+		int bitsOffset = headerSize + colorCount * 4;
+		if (dib.length < bitsOffset) {
+			return null;
+		}
+
+		int stride = ((width * bitCount + 31) / 32) * 4;
+		if (stride <= 0 || dib.length < bitsOffset + stride * height) {
+			return null;
+		}
+
+		int[] colors = null;
+		if (colorCount > 0) {
+			colors = new int[colorCount];
+			for (int i = 0; i < colorCount; i++) {
+				int pos = headerSize + i * 4;
+				int blue = dib[pos] & 0xFF;
+				int green = dib[pos + 1] & 0xFF;
+				int red = dib[pos + 2] & 0xFF;
+				colors[i] = applyAlpha(red, green, blue, 0xFF, transparentColor, preserveAlpha);
+			}
+		}
+
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		boolean bottomUp = heightValue > 0;
+		for (int y = 0; y < height; y++) {
+			int dibY = bottomUp ? height - 1 - y : y;
+			if (reverse) {
+				dibY = height - 1 - dibY;
+			}
+			int row = bitsOffset + dibY * stride;
+			for (int x = 0; x < width; x++) {
+				image.setRGB(x, y, readDibPixel(dib, row, x, bitCount, colors, transparentColor, preserveAlpha));
+			}
+		}
+		return image;
+	}
+
+	private int readDibPixel(byte[] dib, int row, int x, int bitCount, int[] colors,
+			Integer transparentColor, boolean preserveAlpha) {
+		if (bitCount == 1) {
+			int index = (dib[row + x / 8] >>> (7 - (x % 8))) & 0x01;
+			return colors != null && index < colors.length ? colors[index] : 0xFF000000;
+		} else if (bitCount == 4) {
+			int value = dib[row + x / 2] & 0xFF;
+			int index = (x % 2 == 0) ? (value >>> 4) : (value & 0x0F);
+			return colors != null && index < colors.length ? colors[index] : 0xFF000000;
+		} else if (bitCount == 8) {
+			int index = dib[row + x] & 0xFF;
+			return colors != null && index < colors.length ? colors[index] : 0xFF000000;
+		} else if (bitCount == 24) {
+			int pos = row + x * 3;
+			int blue = dib[pos] & 0xFF;
+			int green = dib[pos + 1] & 0xFF;
+			int red = dib[pos + 2] & 0xFF;
+			return applyAlpha(red, green, blue, 0xFF, transparentColor, preserveAlpha);
+		} else if (bitCount == 32) {
+			int pos = row + x * 4;
+			int blue = dib[pos] & 0xFF;
+			int green = dib[pos + 1] & 0xFF;
+			int red = dib[pos + 2] & 0xFF;
+			int alpha = preserveAlpha ? (dib[pos + 3] & 0xFF) : 0xFF;
+			return applyAlpha(red, green, blue, alpha, transparentColor, preserveAlpha);
+		}
+		return 0x00000000;
+	}
+
+	private int applyAlpha(int red, int green, int blue, int alpha, Integer transparentColor, boolean preserveAlpha) {
+		int rgb = (red << 16) | (green << 8) | blue;
+		if (transparentColor != null) {
+			int transparentRgb = ((transparentColor.intValue() & 0x000000FF) << 16)
+					| (transparentColor.intValue() & 0x0000FF00)
+					| ((transparentColor.intValue() & 0x00FF0000) >> 16);
+			if (rgb == transparentRgb) {
+				return rgb;
+			}
+		}
+		return ((preserveAlpha ? alpha : 0xFF) << 24) | rgb;
 	}
 
 	private byte[] applyPaletteToDib(byte[] dib, int usage) {

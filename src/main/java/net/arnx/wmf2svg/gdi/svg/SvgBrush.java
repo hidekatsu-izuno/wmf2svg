@@ -77,6 +77,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_HORIZONTAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
+					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path.setAttribute("x1", "" + toRealSize(0));
 					path.setAttribute("y1", "" + toRealSize(4));
 					path.setAttribute("x2", "" + toRealSize(8));
@@ -86,6 +87,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_VERTICAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
+					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path.setAttribute("x1", "" + toRealSize(4));
 					path.setAttribute("y1", "" + toRealSize(0));
 					path.setAttribute("x2", "" + toRealSize(4));
@@ -95,6 +97,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_FDIAGONAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
+					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path.setAttribute("x1", "" + toRealSize(0));
 					path.setAttribute("y1", "" + toRealSize(0));
 					path.setAttribute("x2", "" + toRealSize(8));
@@ -104,6 +107,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_BDIAGONAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
+					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path.setAttribute("x1", "" + toRealSize(0));
 					path.setAttribute("y1", "" + toRealSize(8));
 					path.setAttribute("x2", "" + toRealSize(8));
@@ -113,6 +117,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_CROSS: {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
+					path1.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path1.setAttribute("x1", "" + toRealSize(0));
 					path1.setAttribute("y1", "" + toRealSize(4));
 					path1.setAttribute("x2", "" + toRealSize(8));
@@ -120,6 +125,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					pattern.appendChild(path1);
 					Element path2 = getGDI().getDocument().createElement("line");
 					path2.setAttribute("stroke", toColor(color));
+					path2.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path2.setAttribute("x1", "" + toRealSize(4));
 					path2.setAttribute("y1", "" + toRealSize(0));
 					path2.setAttribute("x2", "" + toRealSize(4));
@@ -129,6 +135,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_DIAGCROSS: {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
+					path1.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path1.setAttribute("x1", "" + toRealSize(0));
 					path1.setAttribute("y1", "" + toRealSize(0));
 					path1.setAttribute("x2", "" + toRealSize(8));
@@ -136,6 +143,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					pattern.appendChild(path1);
 					Element path2 = getGDI().getDocument().createElement("line");
 					path2.setAttribute("stroke", toColor(color));
+					path2.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
 					path2.setAttribute("x1", "" + toRealSize(0));
 					path2.setAttribute("y1", "" + toRealSize(8));
 					path2.setAttribute("x2", "" + toRealSize(8));
@@ -144,7 +152,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				} break;
 			}
 		}
-		
+
 		return pattern;
 	}
 

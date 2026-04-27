@@ -5,7 +5,7 @@ This project's goal is to make tool & library for converting wmf to svg.
 ## Example
 
 ```
-java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
+java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg filename]
 ```
 
 ## Options
@@ -35,6 +35,7 @@ mvn package
 
 ## History
 
+- 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.
 - 2021-07-12: Fix a bug about images with palette.
 - 2021-06-30: Fix a bug that occurred when using Symbol type fonts.
@@ -60,6 +61,6 @@ Copyright (c) 2007-2021 Hidekatsu Izuno, Shunsuke Mori All right reserved.
 <!--
 - mvn verify
 - git tag vX.XX.X && git push origin --tags
-- 取り消す場合: git tag -d vX.XX.X && git push origin :refs/tags/vX.XX.X
+- revert: git tag -d vX.XX.X && git push origin :refs/tags/vX.XX.X
 - mvn -Prelease clean deploy
 -->

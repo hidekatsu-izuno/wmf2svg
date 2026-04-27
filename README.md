@@ -22,7 +22,7 @@ It now requires Java 8.0 or later.
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>wmf2svg</version>
+<version>0.10.0</version>
 ```
 
 ## Build

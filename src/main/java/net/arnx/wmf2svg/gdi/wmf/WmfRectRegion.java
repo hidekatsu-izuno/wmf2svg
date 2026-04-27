@@ -1,8 +1,6 @@
 package net.arnx.wmf2svg.gdi.wmf;
 
-import net.arnx.wmf2svg.gdi.GdiRegion;
-
-class WmfRectRegion extends WmfObject implements GdiRegion {
+class WmfRectRegion extends WmfRegion {
 	private int left;
 	private int top;
 	private int right;

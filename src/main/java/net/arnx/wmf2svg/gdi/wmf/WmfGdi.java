@@ -789,7 +789,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_REALIZE_PALETTE);
+		pos = setUint16(record, pos, RECORD_RESIZE_PALETTE);
 		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
 		records.add(record);
 	}
@@ -879,7 +879,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void selectPalette(GdiPalette palette, boolean mode) {
-		byte[] record = new byte[8];
+		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_SELECT_PALETTE);
@@ -986,9 +986,9 @@ public class WmfGdi implements Gdi, WmfConstants {
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_SET_PALETTE_ENTRIES);
-		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
 		pos = setUint16(record, pos, entries.length);
 		pos = setUint16(record, pos, startIndex);
+		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
 		for (int i = 0; i < entries.length; i++) {
 			pos = setInt32(record, pos, entries[i]);
 		}
@@ -1143,7 +1143,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 
 	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy,
 			int sw, int sh, byte[] image, int usage, long rop) {
-		byte[] record = new byte[26 + (image.length + image.length%2)];
+		byte[] record = new byte[28 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_STRETCH_DIBITS);
@@ -1168,7 +1168,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void textOut(int x, int y, byte[] text) {
-		byte[] record = new byte[10 + text.length + text.length%2];
+		byte[] record = new byte[12 + text.length + text.length%2];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_TEXT_OUT);
@@ -1182,6 +1182,13 @@ public class WmfGdi implements Gdi, WmfConstants {
 
 	public void footer() {
 		int pos = 0;
+		if (records.isEmpty() || !isEofRecord((byte[])records.get(records.size() - 1))) {
+			byte[] record = new byte[6];
+			pos = setUint32(record, 0, record.length/2);
+			pos = setUint16(record, pos, 0x0000);
+			records.add(record);
+		}
+
 		if (header != null) {
 			long size = header.length;
 			long maxRecordSize = 0;
@@ -1193,15 +1200,19 @@ public class WmfGdi implements Gdi, WmfConstants {
 			}
 
 			pos = setUint32(header, 6, size/2);
-			pos = setUint16(header, pos, objects.size());
-			pos = setUint32(header, pos, maxRecordSize / 2);
+				pos = setUint16(header, pos, objects.size());
+				pos = setUint32(header, pos, maxRecordSize / 2);
+			}
 		}
 
-		byte[] record = new byte[6];
-		pos = 0;
-		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, 0x0000);
-		records.add(record);
+	private boolean isEofRecord(byte[] record) {
+		return record.length == 6
+				&& (record[0] & 0xFF) == 3
+				&& record[1] == 0
+				&& record[2] == 0
+				&& record[3] == 0
+				&& record[4] == 0
+				&& record[5] == 0;
 	}
 
 	private int setByte(byte[] out, int pos, int value) {

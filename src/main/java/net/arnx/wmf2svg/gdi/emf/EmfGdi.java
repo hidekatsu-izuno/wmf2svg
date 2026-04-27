@@ -22,6 +22,8 @@ import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.Trivertex;
 
 public class EmfGdi implements Gdi {
+	private static final int EXT_LOG_FONT_W_SIZE = 320;
+
 	private static final int EMR_HEADER = 1;
 	private static final int EMR_POLYBEZIER = 2;
 	private static final int EMR_POLYGON = 3;
@@ -148,7 +150,6 @@ public class EmfGdi implements Gdi {
 		frameTop = vsy;
 		frameRight = vex;
 		frameBottom = vey;
-		includeRect(vsx, vsy, vex, vey);
 	}
 
 	public void header() {
@@ -248,7 +249,7 @@ public class EmfGdi implements Gdi {
 		EmfFont font = new EmfFont(allocateHandle(), height, width, escapement, orientation,
 				weight, italic, underline, strikeout, charset, outPrecision,
 				clipPrecision, quality, pitchAndFamily, faceName);
-		byte[] record = record(EMR_EXTCREATEFONTINDIRECTW, 96);
+		byte[] record = record(EMR_EXTCREATEFONTINDIRECTW, 4 + EXT_LOG_FONT_W_SIZE);
 		setInt32(record, 8, font.id);
 		writeLogFont(record, 12, font);
 		records.add(record);
@@ -485,15 +486,15 @@ public class EmfGdi implements Gdi {
 	}
 
 	public void fillPath() {
-		records.add(record(EMR_FILLPATH, 0));
+		pathPaintRecord(EMR_FILLPATH);
 	}
 
 	public void strokePath() {
-		records.add(record(EMR_STROKEPATH, 0));
+		pathPaintRecord(EMR_STROKEPATH);
 	}
 
 	public void strokeAndFillPath() {
-		records.add(record(EMR_STROKEANDFILLPATH, 0));
+		pathPaintRecord(EMR_STROKEANDFILLPATH);
 	}
 
 	public void realizePalette() {
@@ -755,6 +756,12 @@ public class EmfGdi implements Gdi {
 		records.add(record);
 	}
 
+	private void pathPaintRecord(int type) {
+		byte[] record = record(type, 16);
+		writeBounds(record, 8);
+		records.add(record);
+	}
+
 	private void valueRecord(int type, int value) {
 		byte[] record = record(type, 4);
 		setInt32(record, 8, value);
@@ -801,7 +808,7 @@ public class EmfGdi implements Gdi {
 		int meshCount = rects != null ? rects.length : triangles != null ? triangles.length : 0;
 		int meshStep = triangles != null ? 12 : 8;
 		byte[] record = record(EMR_GRADIENTFILL, 28 + vertices.length * 16 + meshCount * meshStep);
-		writeBounds(record, 8);
+		writeGradientBounds(record, 8, vertices);
 		setInt32(record, 24, vertices.length);
 		setInt32(record, 28, meshCount);
 		setInt32(record, 32, mode);
@@ -831,6 +838,25 @@ public class EmfGdi implements Gdi {
 			}
 		}
 		records.add(record);
+	}
+
+	private void writeGradientBounds(byte[] record, int pos, Trivertex[] vertices) {
+		if (vertices.length == 0) {
+			writeBounds(record, pos);
+			return;
+		}
+
+		int l = Integer.MAX_VALUE;
+		int t = Integer.MAX_VALUE;
+		int r = Integer.MIN_VALUE;
+		int b = Integer.MIN_VALUE;
+		for (int i = 0; i < vertices.length; i++) {
+			l = Math.min(l, vertices[i].x);
+			t = Math.min(t, vertices[i].y);
+			r = Math.max(r, vertices[i].x);
+			b = Math.max(b, vertices[i].y);
+		}
+		writeRect(record, pos, l, t, r, b);
 	}
 
 	private void writeSetDIBitsToDevice(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
@@ -1038,7 +1064,7 @@ public class EmfGdi implements Gdi {
 		} catch (UnsupportedEncodingException e) {
 			face = new byte[0];
 		}
-		int length = Math.min(face.length, 63);
+		int length = Math.min(face.length, 62);
 		setBytes(record, pos + 28, face, 0, length);
 	}
 

@@ -1,5 +1,6 @@
 etc/data/dst/
 etc/regtest/
+~$*
 
 # Compiled class file
 *.class

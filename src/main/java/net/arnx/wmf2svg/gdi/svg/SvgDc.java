@@ -308,11 +308,19 @@ public class SvgDc implements Cloneable {
 	}
 
 	private double viewportScaleX() {
-		return (vw != 0 && ww != 0) ? (vw * vsx) / ww : 1.0;
+		return (vw != 0 && ww != 0) ? (vw * vsx) / ww : windowSignX();
 	}
 
 	private double viewportScaleY() {
-		return (vh != 0 && wh != 0) ? (vh * vsy) / wh : 1.0;
+		return (vh != 0 && wh != 0) ? (vh * vsy) / wh : windowSignY();
+	}
+
+	private double windowSignX() {
+		return ww < 0 ? -1.0 : 1.0;
+	}
+
+	private double windowSignY() {
+		return wh < 0 ? -1.0 : 1.0;
 	}
 
 	private double toViewportOriginX(int x) {

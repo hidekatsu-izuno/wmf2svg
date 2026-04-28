@@ -92,6 +92,7 @@ public class WmfParser implements Parser, WmfConstants {
 			gdi.header();
 
 			GdiObject[] objs = new GdiObject[mtNoObjects];
+			boolean enhancedMetafileComment = false;
 
 			while (true) {
 				int size = (int) in.readUint32() - 3;
@@ -102,6 +103,11 @@ public class WmfParser implements Parser, WmfConstants {
 				}
 
 				in.setCount(0);
+
+				if (enhancedMetafileComment && id != RECORD_ESCAPE && !isEnhancedMetafileStateRecord(id)) {
+					in.readBytes(size * 2);
+					continue;
+				}
 
 				switch (id) {
 				case RECORD_REALIZE_PALETTE: {
@@ -460,6 +466,8 @@ public class WmfParser implements Parser, WmfConstants {
 					byte[] data = in.readBytes(2 * size);
 					if (!EmfParser.parseEscape(data, gdi)) {
 						gdi.escape(data);
+					} else {
+						enhancedMetafileComment = true;
 					}
 					break;
 				}
@@ -756,6 +764,23 @@ public class WmfParser implements Parser, WmfConstants {
 			gdi.footer();
 		} catch (EOFException e) {
 			if (isEmpty) throw new WmfParseException("input file size is zero.");
+		}
+	}
+
+	private boolean isEnhancedMetafileStateRecord(int id) {
+		switch (id) {
+		case RECORD_SET_MAP_MODE:
+		case RECORD_SET_WINDOW_ORG_EX:
+		case RECORD_SET_WINDOW_EXT_EX:
+		case RECORD_SET_VIEWPORT_ORG_EX:
+		case RECORD_SET_VIEWPORT_EXT_EX:
+		case RECORD_OFFSET_WINDOW_ORG_EX:
+		case RECORD_OFFSET_VIEWPORT_ORG_EX:
+		case RECORD_SCALE_WINDOW_EXT_EX:
+		case RECORD_SCALE_VIEWPORT_EXT_EX:
+			return true;
+		default:
+			return false;
 		}
 	}
 }

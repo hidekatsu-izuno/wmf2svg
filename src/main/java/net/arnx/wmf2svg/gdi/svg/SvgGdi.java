@@ -20,12 +20,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -40,6 +44,7 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
@@ -68,6 +73,14 @@ import net.arnx.wmf2svg.util.SymbolFontMappings;
  */
 public class SvgGdi implements Gdi {
 	private static Logger log = Logger.getLogger(SvgGdi.class.getName());
+	private static final String TRANSPARENT_MASK_ROP_USER_DATA = "wmf2svg-transparent-mask-rop";
+	private static final String TRANSPARENT_MASK_ROP_SRCINVERT = "SRCINVERT";
+	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
+	private static final int DEFAULT_CANVAS_WIDTH = 330;
+	private static final int DEFAULT_CANVAS_HEIGHT = 460;
+	private static final int TARGET_DPI = 144;
+	private static final int MAX_CANVAS_SIZE = 8192;
+	private static final Pattern SVG_NUMBER_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:[eE][-+]?\\d+)?");
 
 	private boolean compatible;
 
@@ -77,6 +90,14 @@ public class SvgGdi implements Gdi {
 
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
+	private ArrayList<byte[]> pendingEmfList = new ArrayList<byte[]>();
+	private boolean pendingEmfBoundsSet = false;
+	private int pendingEmfBoundsLeft = 0;
+	private int pendingEmfBoundsTop = 0;
+	private int pendingEmfBoundsRight = 0;
+	private int pendingEmfBoundsBottom = 0;
+	private int pendingEmfBoundsWidth = 0;
+	private int pendingEmfBoundsHeight = 0;
 
 	private SvgDc dc;
 
@@ -93,6 +114,10 @@ public class SvgGdi implements Gdi {
 	private boolean placeableHeader = false;
 
 	private int initialDpi = 1440;
+
+	private int targetCanvasWidth = 0;
+
+	private int targetCanvasHeight = 0;
 
 	private int brushNo = 0;
 
@@ -230,10 +255,31 @@ public class SvgGdi implements Gdi {
 		dc.setDpi(dpi);
 
 		Element root = doc.getDocumentElement();
-		root.setAttribute("width", ""
-				+ (Math.abs(wex - wsx) / (double) dc.getDpi()) + "in");
-		root.setAttribute("height", ""
-				+ (Math.abs(wey - wsy) / (double) dc.getDpi()) + "in");
+		targetCanvasWidth = unitsToPixels(wsx, wex, dpi);
+		targetCanvasHeight = unitsToPixels(wsy, wey, dpi);
+		root.setAttribute("width", pixelsToCssInches(targetCanvasWidth));
+		root.setAttribute("height", pixelsToCssInches(targetCanvasHeight));
+	}
+
+	private int unitsToPixels(int start, int end, int inch) {
+		long denominator = Math.max(inch, 1);
+		long numerator = (long)Math.max(Math.abs(end - start), 1) * TARGET_DPI;
+		long pixels = (2 * numerator + denominator - 1) / (2 * denominator);
+		if (start == 0 && (2 * numerator) % denominator == 0
+				&& (((2 * numerator) / denominator) & 1) == 1) {
+			pixels++;
+		}
+		if (pixels < 1) {
+			return 1;
+		}
+		if (pixels > MAX_CANVAS_SIZE) {
+			return MAX_CANVAS_SIZE;
+		}
+		return (int)pixels;
+	}
+
+	private String pixelsToCssInches(int pixels) {
+		return Double.toString(pixels / 96.0) + "in";
 	}
 
 	boolean hasPlaceableHeader() {
@@ -340,7 +386,7 @@ public class SvgGdi implements Gdi {
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy));
 		}
 
@@ -540,7 +586,7 @@ public class SvgGdi implements Gdi {
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
@@ -707,15 +753,61 @@ public class SvgGdi implements Gdi {
 		emfBuffer.write(bytes, 0, bytes.length);
 
 		if (emfBuffer.size() >= emfTotalSize) {
+			byte[] bytesToParse = new byte[emfTotalSize];
+			System.arraycopy(emfBuffer.toByteArray(), 0, bytesToParse, 0, emfTotalSize);
+			pendingEmfList.add(bytesToParse);
+			includePendingEmfBounds(bytesToParse);
+			emfBuffer = null;
+			emfTotalSize = 0;
+		}
+	}
+
+	private void includePendingEmfBounds(byte[] data) {
+		if (data.length < 32 || readInt32(data, 0) != 1) {
+			return;
+		}
+		int left = readInt32(data, 8);
+		int top = readInt32(data, 12);
+		int right = readInt32(data, 16);
+		int bottom = readInt32(data, 20);
+		int boundsLeft = Math.min(left, right);
+		int boundsTop = Math.min(top, bottom);
+		int boundsRight = Math.max(left, right);
+		int boundsBottom = Math.max(top, bottom);
+		if (!pendingEmfBoundsSet) {
+			pendingEmfBoundsLeft = boundsLeft;
+			pendingEmfBoundsTop = boundsTop;
+			pendingEmfBoundsRight = boundsRight;
+			pendingEmfBoundsBottom = boundsBottom;
+			pendingEmfBoundsSet = true;
+		} else {
+			pendingEmfBoundsLeft = Math.min(pendingEmfBoundsLeft, boundsLeft);
+			pendingEmfBoundsTop = Math.min(pendingEmfBoundsTop, boundsTop);
+			pendingEmfBoundsRight = Math.max(pendingEmfBoundsRight, boundsRight);
+			pendingEmfBoundsBottom = Math.max(pendingEmfBoundsBottom, boundsBottom);
+		}
+		pendingEmfBoundsWidth = Math.max(pendingEmfBoundsWidth, boundsRight - boundsLeft);
+		pendingEmfBoundsHeight = Math.max(pendingEmfBoundsHeight, boundsBottom - boundsTop);
+	}
+
+	private void flushPendingEmf() {
+		if (pendingEmfList.isEmpty()) {
+			return;
+		}
+
+		ArrayList<byte[]> list = pendingEmfList;
+		pendingEmfList = new ArrayList<byte[]>();
+		SvgDc savedDc = dc;
+		for (byte[] data : list) {
 			try {
-				new EmfParser(false).parse(new ByteArrayInputStream(emfBuffer.toByteArray(), 0, emfTotalSize), this);
+				dc = (SvgDc)savedDc.clone();
+				new EmfParser(false).parse(new ByteArrayInputStream(data), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
 			} catch (EmfParseException e) {
 				throw new IllegalStateException(e);
 			} finally {
-				emfBuffer = null;
-				emfTotalSize = 0;
+				dc = savedDc;
 			}
 		}
 	}
@@ -1315,7 +1407,7 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(cx) + "," + dc.toAbsoluteY(cy)
 					+ " L " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + (a > 0 ? "1" : "0") + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
@@ -1491,7 +1583,7 @@ public class SvgGdi implements Gdi {
 			dc = (SvgDc)saveDC.removeLast();
 		}
 
-		if (!parentNode.hasChildNodes()) {
+		if (!parentNode.hasChildNodes() && parentNode.getParentNode() == doc.getDocumentElement()) {
 			doc.getDocumentElement().removeChild(parentNode);
 		}
 		parentNode = doc.createElement("g");
@@ -1692,6 +1784,10 @@ public class SvgGdi implements Gdi {
 
 	private String getArcSweepFlag() {
 		return (dc.getArcDirection() == Gdi.AD_CLOCKWISE) ? "1" : "0";
+	}
+
+	private String getArcLargeFlag(double angle) {
+		return (Math.abs(angle) > Math.PI) ? "1" : "0";
 	}
 
 	private void setMiterLimit(Element elem) {
@@ -2411,16 +2507,33 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void footer() {
+		flushPendingEmf();
+
 		Element root = doc.getDocumentElement();
 		int width = dc.getViewportWidth() != 0 ? dc.getViewportWidth() : dc.getWindowWidth();
 		int height = dc.getViewportHeight() != 0 ? dc.getViewportHeight() : dc.getWindowHeight();
 		int x = dc.getViewportWidth() != 0 ? dc.getViewportX() : 0;
 		int y = dc.getViewportHeight() != 0 ? dc.getViewportY() : 0;
+		double[] contentBounds = getRootContentBounds(root);
+		double[] physicalCanvasBounds = getPhysicalCanvasBounds(root);
+		double[] canvasBounds = getCanvasBounds(x, y, width, height, contentBounds, physicalCanvasBounds);
+		if (canvasBounds != null) {
+			x = (int)Math.floor(canvasBounds[0]);
+			y = (int)Math.floor(canvasBounds[1]);
+			width = (int)Math.ceil(canvasBounds[2]) - x;
+			height = (int)Math.ceil(canvasBounds[3]) - y;
+		}
 		if (!root.hasAttribute("width") && width != 0) {
 			root.setAttribute("width", "" + Math.abs(width));
 		}
 		if (!root.hasAttribute("height") && height != 0) {
 			root.setAttribute("height", "" + Math.abs(height));
+		}
+		if (!root.hasAttribute("width")) {
+			root.setAttribute("width", "" + DEFAULT_CANVAS_WIDTH);
+		}
+		if (!root.hasAttribute("height")) {
+			root.setAttribute("height", "" + DEFAULT_CANVAS_HEIGHT);
 		}
 		if (width != 0 && height != 0) {
 			root.setAttribute("viewBox", x + " " + y + " " + Math.abs(width) + " " + Math.abs(height));
@@ -2438,6 +2551,216 @@ public class SvgGdi implements Gdi {
 		if (!defsNode.hasChildNodes()) {
 			root.removeChild(defsNode);
 		}
+	}
+
+	private double[] getCanvasBounds(int x, int y, int width, int height, double[] contentBounds,
+			double[] physicalCanvasBounds) {
+		if (width != 0 && height != 0) {
+			double logicalRight = x + Math.abs(width);
+			double logicalBottom = y + Math.abs(height);
+			double[] bounds = new double[] { x, y, logicalRight, logicalBottom };
+			if (placeableHeader && pendingEmfBoundsSet) {
+				bounds = getPendingEmfBounds();
+			} else if (physicalCanvasBounds != null && isPhysicalCanvasLargerThanLogical(width, height, physicalCanvasBounds)) {
+				bounds = physicalCanvasBounds;
+			} else if (!placeableHeader && dc.getWindowX() == 0 && dc.getWindowY() == 0
+					&& pendingEmfBoundsWidth > 0 && pendingEmfBoundsHeight > 0) {
+				bounds[2] = Math.max(bounds[2], x + pendingEmfBoundsWidth);
+				bounds[3] = Math.max(bounds[3], y + pendingEmfBoundsHeight);
+			}
+			return bounds;
+		}
+		if (physicalCanvasBounds != null) {
+			return physicalCanvasBounds;
+		}
+		if (!placeableHeader && contentBounds != null) {
+			return addBounds(new double[] { 0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT },
+					contentBounds);
+		}
+		if (contentBounds != null) {
+			return contentBounds;
+		}
+		if (!placeableHeader) {
+			return new double[] { 0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT };
+		}
+		return null;
+	}
+
+	private double[] getPendingEmfBounds() {
+		return new double[] {
+				pendingEmfBoundsLeft,
+				pendingEmfBoundsTop,
+				pendingEmfBoundsRight,
+				pendingEmfBoundsBottom
+		};
+	}
+
+	private double[] getContentBounds(Element elem) {
+		if (elem == null) {
+			return null;
+		}
+		double[] bounds = null;
+		if (elem.hasAttribute("points")) {
+			bounds = addNumbersToBounds(bounds, elem.getAttribute("points"), true);
+		}
+		if (elem.hasAttribute("d")) {
+			bounds = addNumbersToBounds(bounds, elem.getAttribute("d"), true);
+		}
+		if (elem.hasAttribute("x") && elem.hasAttribute("y")) {
+			bounds = addCoordinateListsToBounds(bounds, elem.getAttribute("x"),
+					elem.getAttribute("y"));
+		}
+		if (elem.hasAttribute("x1") && elem.hasAttribute("y1")) {
+			bounds = addPointToBounds(bounds, readFirstNumber(elem.getAttribute("x1")),
+					readFirstNumber(elem.getAttribute("y1")));
+		}
+		if (elem.hasAttribute("x2") && elem.hasAttribute("y2")) {
+			bounds = addPointToBounds(bounds, readFirstNumber(elem.getAttribute("x2")),
+					readFirstNumber(elem.getAttribute("y2")));
+		}
+		if (elem.hasAttribute("cx") && elem.hasAttribute("cy")) {
+			Double cx = readFirstNumber(elem.getAttribute("cx"));
+			Double cy = readFirstNumber(elem.getAttribute("cy"));
+			Double rx = elem.hasAttribute("rx") ? readFirstNumber(elem.getAttribute("rx"))
+					: readFirstNumber(elem.getAttribute("r"));
+			Double ry = elem.hasAttribute("ry") ? readFirstNumber(elem.getAttribute("ry")) : rx;
+			if (cx != null && cy != null && rx != null && ry != null) {
+				bounds = addPointToBounds(bounds, cx.doubleValue() - Math.abs(rx.doubleValue()),
+						cy.doubleValue() - Math.abs(ry.doubleValue()));
+				bounds = addPointToBounds(bounds, cx.doubleValue() + Math.abs(rx.doubleValue()),
+						cy.doubleValue() + Math.abs(ry.doubleValue()));
+			}
+		}
+		if (elem.hasAttribute("width") && elem.hasAttribute("height")) {
+			Double x = readFirstNumber(elem.getAttribute("x"));
+			Double y = readFirstNumber(elem.getAttribute("y"));
+			Double width = readFirstNumber(elem.getAttribute("width"));
+			Double height = readFirstNumber(elem.getAttribute("height"));
+			if (x != null && y != null && width != null && height != null) {
+				bounds = addPointToBounds(bounds, x.doubleValue() + width.doubleValue(),
+						y.doubleValue() + height.doubleValue());
+			}
+		}
+		for (Node node = elem.getFirstChild(); node != null; node = node.getNextSibling()) {
+			if (node instanceof Element) {
+				bounds = addBounds(bounds, getContentBounds((Element)node));
+			}
+		}
+		return bounds;
+	}
+
+	private double[] getPhysicalCanvasBounds(Element root) {
+		if (targetCanvasWidth > 0 && targetCanvasHeight > 0) {
+			return new double[] { 0.0, 0.0, targetCanvasWidth, targetCanvasHeight };
+		}
+		Double width = readInches(root.getAttribute("width"));
+		Double height = readInches(root.getAttribute("height"));
+		if (width == null || height == null) {
+			return null;
+		}
+		return new double[] { 0.0, 0.0, Math.round(width.doubleValue() * 96.0),
+				Math.round(height.doubleValue() * 96.0) };
+	}
+
+	private boolean isPhysicalCanvasLargerThanLogical(int width, int height, double[] physicalCanvasBounds) {
+		double physicalWidth = physicalCanvasBounds[2] - physicalCanvasBounds[0];
+		double physicalHeight = physicalCanvasBounds[3] - physicalCanvasBounds[1];
+		return physicalWidth > Math.abs(width) * 2.0 || physicalHeight > Math.abs(height) * 2.0;
+	}
+
+	private Double readInches(String value) {
+		if (value == null || !value.endsWith("in")) {
+			return null;
+		}
+		try {
+			return Double.valueOf(value.substring(0, value.length() - 2));
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	private double[] getRootContentBounds(Element root) {
+		double[] bounds = null;
+		for (Node node = root.getFirstChild(); node != null; node = node.getNextSibling()) {
+			if (node instanceof Element && node != defsNode && node != styleNode) {
+				bounds = addBounds(bounds, getContentBounds((Element)node));
+			}
+		}
+		return bounds;
+	}
+
+
+	private double[] addNumbersToBounds(double[] bounds, String value, boolean paired) {
+		double[] numbers = readNumbers(value);
+		for (int i = 0; i + 1 < numbers.length; i += paired ? 2 : 1) {
+			bounds = addPointToBounds(bounds, numbers[i], numbers[i + 1]);
+		}
+		return bounds;
+	}
+
+	private double[] addCoordinateListsToBounds(double[] bounds, String xValue, String yValue) {
+		double[] xs = readNumbers(xValue);
+		double[] ys = readNumbers(yValue);
+		if (xs.length == 0 || ys.length == 0) {
+			return bounds;
+		}
+		int count = Math.max(xs.length, ys.length);
+		for (int i = 0; i < count; i++) {
+			double x = xs[Math.min(i, xs.length - 1)];
+			double y = ys[Math.min(i, ys.length - 1)];
+			bounds = addPointToBounds(bounds, x, y);
+		}
+		return bounds;
+	}
+
+	private double[] readNumbers(String value) {
+		if (value == null || value.length() == 0) {
+			return new double[0];
+		}
+		ArrayList<Double> values = new ArrayList<Double>();
+		Matcher matcher = SVG_NUMBER_PATTERN.matcher(value);
+		while (matcher.find()) {
+			values.add(Double.valueOf(matcher.group()));
+		}
+		double[] numbers = new double[values.size()];
+		for (int i = 0; i < values.size(); i++) {
+			numbers[i] = values.get(i).doubleValue();
+		}
+		return numbers;
+	}
+
+	private Double readFirstNumber(String value) {
+		double[] numbers = readNumbers(value);
+		if (numbers.length == 0) {
+			return null;
+		}
+		return Double.valueOf(numbers[0]);
+	}
+
+	private double[] addPointToBounds(double[] bounds, Double x, Double y) {
+		if (x == null || y == null) {
+			return bounds;
+		}
+		return addPointToBounds(bounds, x.doubleValue(), y.doubleValue());
+	}
+
+	private double[] addPointToBounds(double[] bounds, double x, double y) {
+		if (bounds == null) {
+			return new double[] { x, y, x, y };
+		}
+		if (x < bounds[0]) bounds[0] = x;
+		if (y < bounds[1]) bounds[1] = y;
+		if (x > bounds[2]) bounds[2] = x;
+		if (y > bounds[3]) bounds[3] = y;
+		return bounds;
+	}
+
+	private double[] addBounds(double[] bounds, double[] other) {
+		if (other == null) {
+			return bounds;
+		}
+		bounds = addPointToBounds(bounds, other[0], other[1]);
+		return addPointToBounds(bounds, other[2], other[3]);
 	}
 
 	private String getClassString(GdiObject obj1, GdiObject obj2) {
@@ -2583,6 +2906,13 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("opacity", Float.toString(opacity));
 		}
 
+		if (!clipSource && rop == Gdi.SRCINVERT) {
+			if (mergeTransparentMaskWithPreviousImage(elem, image)) {
+				return;
+			}
+			elem.setUserData(TRANSPARENT_MASK_ROP_USER_DATA, TRANSPARENT_MASK_ROP_SRCINVERT, null);
+		}
+
 		parentNode.appendChild(elem);
 	}
 
@@ -2598,6 +2928,97 @@ public class SvgGdi implements Gdi {
 			return null;
 		}
 		return data;
+	}
+
+	private boolean mergeTransparentMaskWithPreviousImage(Element elem, byte[] image) {
+		Node previous = parentNode.getLastChild();
+		if (!(previous instanceof Element)) {
+			return false;
+		}
+
+		Element previousElem = (Element)previous;
+		if (!"image".equals(previousElem.getTagName())
+				|| !TRANSPARENT_MASK_ROP_SRCINVERT.equals(previousElem.getUserData(TRANSPARENT_MASK_ROP_USER_DATA))
+				|| !hasSameImageGeometry(previousElem, elem)) {
+			return false;
+		}
+
+		byte[] previousImage = readPngDataUri(previousElem.getAttribute("xlink:href"));
+		byte[] merged = createTransparentMaskPng(previousImage, image);
+		if (merged == null) {
+			return false;
+		}
+
+		previousElem.setAttribute("xlink:href", createPngDataUri(merged));
+		previousElem.setUserData(TRANSPARENT_MASK_ROP_USER_DATA, null, null);
+		return true;
+	}
+
+	private boolean hasSameImageGeometry(Element first, Element second) {
+		return first.getAttribute("x").equals(second.getAttribute("x"))
+				&& first.getAttribute("y").equals(second.getAttribute("y"))
+				&& first.getAttribute("width").equals(second.getAttribute("width"))
+				&& first.getAttribute("height").equals(second.getAttribute("height"))
+				&& first.getAttribute("transform").equals(second.getAttribute("transform"))
+				&& first.getAttribute("opacity").equals(second.getAttribute("opacity"))
+				&& first.getAttribute("filter").equals(second.getAttribute("filter"));
+	}
+
+	private byte[] readPngDataUri(String data) {
+		if (data == null || !data.startsWith(PNG_DATA_URI_PREFIX)) {
+			return null;
+		}
+		try {
+			return java.util.Base64.getDecoder().decode(data.substring(PNG_DATA_URI_PREFIX.length()));
+		} catch (IllegalArgumentException e) {
+			return null;
+		}
+	}
+
+	private byte[] createTransparentMaskPng(byte[] maskImage, byte[] currentImage) {
+		if (maskImage == null || currentImage == null) {
+			return null;
+		}
+		try {
+			BufferedImage mask = ImageIO.read(new ByteArrayInputStream(maskImage));
+			BufferedImage current = ImageIO.read(new ByteArrayInputStream(currentImage));
+			if (mask == null || current == null) {
+				return null;
+			}
+			if (mask.getWidth() != current.getWidth() || mask.getHeight() != current.getHeight()) {
+				mask = scaleImage(mask, current.getWidth(), current.getHeight());
+			}
+
+			BufferedImage result = new BufferedImage(current.getWidth(), current.getHeight(), BufferedImage.TYPE_INT_ARGB);
+			for (int y = 0; y < result.getHeight(); y++) {
+				for (int x = 0; x < result.getWidth(); x++) {
+					int maskRgb = mask.getRGB(x, y) & 0x00FFFFFF;
+					int currentRgb = current.getRGB(x, y) & 0x00FFFFFF;
+					if (maskRgb == currentRgb) {
+						result.setRGB(x, y, currentRgb);
+					} else {
+						result.setRGB(x, y, 0xFF000000 | currentRgb);
+					}
+				}
+			}
+
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			ImageIO.write(result, "png", out);
+			return out.toByteArray();
+		} catch (IOException e) {
+			return null;
+		}
+	}
+
+	private BufferedImage scaleImage(BufferedImage source, int width, int height) {
+		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = image.createGraphics();
+		try {
+			g.drawImage(source, 0, 0, width, height, null);
+		} finally {
+			g.dispose();
+		}
+		return image;
 	}
 
 	byte[] convertBrushPatternToPng(byte[] image, int usage) {

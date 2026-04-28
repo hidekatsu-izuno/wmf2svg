@@ -22,7 +22,7 @@ It now requires Java 8.0 or later.
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>0.10.0</version>
+<version>0.10.1</version>
 ```
 
 ## Build
@@ -35,6 +35,7 @@ mvn package
 
 ## History
 
+- 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.
 - 2021-07-12: Fix a bug about images with palette.

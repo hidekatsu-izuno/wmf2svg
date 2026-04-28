@@ -149,9 +149,6 @@ class SvgPen extends SvgObject implements GdiPen {
 	}
 
 	private double toStrokeWidth() {
-		if (getGDI().hasPlaceableHeader() && width <= 1) {
-			return toRealSize(1);
-		}
 		return getGDI().getDC().toStrokeWidth(width);
 	}
 }

@@ -1722,10 +1722,6 @@ public class SvgGdi implements Gdi {
 		return buffer.toString();
 	}
 
-	private String toSvgPath(Point[][] points) {
-		return toSvgPath(points, true);
-	}
-
 	private String toSvgPath(SvgPath path) {
 		buffer.setLength(0);
 		SvgPath.Command[] commands = path.getCommands();
@@ -1763,31 +1759,6 @@ public class SvgGdi implements Gdi {
 				break;
 			default:
 				break;
-			}
-		}
-		return buffer.toString();
-	}
-
-	private String toSvgPath(Point[][] points, boolean close) {
-		buffer.setLength(0);
-		for (int i = 0; i < points.length; i++) {
-			if (points[i].length == 0) {
-				continue;
-			}
-			if (buffer.length() > 0) {
-				buffer.append(" ");
-			}
-			for (int j = 0; j < points[i].length; j++) {
-				if (j == 0) {
-					buffer.append("M ");
-				} else if (j == 1) {
-					buffer.append(" L ");
-				}
-				buffer.append((int) dc.toAbsoluteX(points[i][j].x)).append(",");
-				buffer.append((int) dc.toAbsoluteY(points[i][j].y)).append(" ");
-			}
-			if (close) {
-				buffer.append("z");
 			}
 		}
 		return buffer.toString();

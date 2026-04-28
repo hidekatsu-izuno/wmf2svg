@@ -5,13 +5,13 @@ This project's goal is to make tool & library for converting wmf to svg.
 ## Example
 
 ```
-java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg filename]
+java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg/svgz filename]
 ```
 
 ## Options
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
-- -replace-symbol-font: replace SYMBOL Font to serif or sans-serif Unicode SYMBOL.
+- -replace-symbol-font: replace SYMBOL/Wingdings[23]? Font to serif Unicode symbols.
 
 If you need to compress by gzip, you should use .svgz suffix as svg filename.
 
@@ -56,7 +56,7 @@ mvn package
 - 2010-09-11: Some bugs fixed.
 - 2009-05-24: wmf2svg version 0.8.3 is supported on Google App Engine/Java.
 
-Copyright (c) 2007-2021 Hidekatsu Izuno, Shunsuke Mori All right reserved.
+Copyright (c) 2007-2026 Hidekatsu Izuno, Shunsuke Mori All right reserved.
 
 <!--
 - mvn verify

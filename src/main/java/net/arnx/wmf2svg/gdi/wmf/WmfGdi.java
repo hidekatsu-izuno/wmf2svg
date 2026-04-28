@@ -527,8 +527,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_FILL_RGN);
-		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
+		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		records.add(record);
 	}
 
@@ -556,10 +556,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_FRAME_RGN);
+		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
+		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		pos = setInt16(record, pos, h);
 		pos = setInt16(record, pos, w);
-		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
-		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		records.add(record);
 	}
 
@@ -785,12 +785,12 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 	}
 
-	public void resizePalette(GdiPalette palette) {
+	public void resizePalette(GdiPalette palette, int entries) {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, RECORD_RESIZE_PALETTE);
-		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
+		pos = setUint16(record, pos, entries);
 		records.add(record);
 	}
 

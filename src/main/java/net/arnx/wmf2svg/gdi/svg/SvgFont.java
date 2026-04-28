@@ -316,7 +316,7 @@ class SvgFont extends SvgObject implements GdiFont {
 				buffer.append(" underline");
 			}
 			if (strikeout) {
-				buffer.append(" overline");
+				buffer.append(" line-through");
 			}
 			buffer.append("; ");
 		}

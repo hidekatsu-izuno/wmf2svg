@@ -43,6 +43,10 @@ public class WmfParser implements Parser, WmfConstants {
 	public WmfParser() {
 	}
 
+	private boolean isObjectIndex(int index, GdiObject[] objects) {
+		return index >= 0 && index < objects.length;
+	}
+
 	public void parse(InputStream is, Gdi gdi)
 		throws IOException, WmfParseException {
 		DataInput in = null;
@@ -155,8 +159,8 @@ public class WmfParser implements Parser, WmfConstants {
 					break;
 				}
 				case RECORD_RESIZE_PALETTE: {
-					int objID = in.readUint16();
-					gdi.resizePalette((GdiPalette) objs[objID]);
+					int entries = in.readUint16();
+					gdi.resizePalette(null, entries);
 					break;
 				}
 				case RECORD_DIB_CREATE_PATTERN_BRUSH: {
@@ -211,9 +215,13 @@ public class WmfParser implements Parser, WmfConstants {
 					break;
 				}
 				case RECORD_FILL_RGN: {
-					int brushID = in.readUint16();
 					int rgnID = in.readUint16();
-					gdi.fillRgn((GdiRegion) objs[rgnID], (GdiBrush) objs[brushID]);
+					int brushID = in.readUint16();
+					if (isObjectIndex(rgnID, objs) && isObjectIndex(brushID, objs)
+							&& objs[rgnID] instanceof GdiRegion
+							&& objs[brushID] instanceof GdiBrush) {
+						gdi.fillRgn((GdiRegion) objs[rgnID], (GdiBrush) objs[brushID]);
+					}
 					break;
 				}
 				case RECORD_SET_MAPPER_FLAGS: {
@@ -329,11 +337,15 @@ public class WmfParser implements Parser, WmfConstants {
 					break;
 				}
 				case RECORD_FRAME_RGN: {
+					int rgnID = in.readUint16();
+					int brushID = in.readUint16();
 					int height = in.readInt16();
 					int width = in.readInt16();
-					int brushID = in.readUint16();
-					int rgnID = in.readUint16();
-					gdi.frameRgn((GdiRegion) objs[rgnID], (GdiBrush) objs[brushID], width, height);
+					if (isObjectIndex(rgnID, objs) && isObjectIndex(brushID, objs)
+							&& objs[rgnID] instanceof GdiRegion
+							&& objs[brushID] instanceof GdiBrush) {
+						gdi.frameRgn((GdiRegion) objs[rgnID], (GdiBrush) objs[brushID], width, height);
+					}
 					break;
 				}
 				case RECORD_ANIMATE_PALETTE: {
@@ -463,8 +475,11 @@ public class WmfParser implements Parser, WmfConstants {
 				}
 				case RECORD_SELECT_CLIP_RGN: {
 					int objID = in.readUint16();
-					GdiRegion rgn = (objID > 0) ? (GdiRegion) objs[objID] : null;
-					gdi.selectClipRgn(rgn);
+					if (objID == 0 || objID == 0xFFFF) {
+						gdi.selectClipRgn(null);
+					} else if (isObjectIndex(objID, objs) && objs[objID] instanceof GdiRegion) {
+						gdi.selectClipRgn((GdiRegion) objs[objID]);
+					}
 					break;
 				}
 				case RECORD_SELECT_OBJECT: {
@@ -704,14 +719,24 @@ public class WmfParser implements Parser, WmfConstants {
 					break;
 				}
 				case RECORD_CREATE_RECT_RGN: {
-					int ey = in.readInt16();
-					int ex = in.readInt16();
-					int sy = in.readInt16();
-					int sx = in.readInt16();
-					for (int i = 0; i < objs.length; i++) {
-						if (objs[i] == null) {
-							objs[i] = gdi.createRectRgn(sx, sy, ex, ey);
-							break;
+					if (size >= 11) {
+						in.readInt16();
+						int objectType = in.readInt16();
+						in.readInt32();
+						in.readInt16();
+						in.readInt16();
+						in.readInt16();
+						int left = in.readInt16();
+						int top = in.readInt16();
+						int right = in.readInt16();
+						int bottom = in.readInt16();
+						if (objectType == 0x0006) {
+							for (int i = 0; i < objs.length; i++) {
+								if (objs[i] == null) {
+									objs[i] = gdi.createRectRgn(left, top, right, bottom);
+									break;
+								}
+							}
 						}
 					}
 					break;

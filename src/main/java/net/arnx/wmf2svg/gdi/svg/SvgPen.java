@@ -92,47 +92,48 @@ class SvgPen extends SvgObject implements GdiPen {
 			buffer.append("stroke: " + toColor(color) + "; ");
 
 			// stroke-width
-			buffer.append("stroke-width: " + width + "; ");
+			buffer.append("stroke-width: " + toStrokeWidth() + "; ");
 			
 			// stroke-linejoin
+			buffer.append("stroke-linecap: round; ");
 			buffer.append("stroke-linejoin: round; ");
 
 			// stroke-dasharray
-			if (width == 1 && PS_DASH <= style && style <= PS_DASHDOTDOT) {
+			if (PS_DASH <= style && style <= PS_DASHDOTDOT) {
 				buffer.append("stroke-dasharray: ");
 				switch (style) {
 					case PS_DASH :
 						buffer.append(
-							"" + toRealSize(18) + "," + toRealSize(6));
+							"" + toStrokePatternSize(18) + "," + toStrokePatternSize(6));
 						break;
 					case PS_DOT :
-						buffer.append("" + toRealSize(3) + "," + toRealSize(3));
+						buffer.append("" + toStrokePatternSize(3) + "," + toStrokePatternSize(3));
 						break;
 					case PS_DASHDOT :
 						buffer.append(
 							""
-								+ toRealSize(9)
+								+ toStrokePatternSize(9)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3));
+								+ toStrokePatternSize(3));
 						break;
 					case PS_DASHDOTDOT :
 						buffer.append(
 							""
-								+ toRealSize(9)
+								+ toStrokePatternSize(9)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3)
+								+ toStrokePatternSize(3)
 								+ ","
-								+ toRealSize(3));
+								+ toStrokePatternSize(3));
 						break;
 				}
 				buffer.append("; ");
@@ -141,5 +142,16 @@ class SvgPen extends SvgObject implements GdiPen {
 
 		if (buffer.length() > 0) buffer.setLength(buffer.length()-1);
 		return buffer.toString();
+	}
+
+	private double toStrokePatternSize(int value) {
+		return getGDI().getDC().toStrokeWidth(value * Math.max(width, 1));
+	}
+
+	private double toStrokeWidth() {
+		if (getGDI().hasPlaceableHeader() && width <= 1) {
+			return toRealSize(1);
+		}
+		return getGDI().getDC().toStrokeWidth(width);
 	}
 }

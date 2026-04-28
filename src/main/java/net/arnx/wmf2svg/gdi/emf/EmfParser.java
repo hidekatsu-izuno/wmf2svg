@@ -451,7 +451,7 @@ public class EmfParser implements Parser {
 			case EMR_RESIZEPALETTE: {
 				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
 				if (obj instanceof GdiPalette) {
-					gdi.resizePalette((GdiPalette)obj);
+					gdi.resizePalette((GdiPalette)obj, readInt32(data, 4));
 				}
 				break;
 			}
@@ -957,9 +957,9 @@ public class EmfParser implements Parser {
 	}
 
 	private static void readBitBlt(byte[] data, double[] transform, Gdi gdi) {
-		int[] rect = transformDestRect(transform, data, 16, 20, 40, 44);
+		int[] rect = transformDestRect(transform, data, 16, 20, 24, 28);
 		long rop = readUInt32(data, 32);
-		byte[] image = readBitmap(data, 52, 56, 60, 64);
+		byte[] image = readBitmap(data, 76, 80, 84, 88);
 		if (image == null) {
 			if (canPatBltWithoutSource(rop)) {
 				gdi.patBlt(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], rop);
@@ -967,13 +967,13 @@ public class EmfParser implements Parser {
 			return;
 		}
 		gdi.bitBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 24), readInt32(data, 28), rop);
+				readInt32(data, 36), readInt32(data, 40), rop);
 	}
 
 	private static void readStretchBlt(byte[] data, double[] transform, Gdi gdi) {
-		int[] rect = transformDestRect(transform, data, 16, 20, 48, 52);
+		int[] rect = transformDestRect(transform, data, 16, 20, 24, 28);
 		long rop = readUInt32(data, 32);
-		byte[] image = readBitmap(data, 60, 64, 68, 72);
+		byte[] image = readBitmap(data, 76, 80, 84, 88);
 		if (image == null) {
 			if (canPatBltWithoutSource(rop)) {
 				gdi.patBlt(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], rop);
@@ -981,7 +981,7 @@ public class EmfParser implements Parser {
 			return;
 		}
 		gdi.stretchBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 24), readInt32(data, 28), readInt32(data, 40), readInt32(data, 44),
+				readInt32(data, 36), readInt32(data, 40), readInt32(data, 92), readInt32(data, 96),
 				rop);
 	}
 

@@ -23,6 +23,8 @@ import net.arnx.wmf2svg.gdi.*;
  * @author Hidekatsu Izuno
  */
 class SvgBrush extends SvgObject implements GdiBrush {
+	private static final int SVG_DPI = 96;
+
 	private int style;
 	private int color;
 	private int hatch;
@@ -60,16 +62,16 @@ class SvgBrush extends SvgObject implements GdiBrush {
 			pattern.setAttribute("patternUnits", "userSpaceOnUse");
 			pattern.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
 			pattern.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
-			pattern.setAttribute("width", "" + toRealSize(8));
-			pattern.setAttribute("height", "" + toRealSize(8));
+			pattern.setAttribute("width", "" + toHatchSize(8));
+			pattern.setAttribute("height", "" + toHatchSize(8));
 
 			if (getGDI().getDC().getBkMode() == Gdi.OPAQUE) {
 				Element rect = getGDI().getDocument().createElement("rect");
 				rect.setAttribute("fill", toColor(getGDI().getDC().getBkColor()));
-				rect.setAttribute("x", "" + toRealSize(0));
-				rect.setAttribute("y", "" + toRealSize(0));
-				rect.setAttribute("width", "" + toRealSize(8));
-				rect.setAttribute("height", "" + toRealSize(8));
+				rect.setAttribute("x", "" + toHatchSize(0));
+				rect.setAttribute("y", "" + toHatchSize(0));
+				rect.setAttribute("width", "" + toHatchSize(8));
+				rect.setAttribute("height", "" + toHatchSize(8));
 				pattern.appendChild(rect);
 			}
 			
@@ -77,83 +79,90 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				case HS_HORIZONTAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
-					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path.setAttribute("x1", "" + toRealSize(0));
-					path.setAttribute("y1", "" + toRealSize(4));
-					path.setAttribute("x2", "" + toRealSize(8));
-					path.setAttribute("y2", "" + toRealSize(4));
+					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path.setAttribute("x1", "" + toHatchSize(0));
+					path.setAttribute("y1", "" + toHatchSize(4));
+					path.setAttribute("x2", "" + toHatchSize(8));
+					path.setAttribute("y2", "" + toHatchSize(4));
 					pattern.appendChild(path);
 				} break;
 				case HS_VERTICAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
-					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path.setAttribute("x1", "" + toRealSize(4));
-					path.setAttribute("y1", "" + toRealSize(0));
-					path.setAttribute("x2", "" + toRealSize(4));
-					path.setAttribute("y2", "" + toRealSize(8));
+					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path.setAttribute("x1", "" + toHatchSize(4));
+					path.setAttribute("y1", "" + toHatchSize(0));
+					path.setAttribute("x2", "" + toHatchSize(4));
+					path.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path);
 				} break;
 				case HS_FDIAGONAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
-					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path.setAttribute("x1", "" + toRealSize(0));
-					path.setAttribute("y1", "" + toRealSize(0));
-					path.setAttribute("x2", "" + toRealSize(8));
-					path.setAttribute("y2", "" + toRealSize(8));
+					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path.setAttribute("x1", "" + toHatchSize(0));
+					path.setAttribute("y1", "" + toHatchSize(0));
+					path.setAttribute("x2", "" + toHatchSize(8));
+					path.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path);
 				} break;
 				case HS_BDIAGONAL: {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
-					path.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path.setAttribute("x1", "" + toRealSize(0));
-					path.setAttribute("y1", "" + toRealSize(8));
-					path.setAttribute("x2", "" + toRealSize(8));
-					path.setAttribute("y2", "" + toRealSize(0));
+					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path.setAttribute("x1", "" + toHatchSize(0));
+					path.setAttribute("y1", "" + toHatchSize(8));
+					path.setAttribute("x2", "" + toHatchSize(8));
+					path.setAttribute("y2", "" + toHatchSize(0));
 					pattern.appendChild(path);
 				} break;
 				case HS_CROSS: {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
-					path1.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path1.setAttribute("x1", "" + toRealSize(0));
-					path1.setAttribute("y1", "" + toRealSize(4));
-					path1.setAttribute("x2", "" + toRealSize(8));
-					path1.setAttribute("y2", "" + toRealSize(4));
+					path1.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path1.setAttribute("x1", "" + toHatchSize(0));
+					path1.setAttribute("y1", "" + toHatchSize(4));
+					path1.setAttribute("x2", "" + toHatchSize(8));
+					path1.setAttribute("y2", "" + toHatchSize(4));
 					pattern.appendChild(path1);
 					Element path2 = getGDI().getDocument().createElement("line");
 					path2.setAttribute("stroke", toColor(color));
-					path2.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path2.setAttribute("x1", "" + toRealSize(4));
-					path2.setAttribute("y1", "" + toRealSize(0));
-					path2.setAttribute("x2", "" + toRealSize(4));
-					path2.setAttribute("y2", "" + toRealSize(8));
+					path2.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path2.setAttribute("x1", "" + toHatchSize(4));
+					path2.setAttribute("y1", "" + toHatchSize(0));
+					path2.setAttribute("x2", "" + toHatchSize(4));
+					path2.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path2);
 				} break;
 				case HS_DIAGCROSS: {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
-					path1.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path1.setAttribute("x1", "" + toRealSize(0));
-					path1.setAttribute("y1", "" + toRealSize(0));
-					path1.setAttribute("x2", "" + toRealSize(8));
-					path1.setAttribute("y2", "" + toRealSize(8));
+					path1.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path1.setAttribute("x1", "" + toHatchSize(0));
+					path1.setAttribute("y1", "" + toHatchSize(0));
+					path1.setAttribute("x2", "" + toHatchSize(8));
+					path1.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path1);
 					Element path2 = getGDI().getDocument().createElement("line");
 					path2.setAttribute("stroke", toColor(color));
-					path2.setAttribute("stroke-width", "" + Math.max(1, toRealSize(1)));
-					path2.setAttribute("x1", "" + toRealSize(0));
-					path2.setAttribute("y1", "" + toRealSize(8));
-					path2.setAttribute("x2", "" + toRealSize(8));
-					path2.setAttribute("y2", "" + toRealSize(0));
+					path2.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
+					path2.setAttribute("x1", "" + toHatchSize(0));
+					path2.setAttribute("y1", "" + toHatchSize(8));
+					path2.setAttribute("x2", "" + toHatchSize(8));
+					path2.setAttribute("y2", "" + toHatchSize(0));
 					pattern.appendChild(path2);
 				} break;
 			}
 		}
 
 		return pattern;
+	}
+
+	private int toHatchSize(int px) {
+		if (getGDI().hasPlaceableHeader()) {
+			return Math.max(1, (int)Math.round(getGDI().getDC().getDpi() * px / (double)SVG_DPI));
+		}
+		return px;
 	}
 
 	public int hashCode() {

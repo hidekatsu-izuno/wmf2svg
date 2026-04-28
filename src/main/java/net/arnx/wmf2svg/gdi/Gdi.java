@@ -191,7 +191,7 @@ public interface Gdi {
     public void realizePalette();
     public void restoreDC(int savedDC);
     public void rectangle(int sx, int sy, int ex, int ey);
-    public void resizePalette(GdiPalette palette);
+    public void resizePalette(GdiPalette palette, int entries);
     public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh);
     public void seveDC();
     public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old);

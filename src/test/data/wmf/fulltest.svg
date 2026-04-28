@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" fill-rule="evenodd" height="8.5in" preserveAspectRatio="none" stroke-linecap="butt" viewBox="0 0 27940 21590" width="11.0in">
+    <defs>
+        <pattern height="212" id="pattern0" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="106" y2="106"/>
+        </pattern>
+        <pattern height="212" id="pattern1" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="106" x2="106" y1="1" y2="212"/>
+        </pattern>
+        <pattern height="212" id="pattern2" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="1" y2="212"/>
+        </pattern>
+        <pattern height="212" id="pattern3" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="212" y2="1"/>
+        </pattern>
+        <pattern height="212" id="pattern4" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="106" y2="106"/>
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="106" x2="106" y1="1" y2="212"/>
+        </pattern>
+        <pattern height="212" id="pattern5" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="1" y2="212"/>
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="212" y2="1"/>
+        </pattern>
+        <pattern height="168" id="pattern6" patternUnits="userSpaceOnUse" width="168" x="0" y="0">
+            <image height="168" preserveAspectRatio="none" width="168" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAARklEQVR4Xn3K0QDAIABF0YswhBBCGEIIIYQQwhCGEEIIQ5jJ6xG8j/N3gCGY9thry7Z99htdOdGUE7dyoioninLiUk6glA5GR1vBjlGG8AAAAABJRU5ErkJggg=="/>
+        </pattern>
+        <mask height="200000" id="mask0" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+            <rect fill="white" height="1400" width="2100" x="8000" y="6750"/>
+        </mask>
+        <mask height="200000" id="mask1" maskUnits="userSpaceOnUse" width="200000" x="-100000" y="-100000">
+            <rect fill="white" height="200000" width="200000" x="-100000" y="-100000"/>
+            <rect fill="black" height="1650" width="800" x="8750" y="6700"/>
+        </mask>
+        <pattern height="212" id="pattern7" patternUnits="userSpaceOnUse" width="212" x="0" y="0">
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="1" x2="212" y1="106" y2="106"/>
+            <line stroke="rgb(0,0,0)" stroke-width="26" x1="106" x2="106" y1="1" y2="212"/>
+        </pattern>
+    </defs>
+    <style type="text/css">
+.brush0 { fill: rgb(255,255,255); }
+.pen0 { stroke: rgb(0,0,0); stroke-width: 28.0; stroke-linecap: round; stroke-linejoin: round; }
+.font0 { font-weight: bold; font-size: 375px; font-family: Arial; }
+.font1 { font-size: 232px; font-family: Arial; }
+.font2 { font-size: 194px; font-family: "Courier New"; }
+.font3 { font-style: italic; font-size: 234px; font-family: "Times New Roman"; }
+.font4 { font-weight: bold; font-size: 214px; font-family: Arial; text-decoration: underline line-through; }
+.font5 { font-weight: bold; font-size: 214px; font-family: Arial; }
+.pen1 { stroke: none; }
+.pen2 { stroke: rgb(0,0,0); stroke-width: 35.0; stroke-linecap: round; stroke-linejoin: round; }
+.pen3 { stroke: rgb(0,0,0); stroke-width: 20.0; stroke-linecap: round; stroke-linejoin: round; }
+.pen4 { stroke: rgb(220,0,0); stroke-width: 55.0; stroke-linecap: round; stroke-linejoin: round; }
+.pen5 { stroke: rgb(0,0,220); stroke-width: 55.0; stroke-linecap: round; stroke-linejoin: round; }
+.pen6 { stroke: rgb(20,135,65); stroke-width: 45.0; stroke-linecap: round; stroke-linejoin: round; }
+.pen7 { stroke: rgb(0,0,0); stroke-width: 35.0; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 630.0,210.0; }
+.pen8 { stroke: rgb(0,0,0); stroke-width: 35.0; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 105.0,105.0; }
+.pen9 { stroke: rgb(0,0,0); stroke-width: 35.0; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 315.0,105.0,105.0,105.0; }
+.pen10 { stroke: rgb(0,0,0); stroke-width: 35.0; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 315.0,105.0,105.0,105.0,105.0,105.0; }
+.pen11 { stroke: rgb(0,40,220); stroke-width: 95.0; stroke-linecap: round; stroke-linejoin: round; }
+.brush1 { fill: rgb(0,0,0); }
+.brush2 { fill: rgb(184,216,240); }
+.brush3 { fill: rgb(200,230,200); }
+.brush4 { fill: rgb(255,204,204); }
+.brush5 { fill: rgb(255,255,0); }
+.brush6 { fill: rgb(255,0,0); }
+.brush7 { fill: rgb(0,128,0); }
+.brush8 { fill: rgb(0,0,255); }
+.brush9 { fill: none; }
+.brush10 {  }
+.brush11 {  }
+.brush12 {  }
+.brush13 {  }
+.brush14 {  }
+.brush15 {  }
+.brush16 { fill: rgb(208,208,208); }
+.pen12 { stroke: rgb(255,128,0); stroke-width: 70.0; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+    <g>
+        <text class="font0" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="550" xml:lang="en" xml:space="preserve" y="750">WMF GDI full command overview</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="550" xml:lang="en" xml:space="preserve" y="1150">Generated by FulltestWmfGenerator: primitives, text, pens, brushes, regions, palettes, raster ops and DC state.</text>
+        <rect class="pen2 brush0" height="3700" width="6500" x="400" y="1700"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="650" xml:lang="en" xml:space="preserve" y="2220">1 primitives</text>
+        <rect class="pen3 brush2" height="1100" width="1850" x="1050" y="2550"/>
+        <ellipse class="pen3 brush2" cx="4475" cy="3100" rx="975" ry="650"/>
+        <rect class="pen3 brush9" height="1600" rx="350" ry="350" width="850" x="5750" y="2250"/>
+        <line class="pen4" fill="none" x1="1050" x2="3050" y1="4550" y2="5100"/>
+        <polyline class="pen5" fill="none" points="3700,5150 4450,3950 5200,5250 6150,3800"/>
+        <polygon class="pen6 brush9" points="5900,3000 6600,3600 6350,4950 5500,4600"/>
+        <rect fill="rgb(0,0,0)" height="1" stroke="none" width="1" x="6600" y="5050"/>
+        <rect class="pen2 brush0" height="3700" width="6500" x="7300" y="1700"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="7550" xml:lang="en" xml:space="preserve" y="2220">2 arcs and fill modes</text>
+        <path class="pen3" d="M 7900.0,3150.0 A 1050.0,750.0 0 0 0 10000.0,3150.0" fill="none" stroke-miterlimit="10.0"/>
+        <path class="pen3 brush3" d="M 10400.0,3150.0 A 1200.0,750.0 0 0 0 12800.0,3150.0 Z" stroke-miterlimit="10.0"/>
+        <path class="pen3 brush3" d="M 8950.0,4525.0 L 7900.7194245448945,4500.017129155831 A 1050.0,675.0 0 1 0 9999.280575455105,4500.017129155831 Z" stroke-miterlimit="10.0"/>
+        <rect class="pen3 brush3" height="950" rx="500" ry="500" width="2200" x="10800" y="4100"/>
+        <polygon class="pen3 brush4" points="11800,2050 12350,3500 11000,2550 12600,2550 11250,3500"/>
+        <polygon class="pen3 brush2" fill-rule="nonzero" points="8400,2050 8950,3500 7600,2550 9200,2550 7850,3500"/>
+        <rect class="pen2 brush0" height="3700" width="6600" x="14200" y="1700"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="14450" xml:lang="en" xml:space="preserve" y="2220">3 pens and ROP2</text>
+        <line class="pen2" fill="none" x1="15000" x2="19000" y1="2400" y2="2400"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="2310">solid</text>
+        <line class="pen7" fill="none" x1="15000" x2="19000" y1="2830" y2="2830"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="2740">dash</text>
+        <line class="pen8" fill="none" x1="15000" x2="19000" y1="3260" y2="3260"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="3170">dot</text>
+        <line class="pen9" fill="none" x1="15000" x2="19000" y1="3690" y2="3690"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="3600">dash-dot</text>
+        <line class="pen10" fill="none" x1="15000" x2="19000" y1="4120" y2="4120"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="4030">dash-dot-dot</text>
+        <line class="pen11" fill="none" x1="15000" x2="19000" y1="4550" y2="4550"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="4460">wide</text>
+        <rect class="pen5 brush0" height="450" width="1200" x="15200" y="4700"/>
+        <rect class="pen5 brush0" height="450" width="1200" x="17600" y="4700"/>
+        <rect class="pen2 brush0" height="3700" width="6300" x="21200" y="1700"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="21450" xml:lang="en" xml:space="preserve" y="2220">4 brushes</text>
+        <rect class="pen3 brush1" height="560" width="780" x="21800" y="2500"/>
+        <rect class="pen3 brush6" height="560" width="780" x="22850" y="2500"/>
+        <rect class="pen3 brush7" height="560" width="780" x="23900" y="2500"/>
+        <rect class="pen3 brush8" height="560" width="780" x="24950" y="2500"/>
+        <rect class="pen3 brush5" height="560" width="780" x="26000" y="2500"/>
+        <rect class="pen3 brush9" height="560" width="780" x="21800" y="3350"/>
+        <rect class="pen3 brush10" fill="url(#pattern0)" height="560" width="780" x="22850" y="3350"/>
+        <rect class="pen3 brush11" fill="url(#pattern1)" height="560" width="780" x="23900" y="3350"/>
+        <rect class="pen3 brush12" fill="url(#pattern2)" height="560" width="780" x="24950" y="3350"/>
+        <rect class="pen3 brush13" fill="url(#pattern3)" height="560" width="780" x="26000" y="3350"/>
+        <rect class="pen3 brush14" fill="url(#pattern4)" height="560" width="780" x="21800" y="4200"/>
+        <rect class="pen3 brush15" fill="url(#pattern5)" height="560" width="780" x="22850" y="4200"/>
+        <rect class="pen3" fill="url(#pattern6)" height="560" width="780" x="23900" y="4200"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="21800" xml:lang="en" xml:space="preserve" y="5050">solid, hollow, hatch, DIB pattern</text>
+        <rect class="pen2 brush0" height="3750" width="6500" x="400" y="5850"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="650" xml:lang="en" xml:space="preserve" y="6370">5 text records</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="850" xml:lang="en" xml:space="preserve" y="6700">TextOut left/top</text>
+        <g>
+            <rect fill="rgb(255,255,255)" height="450" width="3500" x="800" y="7000"/>
+            <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="850" xml:lang="en" xml:space="preserve" y="7100">ExtTextOut opaque</text>
+        </g>
+        <text class="font1" dx="35 35 35 35 35 35 35 35 35 35 35 35 35 35" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="850" xml:lang="en" xml:space="preserve" y="7700">character extra</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge; word-spacing: 450;" x="850" xml:lang="en" xml:space="preserve" y="8150">text justification</text>
+        <text class="font3" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="850" xml:lang="en" xml:space="preserve" y="8600">italic Times New Roman</text>
+        <text class="font4" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="850" xml:lang="en" xml:space="preserve" y="8900">underline + strikeout</text>
+        <text class="font5" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" transform="rotate(-45.0, 4300, 8950)" x="4300" xml:lang="en" xml:space="preserve" y="8950">rotated 45deg</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="text-anchor: end; dominant-baseline: text-before-edge;" x="6600" xml:lang="en" xml:space="preserve" y="9050">right aligned</text>
+        <rect class="pen2 brush0" height="3750" width="6500" x="7300" y="5850"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="7550" xml:lang="en" xml:space="preserve" y="6370">6 clipping and regions</text>
+    </g>
+    <g mask="url(#mask0)">
+        <rect class="pen4 brush3" height="2200" width="3100" x="7600" y="6400"/>
+    </g>
+    <g mask="url(#mask1)">
+        <ellipse class="pen5 brush3" cx="9250" cy="7550" rx="1250" ry="1000"/>
+    </g>
+    <g>
+        <line class="pen6" fill="none" x1="7600" x2="10800" y1="9050" y2="6250"/>
+    </g>
+    <g>
+        <rect class="pen2 brush0" height="3750" width="6600" x="14200" y="5850"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="14450" xml:lang="en" xml:space="preserve" y="6370">7 raster transfers</text>
+        <image height="900" width="900" x="17600" xlink:href="data:image/png;base64,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" y="6650"/>
+        <svg height="1000" preserveAspectRatio="none" viewBox="0 0 32 32" width="1300" x="18900" y="6500">
+            <image height="32" width="32" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAHfklEQVR4XhXSEdCtCgCF0YNhGP4ahs1cScMwDNMwDNMwDMM0DMPsTRiGaW8FWzYt+H6/33/vL7DQIvv79/5iSyy1zJdbYaVVvtoaa63z9TbYaJNvtsVW23y7HXba5bvtsdcCgAAgAAgAAoAAIAAIAAKAACAACAACgAAgAAgAAoAAIAAIAAKAACAACAACgAAgAAgAAoAAIAAIPkAIEAKEACFACBAChAAhQAgQAoQAIUAIEAKEACFACBAChAAhQAgQAoQAIUAIEAKEACFACBAChADhB4gAIoAIIAKIACKACCACiAAigAggAogAIoAIIAKIACKACCACiAAigAggAogAIoAIIAKIACKACCD6AH+/f+9fYKFF9vff+xdbYqllvtwKK63y1dZYa52vt8FGm3yzLbba5tvtsNMu322PvZqIAWKAGCAGiAFigBggBogBYoAYIAaIAWKAGCAGiAFigBggBogBYoAYIAaIAWKAGCAGiAFigBgg/gAJQAKQACQACUACkAAkAAlAApAAJAAJQAKQACQACUACkAAkAAlAApAAJAAJQAKQACQACUACkAAkHyAFSAFSgBQgBUgBUoAUIAVIAVKAFCAFSAFSgBQgBUgBUoAUIAVIAVKAFCAFSAFSgBQgBUgBUoD0A2QizESYiTATYSbCTISZCDMRZiLMRJiJMBNhJsJMhJkIMxFmIsxEmIkwE2EmwkyEmQgzEWYizESYiTATYSbCTISZCLMvwhwgB8gBcoAcIAfIAXKAHCAHyAFygBwgB8gBcoAcIAfIAXKAHCAHyAFygBwgB8gBcoAcIAfIAfIPUAAUAAVAAVAAFAAFQAFQABQABUABUAAUAAVAAVAAFAAFQAFQABQABUABUAAUAAVAAVAAFAAFQPEBSoASoAQoAUqAEqAEKAFKgBKgBCgBSoASoAQoAUqAEqAEKAFKgBKgBCgBSoASoAQoAUqAEqAEKD9AJcJKhJUIKxFWIqxEWImwEmElwkqElQgrEVYirERYibASYSXCSoSVCCsRViKsRFiJsBJhJcJKhJUIKxFWIqxEWImw+iKsAWqAGqAGqAFqgBqgBqgBaoAaoAaoAWqAGqAGqAFqgBqgBqgBaoAaoAaoAWqAGqAGqAFqgBqg/gANQAPQADQADUAD0AA0AA1AA9AANAANQAPQADQADUAD0AA0AA1AA9AANAANQAPQADQADUAD0AA0H6AFaAFagBagBWgBWoAWoAVoAVqAFqAFaAFagBagBWgBWoAWoAVoAVqAFqAFaAFagBagBWgBWoD2A3Qi7ETYibATYSfCToSdCDsRdiLsRNiJsBNhJ8JOhJ0IOxF2IuxE2ImwE2Enwk6EnQg7EXYi7ETYibATYSfCToSdCLsvwh6gB+gBeoAeoAfoAXqAHqAH6AF6gB6gB+gBeoAeoAfoAXqAHqAH6AF6gB6gB+gBeoAeoAfoAfoPMAAMAAPAADAADAADwAAwAAwAA8AAMAAMAAPAADAADAADwAAwAAwAA8AAMAAMAAPAADAADAADwPABRoARYAQYAUaAEWAEGAFGgBFgBBgBRoARYAQYAUaAEWAEGAFGgBFgBBgBRoARYAQYAUaAEWAEGD/AJMJJhJMIJxFOIpxEOIlwEuEkwkmEkwgnEU4inEQ4iXAS4STCSYSTCCcRTiKcRDiJcBLhJMJJhJMIJxFOIpxEOIlw+iKcAWaAGWAGmAFmgBlgBpgBZoAZYAaYAWaAGWAGmAFmgBlgBpgBZoAZYAaYAWaAGWAGmAFmgBlg/gALwAKwACwAC8ACsAAsAAvAArAALAALwAKwACwAC8ACsAAsAAvAArAALAALwAKwACwAC8ACsAAsH2AFWAFWgBVgBVgBVoAVYAVYAVaAFWAFWAFWgBVgBVgBVoAVYAVYAVaAFWAFWAFWgBVgBVgBVoD1A2wi3ES4iXAT4SbCTYSbCDcRbiLcRLiJcBPhJsJNhJsINxFuItxEuIlwE+Emwk2Emwg3EW4i3ES4iXAT4SbCTYSbCLcvwh1gB9gBdoAdYAfYAXaAHWAH2AF2gB1gB9gBdoAdYAfYAXaAHWAH2AF2gB1gB9gBdoAdYAfYAfYPcAAcAAfAAXAAHAAHwAFwABwAB8ABcAAcAAfAAXAAHAAHwAFwABwAB8ABcAAcAAfAAXAAHAAHwPEBToAT4AQ4AU6AE+AEOAFOgBPgBDgBToAT4AQ4AU6AE+AEOAFOgBPgBDgBToAT4AQ4AU6AE+AEOD/AJcJLhJcILxFeIrxEeInwEuElwkuElwgvEV4ivER4ifAS4SXCS4SXCC8RXiK8RHiJ8BLhJcJLhJcILxFeIrxEeInw+iK8AW6AG+AGuAFugBvgBrgBboAb4Aa4AW6AG+AGuAFugBvgBrgBboAb4Aa4AW6AG+AGuAFugBvg/gAPwAPwADwAD8AD8AA8AA/AA/AAPAAPwAPwADwAD8AD8AA8AA/AA/AAPAAPwAPwADwAD8AD8AA8H+AFeAFegBfgBXgBXoAX4AV4AV6AF+AFeAFegBfgBXgBXoAX4AV4AV6AF+AFeAFegBfgBXgBXoAX4H/SnCTX1Hs6JgAAAABJRU5ErkJggg=="/>
+        </svg>
+        <svg height="1100" preserveAspectRatio="none" viewBox="0 0 32 32" width="1500" x="16200" y="7900">
+            <image height="32" width="32" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAHfklEQVR4XhXSEdCtCgCF0YNhGP4ahs1cScMwDNMwDNMwDMM0DMPsTRiGaW8FWzYt+H6/33/vL7DQIvv79/5iSyy1zJdbYaVVvtoaa63z9TbYaJNvtsVW23y7HXba5bvtsdcCgAAgAAgAAoAAIAAIAAKAACAACAACgAAgAAgAAoAAIAAIAAKAACAACAACgAAgAAgAAoAAIAAIPkAIEAKEACFACBAChAAhQAgQAoQAIUAIEAKEACFACBAChAAhQAgQAoQAIUAIEAKEACFACBAChADhB4gAIoAIIAKIACKACCACiAAigAggAogAIoAIIAKIACKACCACiAAigAggAogAIoAIIAKIACKACCD6AH+/f+9fYKFF9vff+xdbYqllvtwKK63y1dZYa52vt8FGm3yzLbba5tvtsNMu322PvZqIAWKAGCAGiAFigBggBogBYoAYIAaIAWKAGCAGiAFigBggBogBYoAYIAaIAWKAGCAGiAFigBgg/gAJQAKQACQACUACkAAkAAlAApAAJAAJQAKQACQACUACkAAkAAlAApAAJAAJQAKQACQACUACkAAkHyAFSAFSgBQgBUgBUoAUIAVIAVKAFCAFSAFSgBQgBUgBUoAUIAVIAVKAFCAFSAFSgBQgBUgBUoD0A2QizESYiTATYSbCTISZCDMRZiLMRJiJMBNhJsJMhJkIMxFmIsxEmIkwE2EmwkyEmQgzEWYizESYiTATYSbCTISZCLMvwhwgB8gBcoAcIAfIAXKAHCAHyAFygBwgB8gBcoAcIAfIAXKAHCAHyAFygBwgB8gBcoAcIAfIAfIPUAAUAAVAAVAAFAAFQAFQABQABUABUAAUAAVAAVAAFAAFQAFQABQABUABUAAUAAVAAVAAFAAFQPEBSoASoAQoAUqAEqAEKAFKgBKgBCgBSoASoAQoAUqAEqAEKAFKgBKgBCgBSoASoAQoAUqAEqAEKD9AJcJKhJUIKxFWIqxEWImwEmElwkqElQgrEVYirERYibASYSXCSoSVCCsRViKsRFiJsBJhJcJKhJUIKxFWIqxEWImw+iKsAWqAGqAGqAFqgBqgBqgBaoAaoAaoAWqAGqAGqAFqgBqgBqgBaoAaoAaoAWqAGqAGqAFqgBqg/gANQAPQADQADUAD0AA0AA1AA9AANAANQAPQADQADUAD0AA0AA1AA9AANAANQAPQADQADUAD0AA0H6AFaAFagBagBWgBWoAWoAVoAVqAFqAFaAFagBagBWgBWoAWoAVoAVqAFqAFaAFagBagBWgBWoD2A3Qi7ETYibATYSfCToSdCDsRdiLsRNiJsBNhJ8JOhJ0IOxF2IuxE2ImwE2Enwk6EnQg7EXYi7ETYibATYSfCToSdCLsvwh6gB+gBeoAeoAfoAXqAHqAH6AF6gB6gB+gBeoAeoAfoAXqAHqAH6AF6gB6gB+gBeoAeoAfoAfoPMAAMAAPAADAADAADwAAwAAwAA8AAMAAMAAPAADAADAADwAAwAAwAA8AAMAAMAAPAADAADAADwPABRoARYAQYAUaAEWAEGAFGgBFgBBgBRoARYAQYAUaAEWAEGAFGgBFgBBgBRoARYAQYAUaAEWAEGD/AJMJJhJMIJxFOIpxEOIlwEuEkwkmEkwgnEU4inEQ4iXAS4STCSYSTCCcRTiKcRDiJcBLhJMJJhJMIJxFOIpxEOIlw+iKcAWaAGWAGmAFmgBlgBpgBZoAZYAaYAWaAGWAGmAFmgBlgBpgBZoAZYAaYAWaAGWAGmAFmgBlg/gALwAKwACwAC8ACsAAsAAvAArAALAALwAKwACwAC8ACsAAsAAvAArAALAALwAKwACwAC8ACsAAsH2AFWAFWgBVgBVgBVoAVYAVYAVaAFWAFWAFWgBVgBVgBVoAVYAVYAVaAFWAFWAFWgBVgBVgBVoD1A2wi3ES4iXAT4SbCTYSbCDcRbiLcRLiJcBPhJsJNhJsINxFuItxEuIlwE+Emwk2Emwg3EW4i3ES4iXAT4SbCTYSbCLcvwh1gB9gBdoAdYAfYAXaAHWAH2AF2gB1gB9gBdoAdYAfYAXaAHWAH2AF2gB1gB9gBdoAdYAfYAfYPcAAcAAfAAXAAHAAHwAFwABwAB8ABcAAcAAfAAXAAHAAHwAFwABwAB8ABcAAcAAfAAXAAHAAHwPEBToAT4AQ4AU6AE+AEOAFOgBPgBDgBToAT4AQ4AU6AE+AEOAFOgBPgBDgBToAT4AQ4AU6AE+AEOD/AJcJLhJcILxFeIrxEeInwEuElwkuElwgvEV4ivER4ifAS4SXCS4SXCC8RXiK8RHiJ8BLhJcJLhJcILxFeIrxEeInw+iK8AW6AG+AGuAFugBvgBrgBboAb4Aa4AW6AG+AGuAFugBvgBrgBboAb4Aa4AW6AG+AGuAFugBvg/gAPwAPwADwAD8AD8AA8AA/AA/AAPAAPwAPwADwAD8AD8AA8AA/AA/AAPAAPwAPwADwAD8AD8AA8H+AFeAFegBfgBXgBXoAX4AV4AV6AF+AFeAFegBfgBXgBXoAX4AV4AV6AF+AFeAFegBfgBXgBXoAX4H/SnCTX1Hs6JgAAAABJRU5ErkJggg=="/>
+        </svg>
+        <rect class="brush14" fill="url(#pattern7)" height="900" stroke="none" width="1700" x="18300" y="8000"/>
+        <rect class="pen2 brush0" height="3750" width="6300" x="21200" y="5850"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="21450" xml:lang="en" xml:space="preserve" y="6370">8 palette records</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="21800" xml:lang="en" xml:space="preserve" y="6600">direct RGB swatches</text>
+        <rect class="pen3 brush6" height="750" width="650" x="21800" y="6800"/>
+        <rect class="pen3 brush7" height="750" width="650" x="22650" y="6800"/>
+        <rect class="pen3 brush8" height="750" width="650" x="23500" y="6800"/>
+        <rect class="pen3 brush5" height="750" width="650" x="24350" y="6800"/>
+        <rect class="pen3 brush1" height="750" width="650" x="25200" y="6800"/>
+        <rect class="pen3 brush2" height="750" width="650" x="26050" y="6800"/>
+        <rect class="pen3 brush9" height="750" width="5000" x="21800" y="8000"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="22050" xml:lang="en" xml:space="preserve" y="8120">records: create/select/resize/set</text>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="22050" xml:lang="en" xml:space="preserve" y="8450">animate/realize palette</text>
+        <rect class="pen2 brush0" height="4150" width="8800" x="400" y="10050"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="650" xml:lang="en" xml:space="preserve" y="10570">9 mapping and DC state</text>
+        <line class="pen5" fill="none" x1="950" x2="8500" y1="11000" y2="12400"/>
+        <rect class="pen4 brush0" height="1400" width="2300" x="2400" y="12500"/>
+    </g>
+    <g>
+        <ellipse class="pen6 brush0" cx="68295" cy="46895" rx="1150" ry="700"/>
+    </g>
+    <g>
+        <rect class="pen2 brush0" height="4150" width="8800" x="9600" y="10050"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="9850" xml:lang="en" xml:space="preserve" y="10570">10 object lifecycle</text>
+        <rect class="pen12 brush0" height="1200" width="2300" x="10300" y="11100"/>
+        <rect class="pen12 brush9" height="1200" width="2300" x="13100" y="11100"/>
+        <text class="font2" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="10300" xml:lang="en" xml:space="preserve" y="13200">create/select/delete object</text>
+        <rect class="pen2 brush0" height="4150" width="8700" x="18800" y="10050"/>
+        <text class="font2" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19050" xml:lang="en" xml:space="preserve" y="10570">11 stress: many records</text>
+        <rect class="pen3 brush9" height="900" width="1200" x="19400" y="10900"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="19830" y="11020"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="20260" y="11140"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="20690" y="11260"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="21120" y="11380"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="21550" y="11500"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="21980" y="11620"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="22410" y="11740"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="22840" y="11860"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="23270" y="11980"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="23700" y="12100"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="24130" y="12220"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="24560" y="12340"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="24990" y="12460"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="25420" y="12580"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="25850" y="12700"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="26280" y="12820"/>
+        <rect class="pen3 brush9" height="900" width="1200" x="26710" y="12940"/>
+        <ellipse class="pen3 brush2" cx="21550" cy="11450" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="22650" cy="11450" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="23750" cy="11450" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="24850" cy="11450" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="25950" cy="11450" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="21550" cy="12430" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="22650" cy="12430" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="23750" cy="12430" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="24850" cy="12430" rx="350" ry="350"/>
+        <ellipse class="pen3 brush2" cx="25950" cy="12430" rx="350" ry="350"/>
+        <polygon class="pen3 brush3" fill-rule="nonzero" points="19500,13400 21000,12150 22500,13400 24200,12000 26000,13550"/>
+        <line class="pen4" fill="none" x1="19300" x2="27000" y1="13700" y2="11000"/>
+        <line class="pen5" fill="none" x1="19300" x2="27000" y1="10900" y2="13700"/>
+        <text class="font1" fill="rgb(0,0,0)" stroke="none" style="dominant-baseline: text-before-edge;" x="19300" xml:lang="en" xml:space="preserve" y="13900">overlapping primitives, text, bitmap and palette records</text>
+    </g>
+</svg>

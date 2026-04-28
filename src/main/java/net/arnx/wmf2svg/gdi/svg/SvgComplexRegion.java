@@ -18,12 +18,18 @@ class SvgComplexRegion extends SvgRegion {
 		return elem;
 	}
 
+	int[][] getRects() {
+		return rects;
+	}
+
 	private Element createRectElement(int[] rect) {
 		Element elem = getGDI().getDocument().createElement("rect");
 		elem.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(rect[0]));
 		elem.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(rect[1]));
 		elem.setAttribute("width", "" + (int)getGDI().getDC().toRelativeX(rect[2] - rect[0]));
 		elem.setAttribute("height", "" + (int)getGDI().getDC().toRelativeY(rect[3] - rect[1]));
+		elem.setAttribute("fill", "inherit");
+		elem.setAttribute("stroke", "inherit");
 		return elem;
 	}
 

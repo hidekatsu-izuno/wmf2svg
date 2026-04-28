@@ -23,6 +23,8 @@ import net.arnx.wmf2svg.gdi.*;
  * @author Hidekatsu Izuno
  */
 public class SvgDc implements Cloneable {
+	private static final double CSS_DPI = 96.0;
+
 	private SvgGdi gdi;
 
 	private int dpi = 1440;
@@ -171,14 +173,30 @@ public class SvgDc implements Cloneable {
 		vw = width;
 		vh = height;
 	}
+
+	public int getViewportX() {
+		return vx;
+	}
+
+	public int getViewportY() {
+		return vy;
+	}
+
+	public int getViewportWidth() {
+		return vw;
+	}
+
+	public int getViewportHeight() {
+		return vh;
+	}
 	
 	public void offsetViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = vox;
 			old.y = voy;
 		}
-		vox = x;
-		voy = y;
+		vox += x;
+		voy += y;
 	}
 	
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
@@ -268,23 +286,41 @@ public class SvgDc implements Cloneable {
 	}
 	
 	public double toAbsoluteX(double x) {
-		// TODO Handle Viewport
-		return ((ww >= 0) ? 1 : -1) * (mx * x - (wx + wox)) / wsx;
+		return toViewportOriginX(vx + vox) + ((mx * x - (wx + wox)) / wsx) * viewportScaleX();
 	}
 	
 	public double toAbsoluteY(double y) {
-		// TODO Handle Viewport
-		return ((wh >= 0) ? 1 : -1) * (my * y - (wy + woy)) / wsy;
+		return toViewportOriginY(vy + voy) + ((my * y - (wy + woy)) / wsy) * viewportScaleY();
 	}
 	
 	public double toRelativeX(double x) {
-		// TODO Handle Viewport
-		return ((ww >= 0) ? 1 : -1) * (mx * x) / wsx;
+		return (mx * x / wsx) * viewportScaleX();
 	}
 	
 	public double toRelativeY(double y) {
-		// TODO Handle Viewport
-		return ((wh >= 0) ? 1 : -1) * (my * y) / wsy;
+		return (my * y / wsy) * viewportScaleY();
+	}
+
+	public double toStrokeWidth(double width) {
+		double x = Math.abs(toRelativeX(width));
+		double y = Math.abs(toRelativeY(width));
+		return Math.max(1.0, Math.max(x, y));
+	}
+
+	private double viewportScaleX() {
+		return (vw != 0 && ww != 0) ? (vw * vsx) / ww : 1.0;
+	}
+
+	private double viewportScaleY() {
+		return (vh != 0 && wh != 0) ? (vh * vsy) / wh : 1.0;
+	}
+
+	private double toViewportOriginX(int x) {
+		return x * dpi / CSS_DPI;
+	}
+
+	private double toViewportOriginY(int y) {
+		return y * dpi / CSS_DPI;
 	}
 	
 	public void setDpi(int dpi) {

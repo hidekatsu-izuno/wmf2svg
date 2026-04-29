@@ -75,6 +75,8 @@ public class SvgGdi implements Gdi {
 	private static Logger log = Logger.getLogger(SvgGdi.class.getName());
 	private static final String TRANSPARENT_MASK_ROP_USER_DATA = "wmf2svg-transparent-mask-rop";
 	private static final String TRANSPARENT_MASK_ROP_SRCINVERT = "SRCINVERT";
+	private static final long MASKBLT_BACKGROUND_SRCCOPY = 0xCC000000L;
+	private static final long MASKBLT_FOREGROUND_DSTCOPY = 0x00AA0029L;
 	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
 	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
 	private static final int EMF_PLUS_HEADER_SIZE = 12;
@@ -471,7 +473,7 @@ public class SvgGdi implements Gdi {
 			return;
 		}
 
-		byte[] masked = createMaskedPng(image, mask, mx, my, false);
+		byte[] masked = createMaskedPng(image, mask, mx, my, false, isMaskBltCopyOnZeroMask(rop));
 		if (masked != null) {
 			appendPngToSvg(masked, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.SRCCOPY, 1.0f);
 			return;
@@ -495,7 +497,12 @@ public class SvgGdi implements Gdi {
 
 	private boolean isSupportedMaskBltRop(long rop) {
 		return (rop & 0xFF000000L) != 0
-				&& (rop & 0x00FFFFFFL) == Gdi.SRCCOPY;
+				&& ((rop & 0x00FFFFFFL) == Gdi.SRCCOPY || isMaskBltCopyOnZeroMask(rop));
+	}
+
+	private boolean isMaskBltCopyOnZeroMask(long rop) {
+		return (rop & 0xFF000000L) == MASKBLT_BACKGROUND_SRCCOPY
+				&& (rop & 0x00FFFFFFL) == MASKBLT_FOREGROUND_DSTCOPY;
 	}
 
 	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
@@ -641,6 +648,10 @@ public class SvgGdi implements Gdi {
 
 	public GdiColorSpace createColorSpace(byte[] logColorSpace) {
 		return new SvgColorSpace(this, logColorSpace);
+	}
+
+	public GdiColorSpace createColorSpaceW(byte[] logColorSpace) {
+		return createColorSpace(logColorSpace);
 	}
 
 	public GdiFont createFontIndirect(int height, int width, int escapement,
@@ -2669,6 +2680,11 @@ public class SvgGdi implements Gdi {
 		return true;
 	}
 
+	public boolean colorMatchToTarget(int action, int flags, byte[] targetProfile) {
+		dc.setICMProfile(targetProfile);
+		return true;
+	}
+
 	public int setMetaRgn() {
 		return dc.getMask() != null ? GdiRegion.SIMPLEREGION : GdiRegion.NULLREGION;
 	}
@@ -3500,6 +3516,10 @@ public class SvgGdi implements Gdi {
 	}
 
 	private byte[] createMaskedPng(byte[] image, byte[] mask, int mx, int my, boolean reverse) {
+		return createMaskedPng(image, mask, mx, my, reverse, false);
+	}
+
+	private byte[] createMaskedPng(byte[] image, byte[] mask, int mx, int my, boolean reverse, boolean invertMask) {
 		BufferedImage source = decodeDib(applyPaletteToDib(image, Gdi.DIB_RGB_COLORS), reverse, null, true);
 		if (source == null) {
 			source = decodeWmfBitmap(image, reverse, null, true);
@@ -3521,6 +3541,9 @@ public class SvgGdi implements Gdi {
 				int green = (maskRgb >> 8) & 0xFF;
 				int blue = maskRgb & 0xFF;
 				int alpha = (red + green + blue) / 3;
+				if (invertMask) {
+					alpha = 0xFF - alpha;
+				}
 				result.setRGB(x, y, (source.getRGB(x, y) & 0x00FFFFFF) | (alpha << 24));
 			}
 		}
@@ -3718,6 +3741,11 @@ public class SvgGdi implements Gdi {
 		}
 
 		int stride = ((width * bitCount + 31) / 32) * 4;
+		if (colorCount > 0 && dib.length < bitsOffset + stride * height
+				&& dib.length >= headerSize + stride * height) {
+			colorCount = 0;
+			bitsOffset = headerSize;
+		}
 		if (stride <= 0 || dib.length < bitsOffset + stride * height) {
 			return null;
 		}
@@ -3753,7 +3781,10 @@ public class SvgGdi implements Gdi {
 			Integer transparentColor, boolean preserveAlpha) {
 		if (bitCount == 1) {
 			int index = (dib[row + x / 8] >>> (7 - (x % 8))) & 0x01;
-			return colors != null && index < colors.length ? colors[index] : 0xFF000000;
+			if (colors != null && index < colors.length) {
+				return colors[index];
+			}
+			return index == 0 ? 0xFF000000 : 0xFFFFFFFF;
 		} else if (bitCount == 4) {
 			int value = dib[row + x / 2] & 0xFF;
 			int index = (x % 2 == 0) ? (value >>> 4) : (value & 0x0F);

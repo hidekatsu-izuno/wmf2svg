@@ -539,7 +539,9 @@ public class EmfParser implements Parser {
 			case EMR_FORCEUFIMAPPING:
 			case EMR_RESERVED_117:
 			case EMR_SETLINKEDUFIS:
+				break;
 			case EMR_COLORMATCHTOTARGETW:
+				readColorMatchToTarget(data, gdi);
 				break;
 			case EMR_DRAWESCAPE:
 			case EMR_EXTESCAPE:
@@ -685,7 +687,7 @@ public class EmfParser implements Parser {
 				gdi.setTextJustification(readInt32(data, 0), readInt32(data, 4));
 				break;
 			case EMR_CREATECOLORSPACEW:
-				objects.put(readInt32(data, 0), gdi.createColorSpace(copyRange(data, 4, data.length - 4)));
+				objects.put(readInt32(data, 0), gdi.createColorSpaceW(copyRange(data, 4, data.length - 4)));
 				break;
 			case EMR_BEGINPATH:
 				gdi.beginPath();
@@ -895,6 +897,17 @@ public class EmfParser implements Parser {
 			return;
 		}
 		gdi.setICMProfile(copyRange(data, 12, nameSize));
+	}
+
+	private static void readColorMatchToTarget(byte[] data, Gdi gdi) {
+		if (data.length < 16) {
+			return;
+		}
+		int profileSize = readInt32(data, 8);
+		if (profileSize < 0 || profileSize > data.length - 16) {
+			return;
+		}
+		gdi.colorMatchToTarget(readInt32(data, 0), readInt32(data, 4), copyRange(data, 16, profileSize));
 	}
 
 	private static void readPolyDraw(byte[] data, double[] transform, Gdi gdi, boolean shortPoints) {

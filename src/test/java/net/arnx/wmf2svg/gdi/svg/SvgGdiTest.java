@@ -121,6 +121,26 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testMaskBltCopyOnZeroMaskRendersSourceWhereMaskIsBlack() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(2, 1, null);
+
+		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, 0xCCAA0029L);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
+		Assert.assertTrue(matcher.find());
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		Assert.assertEquals(0, (image.getRGB(0, 0) >>> 24) & 0xFF);
+		Assert.assertEquals(0xFF0000FF, image.getRGB(1, 0));
+	}
+
+	@Test
 	public void testNegativeWindowExtentFlipsCoordinatesWithoutViewportExtent() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 10, 10, 96);
@@ -380,6 +400,27 @@ public class SvgGdiTest {
 			dib[pos] = (byte)(rgb & 0xFF);
 			dib[pos + 1] = (byte)((rgb >>> 8) & 0xFF);
 			dib[pos + 2] = (byte)((rgb >>> 16) & 0xFF);
+		}
+		return dib;
+	}
+
+	private byte[] createMonochromeDib(int width, int height, int[] rows) {
+		int stride = ((width + 31) / 32) * 4;
+		byte[] dib = new byte[48 + stride * height];
+		setInt32(dib, 0, 40);
+		setInt32(dib, 4, width);
+		setInt32(dib, 8, -height);
+		setUInt16(dib, 12, 1);
+		setUInt16(dib, 14, 1);
+		setInt32(dib, 20, stride * height);
+		dib[40] = 0;
+		dib[41] = 0;
+		dib[42] = 0;
+		dib[44] = (byte)0xFF;
+		dib[45] = (byte)0xFF;
+		dib[46] = (byte)0xFF;
+		for (int y = 0; y < height; y++) {
+			dib[48 + y * stride] = (byte)rows[y];
 		}
 		return dib;
 	}

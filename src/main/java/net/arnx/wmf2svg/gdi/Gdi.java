@@ -138,6 +138,7 @@ public interface Gdi {
     public void colorCorrectPalette(GdiPalette palette, int startIndex, int entries);
     public GdiBrush createBrushIndirect(int style, int color, int hatch);
     public GdiColorSpace createColorSpace(byte[] logColorSpace);
+    public GdiColorSpace createColorSpaceW(byte[] logColorSpace);
     public GdiFont createFontIndirect(int height, int width, int escapement,
 				      int orientation, int weight,
 				      boolean italic, boolean underline, boolean strikeout,
@@ -213,6 +214,7 @@ public interface Gdi {
     public void setMapperFlags(long flags);
     public int setICMMode(int mode);
     public boolean setICMProfile(byte[] profileName);
+    public boolean colorMatchToTarget(int action, int flags, byte[] targetProfile);
     public int setMetaRgn();
     public void setMiterLimit(float limit);
     public void setPaletteEntries(GdiPalette palette, int startIndex, int[] entries);

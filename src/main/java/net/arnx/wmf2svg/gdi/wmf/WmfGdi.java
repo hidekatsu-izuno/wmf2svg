@@ -216,6 +216,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 		throw new UnsupportedOperationException();
 	}
 
+	public GdiColorSpace createColorSpaceW(byte[] logColorSpace) {
+		throw new UnsupportedOperationException();
+	}
+
 	public GdiFont createFontIndirect(int height, int width, int escapement,
 			int orientation, int weight, boolean italic, boolean underline,
 			boolean strikeout, int charset, int outPrecision,
@@ -970,6 +974,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public boolean setICMProfile(byte[] profileName) {
+		throw new UnsupportedOperationException();
+	}
+
+	public boolean colorMatchToTarget(int action, int flags, byte[] targetProfile) {
 		throw new UnsupportedOperationException();
 	}
 

@@ -137,8 +137,6 @@ public class EmfGdi implements Gdi {
 	private int frameTop;
 	private int frameRight = 10000;
 	private int frameBottom = 10000;
-	private boolean header;
-	private boolean footer;
 
 	public void write(OutputStream out) throws IOException {
 		footer();
@@ -159,11 +157,9 @@ public class EmfGdi implements Gdi {
 	}
 
 	public void header() {
-		header = true;
 	}
 
 	public void footer() {
-		footer = true;
 	}
 
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries) {
@@ -244,8 +240,16 @@ public class EmfGdi implements Gdi {
 	}
 
 	public GdiColorSpace createColorSpace(byte[] logColorSpace) {
+		return createColorSpaceRecord(EMR_CREATECOLORSPACE, logColorSpace);
+	}
+
+	public GdiColorSpace createColorSpaceW(byte[] logColorSpace) {
+		return createColorSpaceRecord(EMR_CREATECOLORSPACEW, logColorSpace);
+	}
+
+	private GdiColorSpace createColorSpaceRecord(int type, byte[] logColorSpace) {
 		EmfColorSpace colorSpace = new EmfColorSpace(allocateHandle(), copy(logColorSpace));
-		byte[] record = record(EMR_CREATECOLORSPACEW, 4 + colorSpace.data.length);
+		byte[] record = record(type, 4 + colorSpace.data.length);
 		setInt32(record, 8, colorSpace.id);
 		setBytes(record, 12, colorSpace.data);
 		records.add(record);
@@ -319,7 +323,22 @@ public class EmfGdi implements Gdi {
 	}
 
 	public GdiPatternBrush dibCreatePatternBrush(byte[] image, int usage) {
-		throw new UnsupportedOperationException("EMF does not support DibCreatePatternBrush.");
+		EmfPatternBrush brush = new EmfPatternBrush(allocateHandle(), copy(image));
+		byte[] dib = brush.getPattern();
+		int bitsOffset = getDibBitsOffset(dib, usage);
+		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
+		int bitsSize = Math.max(0, dib.length - bmiSize);
+		int dibOffset = 32;
+		byte[] record = record(EMR_CREATEDIBPATTERNBRUSHPT, dibOffset - 8 + dib.length);
+		setInt32(record, 8, brush.id);
+		setInt32(record, 12, usage);
+		setInt32(record, 16, dibOffset);
+		setInt32(record, 20, bmiSize);
+		setInt32(record, 24, dibOffset + bmiSize);
+		setInt32(record, 28, bitsSize);
+		setBytes(record, dibOffset, dib);
+		records.add(record);
+		return brush;
 	}
 
 	public void dibStretchBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop) {
@@ -714,6 +733,18 @@ public class EmfGdi implements Gdi {
 		setInt32(record, 12, name.length);
 		setInt32(record, 16, 0);
 		setBytes(record, 20, name);
+		records.add(record);
+		return true;
+	}
+
+	public boolean colorMatchToTarget(int action, int flags, byte[] targetProfile) {
+		byte[] data = copy(targetProfile);
+		byte[] record = record(EMR_COLORMATCHTOTARGETW, 16 + data.length);
+		setInt32(record, 8, action);
+		setInt32(record, 12, flags);
+		setInt32(record, 16, data.length);
+		setInt32(record, 20, 0);
+		setBytes(record, 24, data);
 		records.add(record);
 		return true;
 	}
@@ -1431,6 +1462,10 @@ public class EmfGdi implements Gdi {
 	}
 
 	private static int getDibBitsOffset(byte[] dib) {
+		return getDibBitsOffset(dib, Gdi.DIB_RGB_COLORS);
+	}
+
+	private static int getDibBitsOffset(byte[] dib, int usage) {
 		if (dib.length < 40) {
 			return dib.length;
 		}
@@ -1444,7 +1479,8 @@ public class EmfGdi implements Gdi {
 		if (colors == 0 && bitCount > 0 && bitCount <= 8) {
 			colors = 1 << bitCount;
 		}
-		int offset = headerSize + colors * 4;
+		int colorEntrySize = usage == Gdi.DIB_PAL_COLORS ? 2 : 4;
+		int offset = headerSize + colors * colorEntrySize;
 		return offset <= dib.length ? offset : dib.length;
 	}
 

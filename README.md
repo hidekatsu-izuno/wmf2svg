@@ -22,7 +22,7 @@ It now requires Java 8.0 or later.
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>0.10.1</version>
+<version>0.10.2</version>
 ```
 
 ## Build
@@ -35,7 +35,7 @@ mvn package
 
 ## History
 
-- 2026-04-29: Improve an EMF+ support.
+- 2026-04-30: Improve EMF+ curve, text, clipping/offset clip, region/empty/infinite/intersect/union/xor/exclude/complement region, world/page transform, interpolation mode, stroke-fill path, pen dash/cap/join data, image source rectangle clipping, linear gradient/preset color/horizontal and vertical blend factor/transform brush, path gradient brush, hatch brush, and texture brush support.
 - 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.

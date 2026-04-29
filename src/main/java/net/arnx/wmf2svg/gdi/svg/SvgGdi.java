@@ -59,6 +59,8 @@ import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.emf.EmfParseException;
+import net.arnx.wmf2svg.gdi.emf.EmfPlusConstants;
+import net.arnx.wmf2svg.gdi.emf.EmfPlusParser;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
@@ -71,7 +73,7 @@ import net.arnx.wmf2svg.util.SymbolFontMappings;
  * @author Hidekatsu Izuno
  * @author Shunsuke Mori
  */
-public class SvgGdi implements Gdi {
+public class SvgGdi implements Gdi, EmfPlusConstants {
 	private static Logger log = Logger.getLogger(SvgGdi.class.getName());
 	private static final String TRANSPARENT_MASK_ROP_USER_DATA = "wmf2svg-transparent-mask-rop";
 	private static final String TRANSPARENT_MASK_ROP_SRCINVERT = "SRCINVERT";
@@ -79,201 +81,6 @@ public class SvgGdi implements Gdi {
 	private static final long MASKBLT_FOREGROUND_DSTCOPY = 0x00AA0029L;
 	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
 	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
-	private static final int EMF_PLUS_HEADER_SIZE = 12;
-	private static final int EMF_PLUS_GET_DC = 0x4004;
-	private static final int EMF_PLUS_OBJECT = 0x4008;
-	private static final int EMF_PLUS_CLEAR = 0x4009;
-	private static final int EMF_PLUS_FILL_RECTS = 0x400A;
-	private static final int EMF_PLUS_DRAW_RECTS = 0x400B;
-	private static final int EMF_PLUS_FILL_POLYGON = 0x400C;
-	private static final int EMF_PLUS_DRAW_LINES = 0x400D;
-	private static final int EMF_PLUS_FILL_ELLIPSE = 0x400E;
-	private static final int EMF_PLUS_DRAW_ELLIPSE = 0x400F;
-	private static final int EMF_PLUS_FILL_PIE = 0x4010;
-	private static final int EMF_PLUS_DRAW_PIE = 0x4011;
-	private static final int EMF_PLUS_DRAW_ARC = 0x4012;
-	private static final int EMF_PLUS_FILL_REGION = 0x4013;
-	private static final int EMF_PLUS_FILL_PATH = 0x4014;
-	private static final int EMF_PLUS_DRAW_PATH = 0x4015;
-	private static final int EMF_PLUS_FILL_CLOSED_CURVE = 0x4016;
-	private static final int EMF_PLUS_DRAW_CLOSED_CURVE = 0x4017;
-	private static final int EMF_PLUS_DRAW_CURVE = 0x4018;
-	private static final int EMF_PLUS_DRAW_BEZIERS = 0x4019;
-	private static final int EMF_PLUS_DRAW_IMAGE = 0x401A;
-	private static final int EMF_PLUS_DRAW_IMAGE_POINTS = 0x401B;
-	private static final int EMF_PLUS_DRAW_STRING = 0x401C;
-	private static final int EMF_PLUS_SET_RENDERING_ORIGIN = 0x401D;
-	private static final int EMF_PLUS_SET_ANTI_ALIAS_MODE = 0x401E;
-	private static final int EMF_PLUS_SET_TEXT_RENDERING_HINT = 0x401F;
-	private static final int EMF_PLUS_SET_TEXT_CONTRAST = 0x4020;
-	private static final int EMF_PLUS_SET_INTERPOLATION_MODE = 0x4021;
-	private static final int EMF_PLUS_SET_PIXEL_OFFSET_MODE = 0x4022;
-	private static final int EMF_PLUS_SET_COMPOSITING_MODE = 0x4023;
-	private static final int EMF_PLUS_SET_COMPOSITING_QUALITY = 0x4024;
-	private static final int EMF_PLUS_DRAW_DRIVER_STRING = 0x4036;
-	private static final int EMF_PLUS_STROKE_FILL_PATH = 0x4037;
-	private static final int EMF_PLUS_SAVE = 0x4025;
-	private static final int EMF_PLUS_RESTORE = 0x4026;
-	private static final int EMF_PLUS_BEGIN_CONTAINER = 0x4027;
-	private static final int EMF_PLUS_BEGIN_CONTAINER_NO_PARAMS = 0x4028;
-	private static final int EMF_PLUS_END_CONTAINER = 0x4029;
-	private static final int EMF_PLUS_SET_WORLD_TRANSFORM = 0x402A;
-	private static final int EMF_PLUS_RESET_WORLD_TRANSFORM = 0x402B;
-	private static final int EMF_PLUS_MULTIPLY_WORLD_TRANSFORM = 0x402C;
-	private static final int EMF_PLUS_TRANSLATE_WORLD_TRANSFORM = 0x402D;
-	private static final int EMF_PLUS_SCALE_WORLD_TRANSFORM = 0x402E;
-	private static final int EMF_PLUS_ROTATE_WORLD_TRANSFORM = 0x402F;
-	private static final int EMF_PLUS_SET_PAGE_TRANSFORM = 0x4030;
-	private static final int EMF_PLUS_RESET_CLIP = 0x4031;
-	private static final int EMF_PLUS_SET_CLIP_RECT = 0x4032;
-	private static final int EMF_PLUS_SET_CLIP_PATH = 0x4033;
-	private static final int EMF_PLUS_SET_CLIP_REGION = 0x4034;
-	private static final int EMF_PLUS_OFFSET_CLIP = 0x4035;
-	private static final int EMF_PLUS_SET_TS_GRAPHICS = 0x4039;
-	private static final int EMF_PLUS_SET_TS_CLIP = 0x403A;
-	private static final int EMF_PLUS_OBJECT_CONTINUABLE = 0x8000;
-	private static final int EMF_PLUS_FLAG_SOLID_COLOR = 0x8000;
-	private static final int EMF_PLUS_FLAG_COMPRESSED = 0x4000;
-	private static final int EMF_PLUS_FLAG_CLOSE = 0x2000;
-	private static final int EMF_PLUS_FLAG_RELATIVE = 0x0800;
-	private static final int EMF_PLUS_FLAG_MATRIX_ORDER_APPEND = 0x2000;
-	private static final int EMF_PLUS_OBJECT_TYPE_IMAGE = 5;
-	private static final int EMF_PLUS_OBJECT_TYPE_BRUSH = 1;
-	private static final int EMF_PLUS_OBJECT_TYPE_PEN = 2;
-	private static final int EMF_PLUS_OBJECT_TYPE_PATH = 3;
-	private static final int EMF_PLUS_OBJECT_TYPE_REGION = 4;
-	private static final int EMF_PLUS_OBJECT_TYPE_FONT = 6;
-	private static final int EMF_PLUS_OBJECT_TYPE_STRING_FORMAT = 7;
-	private static final int EMF_PLUS_IMAGE_DATA_TYPE_BITMAP = 1;
-	private static final int EMF_PLUS_IMAGE_DATA_TYPE_METAFILE = 2;
-	private static final int EMF_PLUS_BITMAP_DATA_TYPE_PIXEL = 0;
-	private static final int EMF_PLUS_BITMAP_DATA_TYPE_COMPRESSED = 1;
-	private static final int EMF_PLUS_PIXEL_FORMAT_1BPP_INDEXED = 0x00030101;
-	private static final int EMF_PLUS_PIXEL_FORMAT_4BPP_INDEXED = 0x00030402;
-	private static final int EMF_PLUS_PIXEL_FORMAT_8BPP_INDEXED = 0x00030803;
-	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_GRAYSCALE = 0x00101004;
-	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_555 = 0x00021005;
-	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_565 = 0x00021006;
-	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_ARGB_1555 = 0x00061007;
-	private static final int EMF_PLUS_PIXEL_FORMAT_24BPP_RGB = 0x00021808;
-	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_RGB = 0x00022009;
-	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_ARGB = 0x0026200A;
-	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_PARGB = 0x000E200B;
-	private static final int EMF_PLUS_PIXEL_FORMAT_48BPP_RGB = 0x0010300C;
-	private static final int EMF_PLUS_PIXEL_FORMAT_64BPP_ARGB = 0x0034400D;
-	private static final int EMF_PLUS_PIXEL_FORMAT_64BPP_PARGB = 0x001A400E;
-	private static final int EMF_PLUS_PIXEL_FORMAT_INDEXED = 0x00010000;
-	private static final int EMF_PLUS_BRUSH_TYPE_SOLID_COLOR = 0;
-	private static final int EMF_PLUS_BRUSH_TYPE_HATCH_FILL = 1;
-	private static final int EMF_PLUS_BRUSH_TYPE_TEXTURE_FILL = 2;
-	private static final int EMF_PLUS_BRUSH_TYPE_PATH_GRADIENT = 3;
-	private static final int EMF_PLUS_BRUSH_TYPE_LINEAR_GRADIENT = 4;
-	private static final int EMF_PLUS_BRUSH_DATA_PATH = 0x00000001;
-	private static final int EMF_PLUS_BRUSH_DATA_TRANSFORM = 0x00000002;
-	private static final int EMF_PLUS_BRUSH_DATA_PRESET_COLORS = 0x00000004;
-	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_H = 0x00000008;
-	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_V = 0x00000010;
-	private static final int EMF_PLUS_BRUSH_DATA_FOCUS_SCALES = 0x00000040;
-	private static final int EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED = 0x00000080;
-	private static final int EMF_PLUS_WRAP_MODE_TILE = 0;
-	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_X = 1;
-	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_Y = 2;
-	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_XY = 3;
-	private static final int EMF_PLUS_WRAP_MODE_CLAMP = 4;
-	private static final int EMF_PLUS_HATCH_STYLE_HORIZONTAL = 0;
-	private static final int EMF_PLUS_HATCH_STYLE_VERTICAL = 1;
-	private static final int EMF_PLUS_HATCH_STYLE_FORWARD_DIAGONAL = 2;
-	private static final int EMF_PLUS_HATCH_STYLE_BACKWARD_DIAGONAL = 3;
-	private static final int EMF_PLUS_HATCH_STYLE_CROSS = 4;
-	private static final int EMF_PLUS_HATCH_STYLE_DIAGONAL_CROSS = 5;
-	private static final int EMF_PLUS_FONT_STYLE_BOLD = 0x00000001;
-	private static final int EMF_PLUS_FONT_STYLE_ITALIC = 0x00000002;
-	private static final int EMF_PLUS_FONT_STYLE_UNDERLINE = 0x00000004;
-	private static final int EMF_PLUS_FONT_STYLE_STRIKEOUT = 0x00000008;
-	private static final int EMF_PLUS_PEN_DATA_TRANSFORM = 0x00000001;
-	private static final int EMF_PLUS_PEN_DATA_START_CAP = 0x00000002;
-	private static final int EMF_PLUS_PEN_DATA_END_CAP = 0x00000004;
-	private static final int EMF_PLUS_PEN_DATA_JOIN = 0x00000008;
-	private static final int EMF_PLUS_PEN_DATA_MITER_LIMIT = 0x00000010;
-	private static final int EMF_PLUS_PEN_DATA_LINE_STYLE = 0x00000020;
-	private static final int EMF_PLUS_PEN_DATA_DASHED_LINE_CAP = 0x00000040;
-	private static final int EMF_PLUS_PEN_DATA_DASHED_LINE_OFFSET = 0x00000080;
-	private static final int EMF_PLUS_PEN_DATA_DASHED_LINE = 0x00000100;
-	private static final int EMF_PLUS_PEN_DATA_NON_CENTER = 0x00000200;
-	private static final int EMF_PLUS_PEN_DATA_COMPOUND_LINE = 0x00000400;
-	private static final int EMF_PLUS_PEN_DATA_CUSTOM_START_CAP = 0x00000800;
-	private static final int EMF_PLUS_PEN_DATA_CUSTOM_END_CAP = 0x00001000;
-	private static final int EMF_PLUS_LINE_STYLE_DASH = 1;
-	private static final int EMF_PLUS_LINE_STYLE_DOT = 2;
-	private static final int EMF_PLUS_LINE_STYLE_DASH_DOT = 3;
-	private static final int EMF_PLUS_LINE_STYLE_DASH_DOT_DOT = 4;
-	private static final int EMF_PLUS_LINE_STYLE_CUSTOM = 5;
-	private static final int EMF_PLUS_DASH_CAP_ROUND = 2;
-	private static final int EMF_PLUS_LINE_CAP_SQUARE = 1;
-	private static final int EMF_PLUS_LINE_CAP_ROUND = 2;
-	private static final int EMF_PLUS_LINE_JOIN_BEVEL = 1;
-	private static final int EMF_PLUS_LINE_JOIN_ROUND = 2;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_LOW_QUALITY = 1;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY = 2;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_BILINEAR = 3;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_BICUBIC = 4;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_NEAREST_NEIGHBOR = 5;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BILINEAR = 6;
-	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BICUBIC = 7;
-	private static final int EMF_PLUS_COMPOSITING_MODE_SOURCE_COPY = 1;
-	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HIGH_QUALITY = 2;
-	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HALF = 4;
-	private static final int EMF_PLUS_COMPOSITING_QUALITY_HIGH_QUALITY = 3;
-	private static final int EMF_PLUS_COMPOSITING_QUALITY_GAMMA_CORRECTED = 4;
-	private static final int EMF_PLUS_COMPOSITING_QUALITY_ASSUME_LINEAR = 5;
-	private static final int EMF_PLUS_UNIT_WORLD = 0;
-	private static final int EMF_PLUS_UNIT_DISPLAY = 1;
-	private static final int EMF_PLUS_UNIT_PIXEL = 2;
-	private static final int EMF_PLUS_UNIT_POINT = 3;
-	private static final int EMF_PLUS_UNIT_INCH = 4;
-	private static final int EMF_PLUS_UNIT_DOCUMENT = 5;
-	private static final int EMF_PLUS_UNIT_MILLIMETER = 6;
-	private static final int EMF_PLUS_DRIVER_STRING_CMAP_LOOKUP = 0x00000001;
-	private static final int EMF_PLUS_DRIVER_STRING_VERTICAL = 0x00000002;
-	private static final int EMF_PLUS_DRIVER_STRING_REALIZED_ADVANCE = 0x00000004;
-	private static final int EMF_PLUS_STRING_FORMAT_DIRECTION_RIGHT_TO_LEFT = 0x00000001;
-	private static final int EMF_PLUS_STRING_FORMAT_DIRECTION_VERTICAL = 0x00000002;
-	private static final int EMF_PLUS_STRING_FORMAT_NO_CLIP = 0x00004000;
-	private static final int EMF_PLUS_STRING_ALIGNMENT_CENTER = 1;
-	private static final int EMF_PLUS_STRING_ALIGNMENT_FAR = 2;
-	private static final int EMF_PLUS_HOTKEY_PREFIX_SHOW = 1;
-	private static final int EMF_PLUS_HOTKEY_PREFIX_HIDE = 2;
-	private static final int EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL_GRID_FIT = 1;
-	private static final int EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL = 2;
-	private static final int EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS_GRID_FIT = 3;
-	private static final int EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS = 4;
-	private static final int EMF_PLUS_TEXT_RENDERING_HINT_CLEAR_TYPE_GRID_FIT = 5;
-	private static final int EMF_PLUS_SMOOTHING_MODE_HIGH_QUALITY = 2;
-	private static final int EMF_PLUS_SMOOTHING_MODE_NONE = 3;
-	private static final int EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X4 = 4;
-	private static final int EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X8 = 5;
-	private static final int EMF_PLUS_FILL_MODE_ALTERNATE = 0;
-	private static final int EMF_PLUS_COMBINE_MODE_REPLACE = 0;
-	private static final int EMF_PLUS_COMBINE_MODE_INTERSECT = 1;
-	private static final int EMF_PLUS_COMBINE_MODE_UNION = 2;
-	private static final int EMF_PLUS_COMBINE_MODE_XOR = 3;
-	private static final int EMF_PLUS_COMBINE_MODE_EXCLUDE = 4;
-	private static final int EMF_PLUS_COMBINE_MODE_COMPLEMENT = 5;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_AND = 1;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_OR = 2;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_XOR = 3;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_EXCLUDE = 4;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_COMPLEMENT = 5;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_RECT = 0x10000000;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_PATH = 0x10000001;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_EMPTY = 0x10000002;
-	private static final int EMF_PLUS_REGION_NODE_TYPE_INFINITE = 0x10000003;
-	private static final int EMF_PLUS_PATH_POINT_TYPE_START = 0;
-	private static final int EMF_PLUS_PATH_POINT_TYPE_LINE = 1;
-	private static final int EMF_PLUS_PATH_POINT_TYPE_BEZIER = 3;
-	private static final int EMF_PLUS_PATH_POINT_TYPE_MASK = 0x07;
-	private static final int EMF_PLUS_PATH_POINT_TYPE_CLOSE = 0x80;
-	private static final int EMF_PLUS_PATH_FLAG_RELATIVE = 0x0800;
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
 	private static final int DEFAULT_CANVAS_HEIGHT = 460;
 	private static final int TARGET_DPI = 144;
@@ -287,6 +94,7 @@ public class SvgGdi implements Gdi {
 	private boolean parseEmfPlusComments = true;
 
 	private Properties props = new Properties();
+	private EmfPlusParser emfPlusParser = new EmfPlusParser();
 
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
@@ -986,13 +794,18 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void comment(byte[] data) {
-		if (parseEmfPlusComments && isEmfPlusComment(data)) {
+		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
 			if (emfPlusGetDCActive) {
 				endEmfPlusGetDCMode();
 			} else {
 				removeEmfPlusFallbackAfterSupportedDraw();
 			}
-			parseEmfPlusComment(data);
+			emfPlusParser.parse(data, new EmfPlusParser.Handler() {
+				public void handleEmfPlusRecord(int type, int flags, byte[] payload,
+						boolean continuableObject, int totalObjectSize) {
+					SvgGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
+				}
+			});
 			return;
 		}
 
@@ -1018,38 +831,12 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
-	private boolean isEmfPlusComment(byte[] data) {
-		return data.length >= 4
-				&& data[0] == 'E'
-				&& data[1] == 'M'
-				&& data[2] == 'F'
-				&& data[3] == '+';
-	}
-
-	private void parseEmfPlusComment(byte[] data) {
-		int offset = 4;
-		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
-			int type = readUInt16(data, offset);
-			int flags = readUInt16(data, offset + 2);
-			int size = readInt32(data, offset + 4);
-			boolean continuableObject = type == EMF_PLUS_OBJECT && (flags & EMF_PLUS_OBJECT_CONTINUABLE) != 0;
-			int headerSize = continuableObject ? EMF_PLUS_HEADER_SIZE + 4 : EMF_PLUS_HEADER_SIZE;
-			if (offset + headerSize > data.length) {
-				break;
-			}
-			int totalObjectSize = continuableObject ? readInt32(data, offset + 8) : -1;
-			int dataSize = readInt32(data, offset + headerSize - 4);
-			if (size < headerSize || dataSize < 0 || dataSize > size - headerSize
-					|| offset + size > data.length) {
-				break;
-			}
-
-			byte[] payload = new byte[dataSize];
-			System.arraycopy(data, offset + headerSize, payload, 0, dataSize);
-			if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
-				endEmfPlusGetDCMode();
-			}
-			if (type == EMF_PLUS_GET_DC) {
+	private void handleEmfPlusRecord(int type, int flags, byte[] payload,
+			boolean continuableObject, int totalObjectSize) {
+		if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
+			endEmfPlusGetDCMode();
+		}
+		if (type == EMF_PLUS_GET_DC) {
 				emfPlusGetDCActive = true;
 				clearEmfPlusFallbackSuppression();
 			} else if (type == EMF_PLUS_OBJECT) {
@@ -1155,8 +942,6 @@ public class SvgGdi implements Gdi {
 			} else if (type == EMF_PLUS_SET_TS_CLIP) {
 				handleEmfPlusSetTSClip(flags, payload);
 			}
-			offset += size;
-		}
 	}
 
 	private void handleEmfPlusObjectRecord(int flags, byte[] payload, boolean continuable, int totalObjectSize) {

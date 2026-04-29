@@ -7,7 +7,7 @@
 
     <groupId>net.arnx</groupId>
     <artifactId>wmf2svg</artifactId>
-    <version>0.10.0</version>
+    <version>0.10.1</version>
     <packaging>jar</packaging>
 
     <name>wmf2svg</name>

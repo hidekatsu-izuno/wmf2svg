@@ -80,6 +80,7 @@ public class SvgGdi implements Gdi {
 	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
 	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
 	private static final int EMF_PLUS_HEADER_SIZE = 12;
+	private static final int EMF_PLUS_GET_DC = 0x4004;
 	private static final int EMF_PLUS_OBJECT = 0x4008;
 	private static final int EMF_PLUS_CLEAR = 0x4009;
 	private static final int EMF_PLUS_FILL_RECTS = 0x400A;
@@ -101,11 +102,21 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_DRAW_IMAGE = 0x401A;
 	private static final int EMF_PLUS_DRAW_IMAGE_POINTS = 0x401B;
 	private static final int EMF_PLUS_DRAW_STRING = 0x401C;
+	private static final int EMF_PLUS_SET_RENDERING_ORIGIN = 0x401D;
+	private static final int EMF_PLUS_SET_ANTI_ALIAS_MODE = 0x401E;
+	private static final int EMF_PLUS_SET_TEXT_RENDERING_HINT = 0x401F;
+	private static final int EMF_PLUS_SET_TEXT_CONTRAST = 0x4020;
 	private static final int EMF_PLUS_SET_INTERPOLATION_MODE = 0x4021;
+	private static final int EMF_PLUS_SET_PIXEL_OFFSET_MODE = 0x4022;
+	private static final int EMF_PLUS_SET_COMPOSITING_MODE = 0x4023;
+	private static final int EMF_PLUS_SET_COMPOSITING_QUALITY = 0x4024;
 	private static final int EMF_PLUS_DRAW_DRIVER_STRING = 0x4036;
 	private static final int EMF_PLUS_STROKE_FILL_PATH = 0x4037;
 	private static final int EMF_PLUS_SAVE = 0x4025;
 	private static final int EMF_PLUS_RESTORE = 0x4026;
+	private static final int EMF_PLUS_BEGIN_CONTAINER = 0x4027;
+	private static final int EMF_PLUS_BEGIN_CONTAINER_NO_PARAMS = 0x4028;
+	private static final int EMF_PLUS_END_CONTAINER = 0x4029;
 	private static final int EMF_PLUS_SET_WORLD_TRANSFORM = 0x402A;
 	private static final int EMF_PLUS_RESET_WORLD_TRANSFORM = 0x402B;
 	private static final int EMF_PLUS_MULTIPLY_WORLD_TRANSFORM = 0x402C;
@@ -118,6 +129,9 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_SET_CLIP_PATH = 0x4033;
 	private static final int EMF_PLUS_SET_CLIP_REGION = 0x4034;
 	private static final int EMF_PLUS_OFFSET_CLIP = 0x4035;
+	private static final int EMF_PLUS_SET_TS_GRAPHICS = 0x4039;
+	private static final int EMF_PLUS_SET_TS_CLIP = 0x403A;
+	private static final int EMF_PLUS_OBJECT_CONTINUABLE = 0x8000;
 	private static final int EMF_PLUS_FLAG_SOLID_COLOR = 0x8000;
 	private static final int EMF_PLUS_FLAG_COMPRESSED = 0x4000;
 	private static final int EMF_PLUS_FLAG_CLOSE = 0x2000;
@@ -130,7 +144,25 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_OBJECT_TYPE_REGION = 4;
 	private static final int EMF_PLUS_OBJECT_TYPE_FONT = 6;
 	private static final int EMF_PLUS_OBJECT_TYPE_STRING_FORMAT = 7;
+	private static final int EMF_PLUS_IMAGE_DATA_TYPE_BITMAP = 1;
 	private static final int EMF_PLUS_IMAGE_DATA_TYPE_METAFILE = 2;
+	private static final int EMF_PLUS_BITMAP_DATA_TYPE_PIXEL = 0;
+	private static final int EMF_PLUS_BITMAP_DATA_TYPE_COMPRESSED = 1;
+	private static final int EMF_PLUS_PIXEL_FORMAT_1BPP_INDEXED = 0x00030101;
+	private static final int EMF_PLUS_PIXEL_FORMAT_4BPP_INDEXED = 0x00030402;
+	private static final int EMF_PLUS_PIXEL_FORMAT_8BPP_INDEXED = 0x00030803;
+	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_GRAYSCALE = 0x00101004;
+	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_555 = 0x00021005;
+	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_565 = 0x00021006;
+	private static final int EMF_PLUS_PIXEL_FORMAT_16BPP_ARGB_1555 = 0x00061007;
+	private static final int EMF_PLUS_PIXEL_FORMAT_24BPP_RGB = 0x00021808;
+	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_RGB = 0x00022009;
+	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_ARGB = 0x0026200A;
+	private static final int EMF_PLUS_PIXEL_FORMAT_32BPP_PARGB = 0x000E200B;
+	private static final int EMF_PLUS_PIXEL_FORMAT_48BPP_RGB = 0x0010300C;
+	private static final int EMF_PLUS_PIXEL_FORMAT_64BPP_ARGB = 0x0034400D;
+	private static final int EMF_PLUS_PIXEL_FORMAT_64BPP_PARGB = 0x001A400E;
+	private static final int EMF_PLUS_PIXEL_FORMAT_INDEXED = 0x00010000;
 	private static final int EMF_PLUS_BRUSH_TYPE_SOLID_COLOR = 0;
 	private static final int EMF_PLUS_BRUSH_TYPE_HATCH_FILL = 1;
 	private static final int EMF_PLUS_BRUSH_TYPE_TEXTURE_FILL = 2;
@@ -141,6 +173,12 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_BRUSH_DATA_PRESET_COLORS = 0x00000004;
 	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_H = 0x00000008;
 	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_V = 0x00000010;
+	private static final int EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED = 0x00000080;
+	private static final int EMF_PLUS_WRAP_MODE_TILE = 0;
+	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_X = 1;
+	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_Y = 2;
+	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_XY = 3;
+	private static final int EMF_PLUS_WRAP_MODE_CLAMP = 4;
 	private static final int EMF_PLUS_HATCH_STYLE_HORIZONTAL = 0;
 	private static final int EMF_PLUS_HATCH_STYLE_VERTICAL = 1;
 	private static final int EMF_PLUS_HATCH_STYLE_FORWARD_DIAGONAL = 2;
@@ -169,12 +207,19 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_LINE_STYLE_DASH_DOT = 3;
 	private static final int EMF_PLUS_LINE_STYLE_DASH_DOT_DOT = 4;
 	private static final int EMF_PLUS_LINE_STYLE_CUSTOM = 5;
+	private static final int EMF_PLUS_DASH_CAP_ROUND = 2;
 	private static final int EMF_PLUS_LINE_CAP_SQUARE = 1;
 	private static final int EMF_PLUS_LINE_CAP_ROUND = 2;
 	private static final int EMF_PLUS_LINE_JOIN_BEVEL = 1;
 	private static final int EMF_PLUS_LINE_JOIN_ROUND = 2;
 	private static final int EMF_PLUS_INTERPOLATION_MODE_LOW_QUALITY = 1;
 	private static final int EMF_PLUS_INTERPOLATION_MODE_NEAREST_NEIGHBOR = 5;
+	private static final int EMF_PLUS_COMPOSITING_MODE_SOURCE_COPY = 1;
+	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HIGH_QUALITY = 2;
+	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HALF = 4;
+	private static final int EMF_PLUS_COMPOSITING_QUALITY_HIGH_QUALITY = 3;
+	private static final int EMF_PLUS_COMPOSITING_QUALITY_GAMMA_CORRECTED = 4;
+	private static final int EMF_PLUS_COMPOSITING_QUALITY_ASSUME_LINEAR = 5;
 	private static final int EMF_PLUS_UNIT_WORLD = 0;
 	private static final int EMF_PLUS_UNIT_DISPLAY = 1;
 	private static final int EMF_PLUS_UNIT_PIXEL = 2;
@@ -185,13 +230,29 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_DRIVER_STRING_CMAP_LOOKUP = 0x00000001;
 	private static final int EMF_PLUS_DRIVER_STRING_VERTICAL = 0x00000002;
 	private static final int EMF_PLUS_DRIVER_STRING_REALIZED_ADVANCE = 0x00000004;
+	private static final int EMF_PLUS_STRING_FORMAT_DIRECTION_RIGHT_TO_LEFT = 0x00000001;
 	private static final int EMF_PLUS_STRING_FORMAT_DIRECTION_VERTICAL = 0x00000002;
+	private static final int EMF_PLUS_STRING_FORMAT_NO_CLIP = 0x00004000;
 	private static final int EMF_PLUS_STRING_ALIGNMENT_CENTER = 1;
 	private static final int EMF_PLUS_STRING_ALIGNMENT_FAR = 2;
+	private static final int EMF_PLUS_HOTKEY_PREFIX_SHOW = 1;
+	private static final int EMF_PLUS_HOTKEY_PREFIX_HIDE = 2;
+	private static final int EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL_GRID_FIT = 1;
+	private static final int EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL = 2;
+	private static final int EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS_GRID_FIT = 3;
+	private static final int EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS = 4;
+	private static final int EMF_PLUS_TEXT_RENDERING_HINT_CLEAR_TYPE_GRID_FIT = 5;
+	private static final int EMF_PLUS_SMOOTHING_MODE_HIGH_QUALITY = 2;
+	private static final int EMF_PLUS_SMOOTHING_MODE_NONE = 3;
+	private static final int EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X4 = 4;
+	private static final int EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X8 = 5;
+	private static final int EMF_PLUS_FILL_MODE_ALTERNATE = 0;
 	private static final int EMF_PLUS_COMBINE_MODE_REPLACE = 0;
 	private static final int EMF_PLUS_COMBINE_MODE_INTERSECT = 1;
 	private static final int EMF_PLUS_COMBINE_MODE_UNION = 2;
+	private static final int EMF_PLUS_COMBINE_MODE_XOR = 3;
 	private static final int EMF_PLUS_COMBINE_MODE_EXCLUDE = 4;
+	private static final int EMF_PLUS_COMBINE_MODE_COMPLEMENT = 5;
 	private static final int EMF_PLUS_REGION_NODE_TYPE_AND = 1;
 	private static final int EMF_PLUS_REGION_NODE_TYPE_OR = 2;
 	private static final int EMF_PLUS_REGION_NODE_TYPE_XOR = 3;
@@ -232,18 +293,35 @@ public class SvgGdi implements Gdi {
 	private Map<Integer, EmfPlusRegion> emfPlusRegions = new HashMap<Integer, EmfPlusRegion>();
 	private Map<Integer, EmfPlusFont> emfPlusFonts = new HashMap<Integer, EmfPlusFont>();
 	private Map<Integer, EmfPlusStringFormat> emfPlusStringFormats = new HashMap<Integer, EmfPlusStringFormat>();
+	private Map<Integer, PendingEmfPlusObject> pendingEmfPlusObjects = new HashMap<Integer, PendingEmfPlusObject>();
 	private Element emfPlusClipMask = null;
 	private double[] emfPlusWorldTransform = new double[] { 1, 0, 0, 1, 0, 0 };
 	private double emfPlusPageScale = 1.0;
 	private double emfPlusPageUnitScale = 1.0;
 	private int emfPlusInterpolationMode = 0;
+	private int emfPlusPixelOffsetMode = 0;
+	private int emfPlusCompositingMode = 0;
+	private int emfPlusCompositingQuality = 0;
+	private int emfPlusAntiAliasMode = 0;
+	private int emfPlusTextRenderingHint = 0;
+	private int emfPlusTextContrast = 0;
+	private int emfPlusRenderingOriginX = 0;
+	private int emfPlusRenderingOriginY = 0;
 	private LinkedList<double[]> emfPlusWorldTransformStack = new LinkedList<double[]>();
 	private LinkedList<double[]> emfPlusPageTransformStack = new LinkedList<double[]>();
 	private LinkedList<Integer> emfPlusInterpolationModeStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusPixelOffsetModeStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusCompositingModeStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusCompositingQualityStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusAntiAliasModeStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusTextRenderingHintStack = new LinkedList<Integer>();
+	private LinkedList<Integer> emfPlusTextContrastStack = new LinkedList<Integer>();
+	private LinkedList<int[]> emfPlusRenderingOriginStack = new LinkedList<int[]>();
 	private LinkedList<Element> emfPlusClipMaskStack = new LinkedList<Element>();
 	private Node emfPlusFallbackParent = null;
 	private Node emfPlusFallbackKeepNode = null;
 	private Node emfPlusFallbackRootKeepNode = null;
+	private boolean emfPlusGetDCActive = false;
 	private boolean pendingEmfBoundsSet = false;
 	private int pendingEmfBoundsLeft = 0;
 	private int pendingEmfBoundsTop = 0;
@@ -903,7 +981,11 @@ public class SvgGdi implements Gdi {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && isEmfPlusComment(data)) {
-			removeEmfPlusFallbackAfterSupportedDraw();
+			if (emfPlusGetDCActive) {
+				endEmfPlusGetDCMode();
+			} else {
+				removeEmfPlusFallbackAfterSupportedDraw();
+			}
 			parseEmfPlusComment(data);
 			return;
 		}
@@ -944,16 +1026,28 @@ public class SvgGdi implements Gdi {
 			int type = readUInt16(data, offset);
 			int flags = readUInt16(data, offset + 2);
 			int size = readInt32(data, offset + 4);
-			int dataSize = readInt32(data, offset + 8);
-			if (size < EMF_PLUS_HEADER_SIZE || dataSize < 0 || dataSize > size - EMF_PLUS_HEADER_SIZE
+			boolean continuableObject = type == EMF_PLUS_OBJECT && (flags & EMF_PLUS_OBJECT_CONTINUABLE) != 0;
+			int headerSize = continuableObject ? EMF_PLUS_HEADER_SIZE + 4 : EMF_PLUS_HEADER_SIZE;
+			if (offset + headerSize > data.length) {
+				break;
+			}
+			int totalObjectSize = continuableObject ? readInt32(data, offset + 8) : -1;
+			int dataSize = readInt32(data, offset + headerSize - 4);
+			if (size < headerSize || dataSize < 0 || dataSize > size - headerSize
 					|| offset + size > data.length) {
 				break;
 			}
 
 			byte[] payload = new byte[dataSize];
-			System.arraycopy(data, offset + EMF_PLUS_HEADER_SIZE, payload, 0, dataSize);
-			if (type == EMF_PLUS_OBJECT) {
-				handleEmfPlusObject(flags, payload);
+			System.arraycopy(data, offset + headerSize, payload, 0, dataSize);
+			if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
+				endEmfPlusGetDCMode();
+			}
+			if (type == EMF_PLUS_GET_DC) {
+				emfPlusGetDCActive = true;
+				clearEmfPlusFallbackSuppression();
+			} else if (type == EMF_PLUS_OBJECT) {
+				handleEmfPlusObjectRecord(flags, payload, continuableObject, totalObjectSize);
 			} else if (type == EMF_PLUS_CLEAR) {
 				handleEmfPlusClear(payload);
 			} else if (type == EMF_PLUS_FILL_RECTS) {
@@ -994,35 +1088,37 @@ public class SvgGdi implements Gdi {
 				handleEmfPlusDrawImagePoints(flags, payload);
 			} else if (type == EMF_PLUS_DRAW_STRING) {
 				handleEmfPlusDrawString(flags, payload);
+			} else if (type == EMF_PLUS_SET_RENDERING_ORIGIN) {
+				if (payload.length >= 8) {
+					emfPlusRenderingOriginX = readInt32(payload, 0);
+					emfPlusRenderingOriginY = readInt32(payload, 4);
+				}
+			} else if (type == EMF_PLUS_SET_ANTI_ALIAS_MODE) {
+				emfPlusAntiAliasMode = flags & 0xFF;
+			} else if (type == EMF_PLUS_SET_TEXT_RENDERING_HINT) {
+				emfPlusTextRenderingHint = flags & 0xFF;
+			} else if (type == EMF_PLUS_SET_TEXT_CONTRAST) {
+				emfPlusTextContrast = flags & 0x0FFF;
 			} else if (type == EMF_PLUS_SET_INTERPOLATION_MODE) {
 				emfPlusInterpolationMode = flags & 0xFF;
+			} else if (type == EMF_PLUS_SET_PIXEL_OFFSET_MODE) {
+				emfPlusPixelOffsetMode = flags & 0xFF;
+			} else if (type == EMF_PLUS_SET_COMPOSITING_MODE) {
+				emfPlusCompositingMode = flags & 0xFF;
+			} else if (type == EMF_PLUS_SET_COMPOSITING_QUALITY) {
+				emfPlusCompositingQuality = flags & 0xFF;
 			} else if (type == EMF_PLUS_DRAW_DRIVER_STRING) {
 				handleEmfPlusDrawDriverString(flags, payload);
 			} else if (type == EMF_PLUS_STROKE_FILL_PATH) {
 				handleEmfPlusStrokeFillPath(flags, payload);
-			} else if (type == EMF_PLUS_SAVE) {
-				emfPlusWorldTransformStack.addFirst(emfPlusWorldTransform.clone());
-					emfPlusPageTransformStack.addFirst(new double[] {
-							emfPlusPageScale, emfPlusPageUnitScale
-					});
-					emfPlusInterpolationModeStack.addFirst(Integer.valueOf(emfPlusInterpolationMode));
-					emfPlusClipMaskStack.addFirst(emfPlusClipMask);
-			} else if (type == EMF_PLUS_RESTORE) {
-				if (!emfPlusWorldTransformStack.isEmpty()) {
-					emfPlusWorldTransform = emfPlusWorldTransformStack.removeFirst();
+			} else if (type == EMF_PLUS_SAVE || type == EMF_PLUS_BEGIN_CONTAINER
+					|| type == EMF_PLUS_BEGIN_CONTAINER_NO_PARAMS) {
+				saveEmfPlusState();
+				if (type == EMF_PLUS_BEGIN_CONTAINER) {
+					beginEmfPlusContainer(flags, payload);
 				}
-				if (!emfPlusPageTransformStack.isEmpty()) {
-					double[] pageTransform = emfPlusPageTransformStack.removeFirst();
-					emfPlusPageScale = pageTransform[0];
-					emfPlusPageUnitScale = pageTransform[1];
-				}
-				if (!emfPlusInterpolationModeStack.isEmpty()) {
-					emfPlusInterpolationMode = emfPlusInterpolationModeStack.removeFirst().intValue();
-				}
-				if (!emfPlusClipMaskStack.isEmpty()) {
-					emfPlusClipMask = emfPlusClipMaskStack.removeFirst();
-					startEmfPlusClipGroup(emfPlusClipMask, false);
-				}
+			} else if (type == EMF_PLUS_RESTORE || type == EMF_PLUS_END_CONTAINER) {
+				restoreEmfPlusState();
 			} else if (type == EMF_PLUS_SET_WORLD_TRANSFORM) {
 				setEmfPlusWorldTransform(payload);
 			} else if (type == EMF_PLUS_RESET_WORLD_TRANSFORM) {
@@ -1048,9 +1144,145 @@ public class SvgGdi implements Gdi {
 				handleEmfPlusSetClipRegion(flags);
 			} else if (type == EMF_PLUS_OFFSET_CLIP) {
 				handleEmfPlusOffsetClip(payload);
+			} else if (type == EMF_PLUS_SET_TS_GRAPHICS) {
+				setEmfPlusTSGraphics(payload);
+			} else if (type == EMF_PLUS_SET_TS_CLIP) {
+				handleEmfPlusSetTSClip(flags, payload);
 			}
 			offset += size;
 		}
+	}
+
+	private void handleEmfPlusObjectRecord(int flags, byte[] payload, boolean continuable, int totalObjectSize) {
+		int objectId = flags & 0xFF;
+		int objectType = (flags >>> 8) & 0x7F;
+		PendingEmfPlusObject pending = pendingEmfPlusObjects.get(Integer.valueOf(objectId));
+		if (pending == null && !continuable) {
+			handleEmfPlusObject(flags, payload);
+			return;
+		}
+
+		if (pending == null) {
+			pending = new PendingEmfPlusObject(objectType, totalObjectSize);
+			pendingEmfPlusObjects.put(Integer.valueOf(objectId), pending);
+		} else if (pending.objectType != objectType) {
+			pending = new PendingEmfPlusObject(objectType, totalObjectSize);
+			pendingEmfPlusObjects.put(Integer.valueOf(objectId), pending);
+		} else if (continuable && totalObjectSize > 0) {
+			pending.totalObjectSize = totalObjectSize;
+		}
+
+		pending.write(payload);
+		if (!continuable || (pending.totalObjectSize > 0 && pending.size() >= pending.totalObjectSize)) {
+			pendingEmfPlusObjects.remove(Integer.valueOf(objectId));
+			handleEmfPlusObject((objectType << 8) | objectId, pending.toByteArray());
+		}
+	}
+
+	private void saveEmfPlusState() {
+		emfPlusWorldTransformStack.addFirst(emfPlusWorldTransform.clone());
+		emfPlusPageTransformStack.addFirst(new double[] {
+				emfPlusPageScale, emfPlusPageUnitScale
+		});
+		emfPlusInterpolationModeStack.addFirst(Integer.valueOf(emfPlusInterpolationMode));
+		emfPlusPixelOffsetModeStack.addFirst(Integer.valueOf(emfPlusPixelOffsetMode));
+		emfPlusCompositingModeStack.addFirst(Integer.valueOf(emfPlusCompositingMode));
+		emfPlusCompositingQualityStack.addFirst(Integer.valueOf(emfPlusCompositingQuality));
+		emfPlusAntiAliasModeStack.addFirst(Integer.valueOf(emfPlusAntiAliasMode));
+		emfPlusTextRenderingHintStack.addFirst(Integer.valueOf(emfPlusTextRenderingHint));
+		emfPlusTextContrastStack.addFirst(Integer.valueOf(emfPlusTextContrast));
+		emfPlusRenderingOriginStack.addFirst(new int[] {
+				emfPlusRenderingOriginX, emfPlusRenderingOriginY
+		});
+		emfPlusClipMaskStack.addFirst(emfPlusClipMask);
+	}
+
+	private void restoreEmfPlusState() {
+		if (!emfPlusWorldTransformStack.isEmpty()) {
+			emfPlusWorldTransform = emfPlusWorldTransformStack.removeFirst();
+		}
+		if (!emfPlusPageTransformStack.isEmpty()) {
+			double[] pageTransform = emfPlusPageTransformStack.removeFirst();
+			emfPlusPageScale = pageTransform[0];
+			emfPlusPageUnitScale = pageTransform[1];
+		}
+		if (!emfPlusInterpolationModeStack.isEmpty()) {
+			emfPlusInterpolationMode = emfPlusInterpolationModeStack.removeFirst().intValue();
+		}
+		if (!emfPlusPixelOffsetModeStack.isEmpty()) {
+			emfPlusPixelOffsetMode = emfPlusPixelOffsetModeStack.removeFirst().intValue();
+		}
+		if (!emfPlusCompositingModeStack.isEmpty()) {
+			emfPlusCompositingMode = emfPlusCompositingModeStack.removeFirst().intValue();
+		}
+		if (!emfPlusCompositingQualityStack.isEmpty()) {
+			emfPlusCompositingQuality = emfPlusCompositingQualityStack.removeFirst().intValue();
+		}
+		if (!emfPlusAntiAliasModeStack.isEmpty()) {
+			emfPlusAntiAliasMode = emfPlusAntiAliasModeStack.removeFirst().intValue();
+		}
+		if (!emfPlusTextRenderingHintStack.isEmpty()) {
+			emfPlusTextRenderingHint = emfPlusTextRenderingHintStack.removeFirst().intValue();
+		}
+		if (!emfPlusTextContrastStack.isEmpty()) {
+			emfPlusTextContrast = emfPlusTextContrastStack.removeFirst().intValue();
+		}
+		if (!emfPlusRenderingOriginStack.isEmpty()) {
+			int[] renderingOrigin = emfPlusRenderingOriginStack.removeFirst();
+			emfPlusRenderingOriginX = renderingOrigin[0];
+			emfPlusRenderingOriginY = renderingOrigin[1];
+		}
+		if (!emfPlusClipMaskStack.isEmpty()) {
+			emfPlusClipMask = emfPlusClipMaskStack.removeFirst();
+			startEmfPlusClipGroup(emfPlusClipMask, false);
+		}
+	}
+
+	private void beginEmfPlusContainer(int flags, byte[] payload) {
+		if (payload.length < 36) {
+			return;
+		}
+		double destX = readFloat(payload, 0);
+		double destY = readFloat(payload, 4);
+		double destWidth = readFloat(payload, 8);
+		double destHeight = readFloat(payload, 12);
+		double srcX = readFloat(payload, 16);
+		double srcY = readFloat(payload, 20);
+		double srcWidth = readFloat(payload, 24);
+		double srcHeight = readFloat(payload, 28);
+		if (srcWidth == 0.0 || srcHeight == 0.0) {
+			return;
+		}
+		double scaleX = destWidth / srcWidth;
+		double scaleY = destHeight / srcHeight;
+		emfPlusPageUnitScale = toEmfPlusPageUnitScale(flags & 0xFF);
+		applyEmfPlusWorldTransform(EMF_PLUS_FLAG_MATRIX_ORDER_APPEND, new double[] {
+				scaleX, 0, 0, scaleY,
+				destX - srcX * scaleX, destY - srcY * scaleY
+		});
+	}
+
+	private void setEmfPlusTSGraphics(byte[] payload) {
+		if (payload.length < 36) {
+			return;
+		}
+		emfPlusAntiAliasMode = (payload[0] & 0xFF) << 1;
+		emfPlusTextRenderingHint = payload[1] & 0xFF;
+		emfPlusCompositingMode = payload[2] & 0xFF;
+		emfPlusCompositingQuality = payload[3] & 0xFF;
+		emfPlusRenderingOriginX = readInt16(payload, 4);
+		emfPlusRenderingOriginY = readInt16(payload, 6);
+		emfPlusTextContrast = readUInt16(payload, 8);
+		emfPlusInterpolationMode = payload[10] & 0xFF;
+		emfPlusPixelOffsetMode = payload[11] & 0xFF;
+		emfPlusWorldTransform = new double[] {
+				readFloat(payload, 12),
+				readFloat(payload, 16),
+				readFloat(payload, 20),
+				readFloat(payload, 24),
+				readFloat(payload, 28),
+				readFloat(payload, 32)
+		};
 	}
 
 	private void setEmfPlusWorldTransform(byte[] payload) {
@@ -1222,8 +1454,11 @@ public class SvgGdi implements Gdi {
 			includePendingEmfBounds(metafile);
 			return;
 		}
+		if (imageDataType != EMF_PLUS_IMAGE_DATA_TYPE_BITMAP) {
+			return;
+		}
 
-		byte[] bitmap = readEmfPlusBitmapImage(payload);
+		byte[] bitmap = readEmfPlusBitmapImage(payload, 8);
 		if (bitmap == null) {
 			return;
 		}
@@ -1265,7 +1500,7 @@ public class SvgGdi implements Gdi {
 						readFloat(data, optionalOffset + 20)
 				};
 			}
-			byte[] bitmap = readEmfPlusBitmapImage(data);
+			byte[] bitmap = readEmfPlusBitmapImage(data, optionalOffset);
 			return bitmap != null ? new EmfPlusBrush(bitmap, brushTransform) : null;
 		}
 		if (brushType == EMF_PLUS_BRUSH_TYPE_PATH_GRADIENT) {
@@ -1273,6 +1508,7 @@ public class SvgGdi implements Gdi {
 				return null;
 			}
 			int brushDataFlags = readInt32(data, offset + 8);
+			int wrapMode = readInt32(data, offset + 12);
 			int centerColor = readInt32(data, offset + 16);
 			double[] center = new double[] { readFloat(data, offset + 20), readFloat(data, offset + 24) };
 			int colorCount = readInt32(data, offset + 28);
@@ -1283,6 +1519,7 @@ public class SvgGdi implements Gdi {
 			for (int i = 0; i < colorCount; i++) {
 				surroundColors[i] = readInt32(data, offset + 32 + i * 4);
 			}
+			int surroundColor = surroundColors[0];
 
 			int boundaryOffset = offset + 32 + colorCount * 4;
 			double[] bounds = null;
@@ -1327,14 +1564,33 @@ public class SvgGdi implements Gdi {
 						readFloat(data, boundaryOffset + 16),
 						readFloat(data, boundaryOffset + 20)
 				};
+				boundaryOffset += 24;
 			}
-			return new EmfPlusBrush(center, bounds, centerColor, surroundColors[0], brushTransform);
+			double[] blendPositions = null;
+			int[] blendColors = null;
+			if ((brushDataFlags & EMF_PLUS_BRUSH_DATA_PRESET_COLORS) != 0) {
+				EmfPlusBlendColors colors = readEmfPlusBlendColors(data, boundaryOffset);
+				if (colors != null) {
+					blendPositions = colors.positions;
+					blendColors = colors.colors;
+				}
+			} else if ((brushDataFlags & (EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_H
+					| EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_V)) != 0) {
+				EmfPlusBlendFactors factors = readEmfPlusBlendFactors(data, boundaryOffset);
+				if (factors != null) {
+					blendPositions = factors.positions;
+					blendColors = toEmfPlusBlendFactorColors(centerColor, surroundColor, factors.factors);
+				}
+			}
+			return new EmfPlusBrush(center, bounds, centerColor, surroundColor, blendPositions, blendColors,
+					brushTransform, wrapMode);
 		}
 		if (brushType == EMF_PLUS_BRUSH_TYPE_LINEAR_GRADIENT) {
 			if (data.length < offset + 48) {
 				return null;
 			}
 			int brushDataFlags = readInt32(data, offset + 8);
+			int wrapMode = readInt32(data, offset + 12);
 			double[] rect = new double[] {
 					readFloat(data, offset + 16),
 					readFloat(data, offset + 20),
@@ -1375,7 +1631,9 @@ public class SvgGdi implements Gdi {
 					blendColors = toEmfPlusBlendFactorColors(startColor, endColor, factors.factors);
 				}
 			}
-			return new EmfPlusBrush(rect, startColor, endColor, blendPositions, blendColors, brushTransform);
+			boolean gammaCorrected = (brushDataFlags & EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED) != 0;
+			return new EmfPlusBrush(rect, startColor, endColor, blendPositions, blendColors, brushTransform, wrapMode,
+					gammaCorrected);
 		}
 		return null;
 	}
@@ -1448,15 +1706,30 @@ public class SvgGdi implements Gdi {
 			return null;
 		}
 		int penDataFlags = readInt32(payload, 8);
-		float width = readFloat(payload, 16);
+		int penUnit = readInt32(payload, 12);
+		double width = readFloat(payload, 16) * toEmfPlusPageUnitScale(penUnit);
 		int optionalOffset = 20;
 		int startCap = 0;
 		int endCap = 0;
 		int lineJoin = 0;
+		double miterLimit = 0.0;
 		int lineStyle = 0;
+		int dashCap = 0;
 		double dashOffset = 0.0;
 		double[] dashPattern = null;
+		double[] penTransform = null;
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_TRANSFORM) != 0) {
+			if (payload.length < optionalOffset + 24) {
+				return null;
+			}
+			penTransform = new double[] {
+					readFloat(payload, optionalOffset),
+					readFloat(payload, optionalOffset + 4),
+					readFloat(payload, optionalOffset + 8),
+					readFloat(payload, optionalOffset + 12),
+					readFloat(payload, optionalOffset + 16),
+					readFloat(payload, optionalOffset + 20)
+			};
 			optionalOffset += 24;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_START_CAP) != 0) {
@@ -1481,6 +1754,10 @@ public class SvgGdi implements Gdi {
 			optionalOffset += 4;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_MITER_LIMIT) != 0) {
+			if (payload.length < optionalOffset + 4) {
+				return null;
+			}
+			miterLimit = readFloat(payload, optionalOffset);
 			optionalOffset += 4;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_LINE_STYLE) != 0) {
@@ -1491,6 +1768,10 @@ public class SvgGdi implements Gdi {
 			optionalOffset += 4;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_DASHED_LINE_CAP) != 0) {
+			if (payload.length < optionalOffset + 4) {
+				return null;
+			}
+			dashCap = readInt32(payload, optionalOffset);
 			optionalOffset += 4;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_DASHED_LINE_OFFSET) != 0) {
@@ -1547,7 +1828,8 @@ public class SvgGdi implements Gdi {
 		if (brush == null) {
 			return null;
 		}
-		return new EmfPlusPen(width, brush, startCap, endCap, lineJoin, lineStyle, dashOffset, dashPattern);
+		return new EmfPlusPen(width, brush, startCap, endCap, lineJoin, miterLimit,
+				lineStyle, dashCap, dashOffset, dashPattern, penTransform);
 	}
 
 	private EmfPlusFont readEmfPlusFont(byte[] payload) {
@@ -1572,7 +1854,9 @@ public class SvgGdi implements Gdi {
 		int flags = readInt32(payload, 4);
 		int alignment = readInt32(payload, 12);
 		int lineAlign = readInt32(payload, 16);
-		return new EmfPlusStringFormat(flags, alignment, lineAlign);
+		int hotkeyPrefix = readInt32(payload, 32);
+		double tracking = readFloat(payload, 44);
+		return new EmfPlusStringFormat(flags, alignment, lineAlign, hotkeyPrefix, tracking);
 	}
 
 	private EmfPlusRegion readEmfPlusRegion(byte[] payload) {
@@ -1634,6 +1918,7 @@ public class SvgGdi implements Gdi {
 		if (payload.length < 12) {
 			return null;
 		}
+		int fillMode = readInt32(payload, 0);
 		int count = readInt32(payload, 4);
 		int pathPointFlags = readInt32(payload, 8);
 		if (count < 0) {
@@ -1653,7 +1938,7 @@ public class SvgGdi implements Gdi {
 		if (types == null) {
 			return null;
 		}
-		return new EmfPlusPath(points, types);
+		return new EmfPlusPath(fillMode, points, types);
 	}
 
 	private byte[] readEmfPlusPathPointTypes(byte[] payload, int offset, int count) {
@@ -1706,6 +1991,8 @@ public class SvgGdi implements Gdi {
 		rect.setAttribute("fill", toEmfPlusColor(argb));
 		setEmfPlusOpacity(rect, "fill-opacity", argb);
 		rect.setAttribute("stroke", "none");
+		applyEmfPlusCompositingMode(rect);
+		applyEmfPlusCompositingQuality(rect);
 		parentNode.appendChild(rect);
 	}
 
@@ -2066,9 +2353,11 @@ public class SvgGdi implements Gdi {
 		elem.setAttribute("font-size", formatDouble(toEmfPlusFontSize(font)));
 		applyEmfPlusFill(elem, brush);
 		applyEmfPlusFontStyle(elem, font);
+		applyEmfPlusStringTracking(elem, format);
+		applyEmfPlusTextRenderingHint(elem);
 		elem.setAttribute("xml:space", "preserve");
-		elem.appendChild(doc.createTextNode(text));
-		parentNode.appendChild(elem);
+		appendEmfPlusStringText(elem, text, format);
+		appendEmfPlusDrawString(elem, rects[0], format);
 	}
 
 	private void handleEmfPlusDrawDriverString(int flags, byte[] payload) {
@@ -2124,6 +2413,7 @@ public class SvgGdi implements Gdi {
 		}
 		applyEmfPlusFill(elem, brush);
 		applyEmfPlusFontStyle(elem, font);
+		applyEmfPlusTextRenderingHint(elem);
 		elem.setAttribute("xml:space", "preserve");
 		if ((options & EMF_PLUS_DRIVER_STRING_REALIZED_ADVANCE) != 0) {
 			double[] point = toEmfPlusDriverStringPoint(points[0], matrix);
@@ -2202,6 +2492,95 @@ public class SvgGdi implements Gdi {
 		startEmfPlusClipGroup(mask, false);
 	}
 
+	private void handleEmfPlusSetTSClip(int flags, byte[] payload) {
+		boolean compressed = (flags & 0x8000) != 0;
+		int count = flags & 0x7FFF;
+		if (count <= 0) {
+			return;
+		}
+		double[][] rects = compressed
+				? readCompressedEmfPlusTSClipRects(payload, count)
+				: readEmfPlusTSClipRects(payload, count);
+		if (rects == null) {
+			return;
+		}
+		Element mask = createMask();
+		for (int i = 0; i < rects.length; i++) {
+			Element rect = doc.createElement("rect");
+			double[] p = toEmfPlusLogicalPoint(rects[i][0], rects[i][1]);
+			double[] size = toEmfPlusLogicalSize(rects[i][2] - rects[i][0], rects[i][3] - rects[i][1]);
+			rect.setAttribute("x", formatDouble(p[0]));
+			rect.setAttribute("y", formatDouble(p[1]));
+			rect.setAttribute("width", formatDouble(size[0]));
+			rect.setAttribute("height", formatDouble(size[1]));
+			appendEmfPlusMaskShape(mask, rect, "white");
+		}
+		emfPlusClipMask = mask;
+		startEmfPlusClipGroup(mask, false);
+	}
+
+	private double[][] readEmfPlusTSClipRects(byte[] payload, int count) {
+		if (payload.length < count * 8) {
+			return null;
+		}
+		double[][] rects = new double[count][4];
+		for (int i = 0; i < count; i++) {
+			int offset = i * 8;
+			rects[i][0] = readInt16(payload, offset);
+			rects[i][1] = readInt16(payload, offset + 2);
+			rects[i][2] = readInt16(payload, offset + 4);
+			rects[i][3] = readInt16(payload, offset + 6);
+		}
+		return rects;
+	}
+
+	private double[][] readCompressedEmfPlusTSClipRects(byte[] payload, int count) {
+		double[][] rects = new double[count][4];
+		int[] offset = new int[] { 0 };
+		int left = 0;
+		int top = 0;
+		int right = 0;
+		for (int i = 0; i < count; i++) {
+			Integer leftDelta = readCompressedEmfPlusTSClipValue(payload, offset);
+			Integer topDelta = readCompressedEmfPlusTSClipValue(payload, offset);
+			Integer rightDelta = readCompressedEmfPlusTSClipValue(payload, offset);
+			Integer height = readCompressedEmfPlusTSClipValue(payload, offset);
+			if (leftDelta == null || topDelta == null || rightDelta == null || height == null) {
+				return null;
+			}
+			left += leftDelta.intValue();
+			top += topDelta.intValue();
+			right += rightDelta.intValue();
+			rects[i][0] = left;
+			rects[i][1] = top;
+			rects[i][2] = right;
+			rects[i][3] = top + height.intValue();
+		}
+		return rects;
+	}
+
+	private Integer readCompressedEmfPlusTSClipValue(byte[] payload, int[] offset) {
+		if (offset[0] >= payload.length) {
+			return null;
+		}
+		int first = payload[offset[0]++] & 0xFF;
+		if ((first & 0x80) != 0) {
+			int value = first & 0x7F;
+			if ((value & 0x40) != 0) {
+				value |= ~0x7F;
+			}
+			return Integer.valueOf(value);
+		}
+		if (offset[0] >= payload.length) {
+			return null;
+		}
+		int value = ((first & 0x7F) << 8) | (payload[offset[0]++] & 0xFF);
+		if ((value & 0x4000) != 0) {
+			value |= ~0x7FFF;
+		}
+		return Integer.valueOf(value);
+	}
+
 	private void applyEmfPlusClip(int flags, Element shape) {
 		int combineMode = (flags >>> 8) & 0x0F;
 		if (combineMode == EMF_PLUS_COMBINE_MODE_INTERSECT) {
@@ -2219,19 +2598,51 @@ public class SvgGdi implements Gdi {
 			mask = createMask();
 		} else if (combineMode == EMF_PLUS_COMBINE_MODE_UNION && emfPlusClipMask != null) {
 			mask = cloneEmfPlusClipMask(emfPlusClipMask);
+		} else if (combineMode == EMF_PLUS_COMBINE_MODE_XOR && emfPlusClipMask != null) {
+			mask = cloneEmfPlusClipMask(emfPlusClipMask);
+			appendEmfPlusMaskShape(mask, shape, "white");
+			appendEmfPlusMaskedShape(mask, (Element)shape.cloneNode(true), "black", emfPlusClipMask);
+			emfPlusClipMask = mask;
+			startEmfPlusClipGroup(mask, false);
+			return;
 		} else if (combineMode == EMF_PLUS_COMBINE_MODE_EXCLUDE) {
 			mask = emfPlusClipMask != null ? cloneEmfPlusClipMask(emfPlusClipMask) : createMask();
 			if (emfPlusClipMask == null) {
 				appendFullMaskRect(mask, "white");
 			}
+		} else if (combineMode == EMF_PLUS_COMBINE_MODE_COMPLEMENT && emfPlusClipMask != null) {
+			mask = createMask();
+			appendEmfPlusMaskShape(mask, shape, "white");
+			appendEmfPlusMaskedFullRect(mask, "black", emfPlusClipMask);
+			emfPlusClipMask = mask;
+			startEmfPlusClipGroup(mask, false);
+			return;
 		} else {
 			mask = createMask();
 		}
-		shape.setAttribute("fill", combineMode == EMF_PLUS_COMBINE_MODE_EXCLUDE ? "black" : "white");
-		shape.setAttribute("stroke", "none");
-		mask.appendChild(shape);
+		appendEmfPlusMaskShape(mask, shape, combineMode == EMF_PLUS_COMBINE_MODE_EXCLUDE ? "black" : "white");
 		emfPlusClipMask = mask;
 		startEmfPlusClipGroup(mask, false);
+	}
+
+	private void appendEmfPlusMaskShape(Element mask, Element shape, String fill) {
+		shape.setAttribute("fill", fill);
+		shape.setAttribute("stroke", "none");
+		mask.appendChild(shape);
+	}
+
+	private void appendEmfPlusMaskedShape(Element mask, Element shape, String fill, Element sourceMask) {
+		Element group = doc.createElement("g");
+		group.setAttribute("mask", "url(#" + sourceMask.getAttribute("id") + ")");
+		appendEmfPlusMaskShape(group, shape, fill);
+		mask.appendChild(group);
+	}
+
+	private void appendEmfPlusMaskedFullRect(Element mask, String fill, Element sourceMask) {
+		Element group = doc.createElement("g");
+		group.setAttribute("mask", "url(#" + sourceMask.getAttribute("id") + ")");
+		appendFullMaskRect(group, fill);
+		mask.appendChild(group);
 	}
 
 	private Element cloneEmfPlusClipMask(Element mask) {
@@ -2396,6 +2807,10 @@ public class SvgGdi implements Gdi {
 			setEmfPlusOpacity(elem, "fill-opacity", brush.argb);
 		}
 		elem.setAttribute("stroke", "none");
+		applyEmfPlusShapeRendering(elem);
+		applyEmfPlusPixelOffset(elem);
+		applyEmfPlusCompositingMode(elem);
+		applyEmfPlusCompositingQuality(elem);
 	}
 
 	private void applyEmfPlusStroke(Element elem, EmfPlusPen pen) {
@@ -2417,6 +2832,9 @@ public class SvgGdi implements Gdi {
 			setEmfPlusOpacity(elem, "fill-opacity", brush.argb);
 		}
 		applyEmfPlusStrokeOnly(elem, pen);
+		applyEmfPlusShapeRendering(elem);
+		applyEmfPlusCompositingMode(elem);
+		applyEmfPlusCompositingQuality(elem);
 	}
 
 	private void applyEmfPlusStrokeOnly(Element elem, EmfPlusPen pen) {
@@ -2432,11 +2850,15 @@ public class SvgGdi implements Gdi {
 			elem.setAttribute("stroke", toEmfPlusColor(pen.brush.argb));
 			setEmfPlusOpacity(elem, "stroke-opacity", pen.brush.argb);
 		}
-		elem.setAttribute("stroke-width", formatDouble(Math.max(1.0, pen.width)));
+		double penWidth = Math.max(1.0, pen.width) * getEmfPlusPenScale(pen);
+		elem.setAttribute("stroke-width", formatDouble(penWidth));
 		elem.setAttribute("stroke-linecap", toEmfPlusStrokeLineCap(pen));
 		elem.setAttribute("stroke-linejoin", toEmfPlusStrokeLineJoin(pen.lineJoin));
+		if (pen.miterLimit > 0.0) {
+			elem.setAttribute("stroke-miterlimit", formatDouble(pen.miterLimit));
+		}
 		if (pen.dashOffset != 0.0) {
-			elem.setAttribute("stroke-dashoffset", formatDouble(pen.dashOffset * Math.max(1.0, pen.width)));
+			elem.setAttribute("stroke-dashoffset", formatDouble(pen.dashOffset * penWidth));
 		}
 		double[] dashArray = toEmfPlusStrokeDashArray(pen);
 		if (dashArray != null) {
@@ -2445,9 +2867,72 @@ public class SvgGdi implements Gdi {
 				if (i > 0) {
 					buffer.append(",");
 				}
-				buffer.append(formatDouble(dashArray[i] * Math.max(1.0, pen.width)));
+				buffer.append(formatDouble(dashArray[i] * penWidth));
 			}
 			elem.setAttribute("stroke-dasharray", buffer.toString());
+		}
+		applyEmfPlusShapeRendering(elem);
+		applyEmfPlusPixelOffset(elem);
+		applyEmfPlusCompositingMode(elem);
+		applyEmfPlusCompositingQuality(elem);
+	}
+
+	private double getEmfPlusPenScale(EmfPlusPen pen) {
+		if (pen.transform == null) {
+			return 1.0;
+		}
+		double xScale = Math.hypot(pen.transform[0], pen.transform[1]);
+		double yScale = Math.hypot(pen.transform[2], pen.transform[3]);
+		double scale = (xScale + yScale) / 2.0;
+		if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
+			return 1.0;
+		}
+		return scale;
+	}
+
+	private void applyEmfPlusCompositingMode(Element elem) {
+		if (emfPlusCompositingMode == EMF_PLUS_COMPOSITING_MODE_SOURCE_COPY) {
+			elem.setAttribute("data-emfplus-compositing-mode", "source-copy");
+		}
+	}
+
+	private void applyEmfPlusCompositingQuality(Element elem) {
+		if (emfPlusCompositingQuality == EMF_PLUS_COMPOSITING_QUALITY_ASSUME_LINEAR) {
+			elem.setAttribute("color-interpolation", "linearRGB");
+		} else if (emfPlusCompositingQuality == EMF_PLUS_COMPOSITING_QUALITY_HIGH_QUALITY
+				|| emfPlusCompositingQuality == EMF_PLUS_COMPOSITING_QUALITY_GAMMA_CORRECTED) {
+			elem.setAttribute("color-interpolation", "sRGB");
+		}
+	}
+
+	private void applyEmfPlusPixelOffset(Element elem) {
+		if (emfPlusPixelOffsetMode == EMF_PLUS_PIXEL_OFFSET_MODE_HIGH_QUALITY
+				|| emfPlusPixelOffsetMode == EMF_PLUS_PIXEL_OFFSET_MODE_HALF) {
+			appendEmfPlusTransform(elem, "translate(0.5 0.5)");
+		}
+	}
+
+	private void appendEmfPlusTransform(Element elem, String transform) {
+		String current = elem.getAttribute("transform");
+		if (current == null || current.length() == 0) {
+			elem.setAttribute("transform", transform);
+		} else {
+			elem.setAttribute("transform", current + " " + transform);
+		}
+	}
+
+	private void applyEmfPlusShapeRendering(Element elem) {
+		if ("text".equals(elem.getTagName())) {
+			return;
+		}
+		int smoothingMode = (emfPlusAntiAliasMode >>> 1) & 0x7F;
+		boolean antiAlias = (emfPlusAntiAliasMode & 0x01) != 0;
+		if (smoothingMode == EMF_PLUS_SMOOTHING_MODE_NONE) {
+			elem.setAttribute("shape-rendering", "crispEdges");
+		} else if (antiAlias || smoothingMode == EMF_PLUS_SMOOTHING_MODE_HIGH_QUALITY
+				|| smoothingMode == EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X4
+				|| smoothingMode == EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X8) {
+			elem.setAttribute("shape-rendering", "geometricPrecision");
 		}
 	}
 
@@ -2457,6 +2942,9 @@ public class SvgGdi implements Gdi {
 			return "square";
 		}
 		if (cap == EMF_PLUS_LINE_CAP_ROUND) {
+			return "round";
+		}
+		if (toEmfPlusStrokeDashArray(pen) != null && pen.dashCap == EMF_PLUS_DASH_CAP_ROUND) {
 			return "round";
 		}
 		return "butt";
@@ -2516,11 +3004,33 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
+	private void applyEmfPlusTextRenderingHint(Element elem) {
+		if (emfPlusTextContrast > 0) {
+			elem.setAttribute("data-emfplus-text-contrast", Integer.toString(emfPlusTextContrast));
+		}
+		if (emfPlusTextRenderingHint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL_GRID_FIT
+				|| emfPlusTextRenderingHint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL) {
+			elem.setAttribute("text-rendering", "optimizeSpeed");
+		} else if (emfPlusTextRenderingHint == EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS) {
+			elem.setAttribute("text-rendering", "geometricPrecision");
+		} else if (emfPlusTextRenderingHint == EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS_GRID_FIT
+				|| emfPlusTextRenderingHint == EMF_PLUS_TEXT_RENDERING_HINT_CLEAR_TYPE_GRID_FIT) {
+			elem.setAttribute("text-rendering", "optimizeLegibility");
+		}
+	}
+
 	private double toEmfPlusFontSize(EmfPlusFont font) {
 		if (font.sizeUnit == EMF_PLUS_UNIT_POINT) {
 			return font.emSize * 96.0 / 72.0;
 		}
 		return font.emSize;
+	}
+
+	private void applyEmfPlusStringTracking(Element elem, EmfPlusStringFormat format) {
+		if (format == null || format.tracking == 0.0 || Math.abs(format.tracking - 1.0) < 0.000001) {
+			return;
+		}
+		elem.setAttribute("letter-spacing", formatDouble(format.tracking - 1.0) + "em");
 	}
 
 	private double[] toEmfPlusDriverStringPoint(double[] point, double[] matrix) {
@@ -2559,9 +3069,78 @@ public class SvgGdi implements Gdi {
 		if (format != null && (format.flags & EMF_PLUS_STRING_FORMAT_DIRECTION_VERTICAL) != 0) {
 			elem.setAttribute("writing-mode", "tb");
 		}
+		if (format != null && (format.flags & EMF_PLUS_STRING_FORMAT_DIRECTION_RIGHT_TO_LEFT) != 0) {
+			elem.setAttribute("direction", "rtl");
+			elem.setAttribute("unicode-bidi", "bidi-override");
+		}
 		double[] point = toEmfPlusLogicalPoint(x, y);
 		elem.setAttribute("x", formatDouble(point[0]));
 		elem.setAttribute("y", formatDouble(point[1]));
+	}
+
+	private void appendEmfPlusStringText(Element elem, String text, EmfPlusStringFormat format) {
+		int hotkeyPrefix = format != null ? format.hotkeyPrefix : 0;
+		if (hotkeyPrefix != EMF_PLUS_HOTKEY_PREFIX_SHOW && hotkeyPrefix != EMF_PLUS_HOTKEY_PREFIX_HIDE) {
+			elem.appendChild(doc.createTextNode(text));
+			return;
+		}
+
+		StringBuilder plain = new StringBuilder();
+		for (int i = 0; i < text.length(); i++) {
+			char ch = text.charAt(i);
+			if (ch != '&') {
+				plain.append(ch);
+				continue;
+			}
+			if (i + 1 < text.length() && text.charAt(i + 1) == '&') {
+				plain.append('&');
+				i++;
+			} else if (hotkeyPrefix == EMF_PLUS_HOTKEY_PREFIX_SHOW && i + 1 < text.length()) {
+				appendEmfPlusTextNode(elem, plain);
+				Element tspan = doc.createElement("tspan");
+				tspan.setAttribute("text-decoration", "underline");
+				tspan.appendChild(doc.createTextNode(String.valueOf(text.charAt(++i))));
+				elem.appendChild(tspan);
+			}
+		}
+		appendEmfPlusTextNode(elem, plain);
+	}
+
+	private void appendEmfPlusTextNode(Element elem, StringBuilder text) {
+		if (text.length() > 0) {
+			elem.appendChild(doc.createTextNode(text.toString()));
+			text.setLength(0);
+		}
+	}
+
+	private void appendEmfPlusDrawString(Element elem, double[] rect, EmfPlusStringFormat format) {
+		if (format != null && (format.flags & EMF_PLUS_STRING_FORMAT_NO_CLIP) != 0) {
+			parentNode.appendChild(elem);
+			return;
+		}
+
+		String clipId = createEmfPlusRectClipPath(rect);
+		Element group = doc.createElement("g");
+		group.setAttribute("clip-path", "url(#" + clipId + ")");
+		group.appendChild(elem);
+		parentNode.appendChild(group);
+	}
+
+	private String createEmfPlusRectClipPath(double[] rect) {
+		String id = "clip" + (maskNo++);
+		Element clipPath = doc.createElement("clipPath");
+		clipPath.setAttribute("id", id);
+		clipPath.setIdAttribute("id", true);
+		Element clipRect = doc.createElement("rect");
+		double[] p = toEmfPlusLogicalPoint(rect[0], rect[1]);
+		double[] size = toEmfPlusLogicalSize(rect[2], rect[3]);
+		clipRect.setAttribute("x", formatDouble(p[0]));
+		clipRect.setAttribute("y", formatDouble(p[1]));
+		clipRect.setAttribute("width", formatDouble(size[0]));
+		clipRect.setAttribute("height", formatDouble(size[1]));
+		clipPath.appendChild(clipRect);
+		defsNode.appendChild(clipPath);
+		return id;
 	}
 
 	private void setEmfPlusOpacity(Element elem, String name, int argb) {
@@ -2584,6 +3163,10 @@ public class SvgGdi implements Gdi {
 		gradient.setAttribute("id", id);
 		gradient.setIdAttribute("id", true);
 		gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+		if (brush.gammaCorrected) {
+			gradient.setAttribute("color-interpolation", "linearRGB");
+		}
+		applyEmfPlusGradientWrapMode(gradient, brush.wrapMode);
 		double[] start = toEmfPlusLogicalPoint(brush.linearGradientRect[0], brush.linearGradientRect[1]);
 		double[] end = toEmfPlusLogicalPoint(
 				brush.linearGradientRect[0] + brush.linearGradientRect[2],
@@ -2620,6 +3203,7 @@ public class SvgGdi implements Gdi {
 		gradient.setAttribute("id", id);
 		gradient.setIdAttribute("id", true);
 		gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+		applyEmfPlusGradientWrapMode(gradient, brush.wrapMode);
 		double[] center = toEmfPlusLogicalPoint(brush.pathGradientCenter[0], brush.pathGradientCenter[1]);
 		double[] radius = toEmfPlusLogicalSize(brush.pathGradientBounds[2] / 2.0, brush.pathGradientBounds[3] / 2.0);
 		gradient.setAttribute("cx", formatDouble(center[0]));
@@ -2634,10 +3218,39 @@ public class SvgGdi implements Gdi {
 					+ formatDouble(brush.brushTransform[4]) + " "
 					+ formatDouble(brush.brushTransform[5]) + ")");
 		}
-		appendEmfPlusGradientStop(gradient, "0%", brush.centerColor);
-		appendEmfPlusGradientStop(gradient, "100%", brush.surroundColor);
+		if (brush.blendPositions != null && brush.blendColors != null) {
+			for (int i = 0; i < brush.blendPositions.length; i++) {
+				appendEmfPlusGradientStop(gradient, formatDouble(brush.blendPositions[i] * 100.0) + "%",
+						brush.blendColors[i]);
+			}
+		} else {
+			appendEmfPlusGradientStop(gradient, "0%", brush.centerColor);
+			appendEmfPlusGradientStop(gradient, "100%", brush.surroundColor);
+		}
 		defsNode.appendChild(gradient);
 		return id;
+	}
+
+	private void applyEmfPlusGradientWrapMode(Element gradient, int wrapMode) {
+		String spreadMethod = toEmfPlusGradientSpreadMethod(wrapMode);
+		if (spreadMethod != null) {
+			gradient.setAttribute("spreadMethod", spreadMethod);
+		}
+	}
+
+	private String toEmfPlusGradientSpreadMethod(int wrapMode) {
+		if (wrapMode == EMF_PLUS_WRAP_MODE_CLAMP) {
+			return "pad";
+		}
+		if (wrapMode == EMF_PLUS_WRAP_MODE_TILE) {
+			return "repeat";
+		}
+		if (wrapMode == EMF_PLUS_WRAP_MODE_TILE_FLIP_X
+				|| wrapMode == EMF_PLUS_WRAP_MODE_TILE_FLIP_Y
+				|| wrapMode == EMF_PLUS_WRAP_MODE_TILE_FLIP_XY) {
+			return "reflect";
+		}
+		return null;
 	}
 
 	private String createEmfPlusHatchPattern(EmfPlusBrush brush) {
@@ -2646,8 +3259,7 @@ public class SvgGdi implements Gdi {
 		pattern.setAttribute("id", id);
 		pattern.setIdAttribute("id", true);
 		pattern.setAttribute("patternUnits", "userSpaceOnUse");
-		pattern.setAttribute("x", "0");
-		pattern.setAttribute("y", "0");
+		applyEmfPlusRenderingOrigin(pattern);
 		pattern.setAttribute("width", "8");
 		pattern.setAttribute("height", "8");
 
@@ -2703,8 +3315,7 @@ public class SvgGdi implements Gdi {
 		pattern.setAttribute("id", id);
 		pattern.setIdAttribute("id", true);
 		pattern.setAttribute("patternUnits", "userSpaceOnUse");
-		pattern.setAttribute("x", "0");
-		pattern.setAttribute("y", "0");
+		applyEmfPlusRenderingOrigin(pattern);
 		pattern.setAttribute("width", formatDouble(size[0]));
 		pattern.setAttribute("height", formatDouble(size[1]));
 		if (brush.brushTransform != null) {
@@ -2729,6 +3340,12 @@ public class SvgGdi implements Gdi {
 
 		defsNode.appendChild(pattern);
 		return id;
+	}
+
+	private void applyEmfPlusRenderingOrigin(Element pattern) {
+		double[] origin = toEmfPlusLogicalPoint(emfPlusRenderingOriginX, emfPlusRenderingOriginY);
+		pattern.setAttribute("x", formatDouble(origin[0]));
+		pattern.setAttribute("y", formatDouble(origin[1]));
 	}
 
 	private double[] getEmfPlusBitmapSize(byte[] image) {
@@ -2761,6 +3378,9 @@ public class SvgGdi implements Gdi {
 		}
 		Element elem = doc.createElement("path");
 		elem.setAttribute("d", d);
+		if (path.fillMode == EMF_PLUS_FILL_MODE_ALTERNATE) {
+			elem.setAttribute("fill-rule", "evenodd");
+		}
 		return elem;
 	}
 
@@ -3169,11 +3789,17 @@ public class SvgGdi implements Gdi {
 			Element group = doc.createElement("g");
 			group.setAttribute("clip-path", "url(#" + clipId + ")");
 			group.setAttribute("transform", transform);
+			applyEmfPlusPixelOffset(group);
+			applyEmfPlusCompositingMode(group);
+			applyEmfPlusCompositingQuality(group);
 			group.appendChild(image);
 			parentNode.appendChild(group);
 			keepNode = group;
 		} else {
 			image.setAttribute("transform", transform);
+			applyEmfPlusPixelOffset(image);
+			applyEmfPlusCompositingMode(image);
+			applyEmfPlusCompositingQuality(image);
 			parentNode.appendChild(image);
 		}
 		if (suppressFallback) {
@@ -3205,8 +3831,8 @@ public class SvgGdi implements Gdi {
 		return id;
 	}
 
-	private byte[] readEmfPlusBitmapImage(byte[] payload) {
-		int pngOffset = findBytes(payload, new byte[] {
+	private byte[] readEmfPlusBitmapImage(byte[] payload, int offset) {
+		int pngOffset = findBytes(payload, offset, new byte[] {
 				(byte)0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
 		});
 		if (pngOffset >= 0) {
@@ -3215,17 +3841,223 @@ public class SvgGdi implements Gdi {
 			return image;
 		}
 
-		int jpegOffset = findBytes(payload, new byte[] { (byte)0xFF, (byte)0xD8, (byte)0xFF });
+		int jpegOffset = findBytes(payload, offset, new byte[] { (byte)0xFF, (byte)0xD8, (byte)0xFF });
 		if (jpegOffset >= 0) {
 			byte[] image = new byte[payload.length - jpegOffset];
 			System.arraycopy(payload, jpegOffset, image, 0, image.length);
 			return ImageUtil.convert(image, "png", false);
 		}
-		return null;
+
+		int gifOffset = findBytes(payload, offset, new byte[] { 'G', 'I', 'F', '8' });
+		if (gifOffset >= 0) {
+			byte[] image = new byte[payload.length - gifOffset];
+			System.arraycopy(payload, gifOffset, image, 0, image.length);
+			return ImageUtil.convert(image, "png", false);
+		}
+
+		int tiffOffset = findBytes(payload, offset, new byte[] { 'I', 'I', 0x2A, 0x00 });
+		if (tiffOffset < 0) {
+			tiffOffset = findBytes(payload, offset, new byte[] { 'M', 'M', 0x00, 0x2A });
+		}
+		if (tiffOffset >= 0) {
+			byte[] image = new byte[payload.length - tiffOffset];
+			System.arraycopy(payload, tiffOffset, image, 0, image.length);
+			return ImageUtil.convert(image, "png", false);
+		}
+
+		if (offset < 0 || payload.length < offset + 20) {
+			return null;
+		}
+		int width = readInt32(payload, offset);
+		int height = readInt32(payload, offset + 4);
+		int stride = readInt32(payload, offset + 8);
+		int pixelFormat = readInt32(payload, offset + 12);
+		int type = readInt32(payload, offset + 16);
+		if (type != EMF_PLUS_BITMAP_DATA_TYPE_PIXEL || width <= 0 || height == 0 || stride == 0) {
+			return null;
+		}
+		int rowCount = Math.abs(height);
+		int rowStride = Math.abs(stride);
+		int pixelDataOffset = offset + 20;
+		int[] palette = null;
+		if ((pixelFormat & EMF_PLUS_PIXEL_FORMAT_INDEXED) != 0) {
+			if (payload.length < pixelDataOffset + 8) {
+				return null;
+			}
+			int paletteCount = readInt32(payload, pixelDataOffset + 4);
+			if (paletteCount <= 0 || paletteCount > 256
+					|| payload.length < pixelDataOffset + 8 + paletteCount * 4) {
+				return null;
+			}
+			palette = new int[paletteCount];
+			for (int i = 0; i < paletteCount; i++) {
+				palette[i] = readInt32(payload, pixelDataOffset + 8 + i * 4);
+			}
+			pixelDataOffset += 8 + paletteCount * 4;
+		}
+		if ((long)rowStride * rowCount > payload.length - pixelDataOffset) {
+			return null;
+		}
+
+		BufferedImage bitmap = new BufferedImage(width, rowCount, BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < rowCount; y++) {
+			int rowOffset = pixelDataOffset + (stride < 0 ? rowCount - 1 - y : y) * rowStride;
+			for (int x = 0; x < width; x++) {
+				Integer argb = readEmfPlusPixel(payload, rowOffset, x, pixelFormat, rowStride, palette);
+				if (argb == null) {
+					return null;
+				}
+				bitmap.setRGB(x, y, argb.intValue());
+			}
+		}
+		try {
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			ImageIO.write(bitmap, "png", out);
+			return out.toByteArray();
+		} catch (IOException e) {
+			return null;
+		}
 	}
 
-	private int findBytes(byte[] data, byte[] pattern) {
-		for (int i = 0; i <= data.length - pattern.length; i++) {
+	private Integer readEmfPlusPixel(byte[] payload, int rowOffset, int x, int pixelFormat,
+			int rowStride, int[] palette) {
+		int pixelOffset;
+		int a = 0xFF;
+		int r;
+		int g;
+		int b;
+		if ((pixelFormat & EMF_PLUS_PIXEL_FORMAT_INDEXED) != 0) {
+			Integer argb = readEmfPlusIndexedPixel(payload, rowOffset, x, pixelFormat, rowStride, palette);
+			if (argb == null) {
+				return null;
+			}
+			return argb;
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_24BPP_RGB) {
+			pixelOffset = rowOffset + x * 3;
+			if (x * 3 + 2 >= rowStride || payload.length < pixelOffset + 3) {
+				return null;
+			}
+			b = payload[pixelOffset] & 0xFF;
+			g = payload[pixelOffset + 1] & 0xFF;
+			r = payload[pixelOffset + 2] & 0xFF;
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_32BPP_RGB
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_32BPP_ARGB
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_32BPP_PARGB) {
+			pixelOffset = rowOffset + x * 4;
+			if (x * 4 + 3 >= rowStride || payload.length < pixelOffset + 4) {
+				return null;
+			}
+			b = payload[pixelOffset] & 0xFF;
+			g = payload[pixelOffset + 1] & 0xFF;
+			r = payload[pixelOffset + 2] & 0xFF;
+			if (pixelFormat != EMF_PLUS_PIXEL_FORMAT_32BPP_RGB) {
+				a = payload[pixelOffset + 3] & 0xFF;
+				if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_32BPP_PARGB && a > 0 && a < 0xFF) {
+					r = Math.min(0xFF, r * 0xFF / a);
+					g = Math.min(0xFF, g * 0xFF / a);
+					b = Math.min(0xFF, b * 0xFF / a);
+				}
+			}
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_555
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_565
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_ARGB_1555
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_GRAYSCALE) {
+			pixelOffset = rowOffset + x * 2;
+			if (x * 2 + 1 >= rowStride || payload.length < pixelOffset + 2) {
+				return null;
+			}
+			int value = readUInt16(payload, pixelOffset);
+			if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_GRAYSCALE) {
+				r = expandEmfPlusChannel(value, 16);
+				g = r;
+				b = r;
+			} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_ARGB_1555) {
+				a = (value & 0x8000) != 0 ? 0xFF : 0;
+				r = expandEmfPlusChannel((value >>> 10) & 0x1F, 5);
+				g = expandEmfPlusChannel((value >>> 5) & 0x1F, 5);
+				b = expandEmfPlusChannel(value & 0x1F, 5);
+			} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_16BPP_RGB_565) {
+				r = expandEmfPlusChannel((value >>> 11) & 0x1F, 5);
+				g = expandEmfPlusChannel((value >>> 5) & 0x3F, 6);
+				b = expandEmfPlusChannel(value & 0x1F, 5);
+			} else {
+				r = expandEmfPlusChannel((value >>> 10) & 0x1F, 5);
+				g = expandEmfPlusChannel((value >>> 5) & 0x1F, 5);
+				b = expandEmfPlusChannel(value & 0x1F, 5);
+			}
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_48BPP_RGB) {
+			pixelOffset = rowOffset + x * 6;
+			if (x * 6 + 5 >= rowStride || payload.length < pixelOffset + 6) {
+				return null;
+			}
+			b = expandEmfPlusChannel(readUInt16(payload, pixelOffset), 16);
+			g = expandEmfPlusChannel(readUInt16(payload, pixelOffset + 2), 16);
+			r = expandEmfPlusChannel(readUInt16(payload, pixelOffset + 4), 16);
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_64BPP_ARGB
+				|| pixelFormat == EMF_PLUS_PIXEL_FORMAT_64BPP_PARGB) {
+			pixelOffset = rowOffset + x * 8;
+			if (x * 8 + 7 >= rowStride || payload.length < pixelOffset + 8) {
+				return null;
+			}
+			int b16 = readUInt16(payload, pixelOffset);
+			int g16 = readUInt16(payload, pixelOffset + 2);
+			int r16 = readUInt16(payload, pixelOffset + 4);
+			int a16 = readUInt16(payload, pixelOffset + 6);
+			if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_64BPP_PARGB && a16 > 0 && a16 < 0xFFFF) {
+				r16 = Math.min(0xFFFF, r16 * 0xFFFF / a16);
+				g16 = Math.min(0xFFFF, g16 * 0xFFFF / a16);
+				b16 = Math.min(0xFFFF, b16 * 0xFFFF / a16);
+			}
+			a = expandEmfPlusChannel(a16, 16);
+			r = expandEmfPlusChannel(r16, 16);
+			g = expandEmfPlusChannel(g16, 16);
+			b = expandEmfPlusChannel(b16, 16);
+		} else {
+			return null;
+		}
+		return Integer.valueOf((a << 24) | (r << 16) | (g << 8) | b);
+	}
+
+	private Integer readEmfPlusIndexedPixel(byte[] payload, int rowOffset, int x, int pixelFormat,
+			int rowStride, int[] palette) {
+		if (palette == null) {
+			return null;
+		}
+		int index;
+		if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_8BPP_INDEXED) {
+			if (x >= rowStride || payload.length <= rowOffset + x) {
+				return null;
+			}
+			index = payload[rowOffset + x] & 0xFF;
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_4BPP_INDEXED) {
+			int pixelOffset = rowOffset + x / 2;
+			if (x / 2 >= rowStride || payload.length <= pixelOffset) {
+				return null;
+			}
+			int value = payload[pixelOffset] & 0xFF;
+			index = (x & 1) == 0 ? (value >>> 4) & 0x0F : value & 0x0F;
+		} else if (pixelFormat == EMF_PLUS_PIXEL_FORMAT_1BPP_INDEXED) {
+			int pixelOffset = rowOffset + x / 8;
+			if (x / 8 >= rowStride || payload.length <= pixelOffset) {
+				return null;
+			}
+			int value = payload[pixelOffset] & 0xFF;
+			index = (value >>> (7 - (x & 7))) & 0x01;
+		} else {
+			return null;
+		}
+		if (index >= palette.length) {
+			return null;
+		}
+		return Integer.valueOf(palette[index]);
+	}
+
+	private int expandEmfPlusChannel(int value, int bits) {
+		return (value * 0xFF + ((1 << bits) - 1) / 2) / ((1 << bits) - 1);
+	}
+
+	private int findBytes(byte[] data, int offset, byte[] pattern) {
+		for (int i = Math.max(0, offset); i <= data.length - pattern.length; i++) {
 			boolean match = true;
 			for (int j = 0; j < pattern.length; j++) {
 				if (data[i + j] != pattern[j]) {
@@ -3280,6 +4112,15 @@ public class SvgGdi implements Gdi {
 				doc.getDocumentElement().appendChild(parentNode);
 			}
 		}
+		clearEmfPlusFallbackSuppression();
+	}
+
+	private void endEmfPlusGetDCMode() {
+		emfPlusGetDCActive = false;
+		clearEmfPlusFallbackSuppression();
+	}
+
+	private void clearEmfPlusFallbackSuppression() {
 		emfPlusFallbackParent = null;
 		emfPlusFallbackKeepNode = null;
 		emfPlusFallbackRootKeepNode = null;
@@ -3376,6 +4217,29 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
+	private static class PendingEmfPlusObject {
+		private final int objectType;
+		private int totalObjectSize;
+		private final ByteArrayOutputStream data = new ByteArrayOutputStream();
+
+		private PendingEmfPlusObject(int objectType, int totalObjectSize) {
+			this.objectType = objectType;
+			this.totalObjectSize = totalObjectSize;
+		}
+
+		private void write(byte[] payload) {
+			data.write(payload, 0, payload.length);
+		}
+
+		private int size() {
+			return data.size();
+		}
+
+		private byte[] toByteArray() {
+			return data.toByteArray();
+		}
+	}
+
 	private static class EmfPlusBrush {
 		private final int argb;
 		private final int hatchStyle;
@@ -3392,6 +4256,8 @@ public class SvgGdi implements Gdi {
 		private final int[] blendColors;
 		private final double[] brushTransform;
 		private final byte[] textureImage;
+		private final int wrapMode;
+		private final boolean gammaCorrected;
 
 		private EmfPlusBrush(int argb) {
 			this.argb = argb;
@@ -3409,6 +4275,8 @@ public class SvgGdi implements Gdi {
 			this.blendColors = null;
 			this.brushTransform = null;
 			this.textureImage = null;
+			this.wrapMode = -1;
+			this.gammaCorrected = false;
 		}
 
 		private EmfPlusBrush(int hatchStyle, int foreColor, int backColor) {
@@ -3427,6 +4295,8 @@ public class SvgGdi implements Gdi {
 			this.blendColors = null;
 			this.brushTransform = null;
 			this.textureImage = null;
+			this.wrapMode = -1;
+			this.gammaCorrected = false;
 		}
 
 		private EmfPlusBrush(byte[] textureImage, double[] brushTransform) {
@@ -3445,55 +4315,69 @@ public class SvgGdi implements Gdi {
 			this.blendColors = null;
 			this.brushTransform = brushTransform;
 			this.textureImage = textureImage;
+			this.wrapMode = -1;
+			this.gammaCorrected = false;
 		}
 
 		private EmfPlusBrush(double[] linearGradientRect, int startColor, int endColor) {
-			this(linearGradientRect, startColor, endColor, null, null, null);
+			this(linearGradientRect, startColor, endColor, null, null, null, EMF_PLUS_WRAP_MODE_TILE, false);
 		}
 
 		private EmfPlusBrush(double[] linearGradientRect, int startColor, int endColor,
 				double[] blendPositions, int[] blendColors) {
-			this(linearGradientRect, startColor, endColor, blendPositions, blendColors, null);
+			this(linearGradientRect, startColor, endColor, blendPositions, blendColors, null,
+					EMF_PLUS_WRAP_MODE_TILE, false);
 		}
 
 		private EmfPlusBrush(double[] linearGradientRect, int startColor, int endColor,
-				double[] blendPositions, int[] blendColors, double[] brushTransform) {
+				double[] blendPositions, int[] blendColors, double[] brushTransform, int wrapMode) {
+			this(linearGradientRect, startColor, endColor, blendPositions, blendColors, brushTransform, wrapMode, false);
+		}
+
+		private EmfPlusBrush(double[] linearGradientRect, int startColor, int endColor,
+				double[] blendPositions, int[] blendColors, double[] brushTransform, int wrapMode,
+				boolean gammaCorrected) {
 			this.argb = 0;
 			this.hatchStyle = -1;
 			this.foreColor = 0;
 			this.backColor = 0;
-				this.linearGradientRect = linearGradientRect;
-				this.startColor = startColor;
-				this.endColor = endColor;
-				this.pathGradientCenter = null;
-				this.pathGradientBounds = null;
-				this.centerColor = 0;
-				this.surroundColor = 0;
-				this.blendPositions = blendPositions;
-				this.blendColors = blendColors;
-				this.brushTransform = brushTransform;
-				this.textureImage = null;
-			}
-
-			private EmfPlusBrush(double[] pathGradientCenter, double[] pathGradientBounds,
-					int centerColor, int surroundColor, double[] brushTransform) {
-				this.argb = 0;
-				this.hatchStyle = -1;
-				this.foreColor = 0;
-				this.backColor = 0;
-				this.linearGradientRect = null;
-				this.startColor = 0;
-				this.endColor = 0;
-				this.pathGradientCenter = pathGradientCenter;
-				this.pathGradientBounds = pathGradientBounds;
-				this.centerColor = centerColor;
-				this.surroundColor = surroundColor;
-				this.blendPositions = null;
-				this.blendColors = null;
-				this.brushTransform = brushTransform;
-				this.textureImage = null;
-			}
+			this.linearGradientRect = linearGradientRect;
+			this.startColor = startColor;
+			this.endColor = endColor;
+			this.pathGradientCenter = null;
+			this.pathGradientBounds = null;
+			this.centerColor = 0;
+			this.surroundColor = 0;
+			this.blendPositions = blendPositions;
+			this.blendColors = blendColors;
+			this.brushTransform = brushTransform;
+			this.textureImage = null;
+			this.wrapMode = wrapMode;
+			this.gammaCorrected = gammaCorrected;
 		}
+
+		private EmfPlusBrush(double[] pathGradientCenter, double[] pathGradientBounds,
+				int centerColor, int surroundColor, double[] blendPositions, int[] blendColors,
+				double[] brushTransform, int wrapMode) {
+			this.argb = 0;
+			this.hatchStyle = -1;
+			this.foreColor = 0;
+			this.backColor = 0;
+			this.linearGradientRect = null;
+			this.startColor = 0;
+			this.endColor = 0;
+			this.pathGradientCenter = pathGradientCenter;
+			this.pathGradientBounds = pathGradientBounds;
+			this.centerColor = centerColor;
+			this.surroundColor = surroundColor;
+			this.blendPositions = blendPositions;
+			this.blendColors = blendColors;
+			this.brushTransform = brushTransform;
+			this.textureImage = null;
+			this.wrapMode = wrapMode;
+			this.gammaCorrected = false;
+		}
+	}
 
 	private static class EmfPlusBlendColors {
 		private final double[] positions;
@@ -3521,32 +4405,41 @@ public class SvgGdi implements Gdi {
 		private final int startCap;
 		private final int endCap;
 		private final int lineJoin;
+		private final double miterLimit;
 		private final int lineStyle;
+		private final int dashCap;
 		private final double dashOffset;
 		private final double[] dashPattern;
+		private final double[] transform;
 
 		private EmfPlusPen(double width, EmfPlusBrush brush) {
-			this(width, brush, 0, 0, 0, 0, 0.0, null);
+			this(width, brush, 0, 0, 0, 0.0, 0, 0, 0.0, null, null);
 		}
 
 		private EmfPlusPen(double width, EmfPlusBrush brush, int startCap, int endCap,
-				int lineJoin, int lineStyle, double dashOffset, double[] dashPattern) {
+				int lineJoin, double miterLimit, int lineStyle, int dashCap, double dashOffset,
+				double[] dashPattern, double[] transform) {
 			this.width = width;
 			this.brush = brush;
 			this.startCap = startCap;
 			this.endCap = endCap;
 			this.lineJoin = lineJoin;
+			this.miterLimit = miterLimit;
 			this.lineStyle = lineStyle;
+			this.dashCap = dashCap;
 			this.dashOffset = dashOffset;
 			this.dashPattern = dashPattern;
+			this.transform = transform;
 		}
 	}
 
 	private static class EmfPlusPath {
+		private final int fillMode;
 		private final double[][] points;
 		private final byte[] types;
 
-		private EmfPlusPath(double[][] points, byte[] types) {
+		private EmfPlusPath(int fillMode, double[][] points, byte[] types) {
+			this.fillMode = fillMode;
 			this.points = points;
 			this.types = types;
 		}
@@ -3613,11 +4506,15 @@ public class SvgGdi implements Gdi {
 		private final int flags;
 		private final int alignment;
 		private final int lineAlign;
+		private final int hotkeyPrefix;
+		private final double tracking;
 
-		private EmfPlusStringFormat(int flags, int alignment, int lineAlign) {
+		private EmfPlusStringFormat(int flags, int alignment, int lineAlign, int hotkeyPrefix, double tracking) {
 			this.flags = flags;
 			this.alignment = alignment;
 			this.lineAlign = lineAlign;
+			this.hotkeyPrefix = hotkeyPrefix;
+			this.tracking = tracking;
 		}
 	}
 
@@ -5342,7 +6239,11 @@ public class SvgGdi implements Gdi {
 
 	public void footer() {
 		flushPendingEmf();
-		removeEmfPlusFallbackAfterSupportedDraw();
+		if (emfPlusGetDCActive) {
+			endEmfPlusGetDCMode();
+		} else {
+			removeEmfPlusFallbackAfterSupportedDraw();
+		}
 
 		Element root = doc.getDocumentElement();
 		int width = dc.getViewportWidth() != 0 ? dc.getViewportWidth() : dc.getWindowWidth();

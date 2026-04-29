@@ -35,7 +35,7 @@ mvn package
 
 ## History
 
-- 2026-04-30: Improve EMF+ curve, text, clipping/offset clip, region/empty/infinite/intersect/union/xor/exclude/complement region, world/page transform, interpolation mode, stroke-fill path, pen dash/cap/join data, image source rectangle clipping, linear gradient/preset color/horizontal and vertical blend factor/transform brush, path gradient brush, hatch brush, and texture brush support.
+- 2026-04-30: Improve EMF+ GetDC, raw/indexed/high-depth/compressed bitmap images, continued object records, curve, anti-alias mode, pixel offset/compositing quality/compositing mode, terminal-server graphics state/clip including compressed clip, container state/transform, text/layout clipping/text rendering hint/text contrast/hotkey prefix/right-to-left/tracking, path fill mode, clipping/offset clip/xor/complement clip combine, region/empty/infinite/intersect/union/xor/exclude/complement region, world/page transform, rendering origin, interpolation mode, stroke-fill path, pen unit/dash/dash cap/cap/join/miter/transform data, image source rectangle clipping, linear gradient/preset color/horizontal and vertical blend factor/gamma correction/transform/wrap mode brush, path gradient/preset color/blend factor/wrap mode brush, hatch brush, and texture brush support.
 - 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.

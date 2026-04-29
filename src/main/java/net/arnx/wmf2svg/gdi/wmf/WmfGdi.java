@@ -99,7 +99,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[12 + entries.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_ANIMATE_PALETTE);
+		pos = setUint16(record, pos, META_ANIMATEPALETTE);
 		pos = setUint16(record, pos, entries.length);
 		pos = setUint16(record, pos, startIndex);
 		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
@@ -122,7 +122,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[22];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_ARC);
+		pos = setUint16(record, pos, META_ARC);
 		pos = setInt16(record, pos, eya);
 		pos = setInt16(record, pos, exa);
 		pos = setInt16(record, pos, sya);
@@ -150,7 +150,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[22 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_BIT_BLT);
+		pos = setUint16(record, pos, META_BITBLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
@@ -177,7 +177,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[22];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CHORD);
+		pos = setUint16(record, pos, META_CHORD);
 		pos = setInt16(record, pos, eya);
 		pos = setInt16(record, pos, exa);
 		pos = setInt16(record, pos, sya);
@@ -201,7 +201,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_BRUSH_INDIRECT);
+		pos = setUint16(record, pos, META_CREATEBRUSHINDIRECT);
 		pos = setUint16(record, pos, style);
 		pos = setInt32(record, pos, color);
 		pos = setUint16(record, pos, hatch);
@@ -228,7 +228,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[24 + (faceName.length + faceName.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_FONT_INDIRECT);
+		pos = setUint16(record, pos, META_CREATEFONTINDIRECT);
 		pos = setInt16(record, pos, height);
 		pos = setInt16(record, pos, width);
 		pos = setInt16(record, pos, escapement);
@@ -257,7 +257,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10 + entries.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_PALETTE);
+		pos = setUint16(record, pos, META_CREATEPALETTE);
 		pos = setUint16(record, pos, version);
 		pos = setUint16(record, pos, entries.length);
 		for (int i = 0; i < entries.length; i++) {
@@ -274,7 +274,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[6 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_PATTERN_BRUSH);
+		pos = setUint16(record, pos, META_CREATEPATTERNBRUSH);
 		pos = setBytes(record, pos, image);
 		if (image.length%2 == 1) pos = setByte(record, pos, 0);
 		records.add(record);
@@ -288,7 +288,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[16];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_PEN_INDIRECT);
+		pos = setUint16(record, pos, META_CREATEPENINDIRECT);
 		pos = setUint16(record, pos, style);
 		pos = setInt16(record, pos, width);
 		pos = setInt16(record, pos, 0);
@@ -304,7 +304,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_CREATE_RECT_RGN);
+		pos = setUint16(record, pos, META_CREATEREGION);
 		pos = setInt16(record, pos, bottom);
 		pos = setInt16(record, pos, right);
 		pos = setInt16(record, pos, top);
@@ -328,7 +328,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_DELETE_OBJECT);
+		pos = setUint16(record, pos, META_DELETEOBJECT);
 		pos = setUint16(record, pos, ((WmfObject)obj).getID());
 		records.add(record);
 
@@ -352,7 +352,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[((image != null) ? 22 : 24) + (imageLength + imageLength%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_DIB_BIT_BLT);
+		pos = setUint16(record, pos, META_DIBBITBLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sy);
 		pos = setInt16(record, pos, sx);
@@ -374,7 +374,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_DIB_CREATE_PATTERN_BRUSH);
+		pos = setUint16(record, pos, META_DIBCREATEPATTERNBRUSH);
 		pos = setInt32(record, pos, usage);
 		pos = setBytes(record, pos, image);
 		if (image.length%2 == 1) pos = setByte(record, pos, 0);
@@ -391,7 +391,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[26 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_DIB_STRETCH_BLT);
+		pos = setUint16(record, pos, META_DIBSTRETCHBLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sh);
 		pos = setInt16(record, pos, sw);
@@ -410,7 +410,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_ELLIPSE);
+		pos = setUint16(record, pos, META_ELLIPSE);
 		pos = setInt16(record, pos, ey);
 		pos = setInt16(record, pos, ex);
 		pos = setInt16(record, pos, sy);
@@ -426,7 +426,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10 + (data.length + data.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_ESCAPE);
+		pos = setUint16(record, pos, META_ESCAPE);
 		pos = setBytes(record, pos, data);
 		if (data.length%2 == 1) pos = setByte(record, pos, 0);
 		records.add(record);
@@ -440,7 +440,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_EXCLUDE_CLIP_RECT);
+		pos = setUint16(record, pos, META_EXCLUDECLIPRECT);
 		pos = setInt16(record, pos, bottom);
 		pos = setInt16(record, pos, right);
 		pos = setInt16(record, pos, top);
@@ -455,7 +455,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[16];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_EXT_FLOOD_FILL);
+		pos = setUint16(record, pos, META_EXTFLOODFILL);
 		pos = setUint16(record, pos, type);
 		pos = setInt32(record, pos, color);
 		pos = setInt16(record, pos, y);
@@ -471,7 +471,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14 + ((rect != null) ? 8 : 0) + (text.length + text.length%2) + (dxLength * 2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_EXT_TEXT_OUT);
+		pos = setUint16(record, pos, META_EXTTEXTOUT);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		pos = setInt16(record, pos, text.length);
@@ -530,7 +530,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_FILL_RGN);
+		pos = setUint16(record, pos, META_FILLREGION);
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		records.add(record);
@@ -540,7 +540,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[16];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_FLOOD_FILL);
+		pos = setUint16(record, pos, META_FLOODFILL);
 		pos = setInt32(record, pos, color);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
@@ -559,7 +559,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_FRAME_RGN);
+		pos = setUint16(record, pos, META_FRAMEREGION);
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		pos = setUint16(record, pos, ((WmfBrush)brush).getID());
 		pos = setInt16(record, pos, h);
@@ -571,7 +571,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[16];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_INTERSECT_CLIP_RECT);
+		pos = setUint16(record, pos, META_INTERSECTCLIPRECT);
 		pos = setInt16(record, pos, bottom);
 		pos = setInt16(record, pos, right);
 		pos = setInt16(record, pos, top);
@@ -583,7 +583,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_INVERT_RGN);
+		pos = setUint16(record, pos, META_INVERTREGION);
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		records.add(record);
 	}
@@ -592,7 +592,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_LINE_TO);
+		pos = setUint16(record, pos, META_LINETO);
 		pos = setInt16(record, pos, ey);
 		pos = setInt16(record, pos, ex);
 		records.add(record);
@@ -604,7 +604,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_MOVE_TO_EX);
+		pos = setUint16(record, pos, META_MOVETO);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -616,7 +616,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_OFFSET_CLIP_RGN);
+		pos = setUint16(record, pos, META_OFFSETCLIPRGN);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -626,7 +626,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_OFFSET_VIEWPORT_ORG_EX);
+		pos = setUint16(record, pos, META_OFFSETVIEWPORTORG);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -638,7 +638,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_OFFSET_WINDOW_ORG_EX);
+		pos = setUint16(record, pos, META_OFFSETWINDOWORG);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -650,7 +650,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_PAINT_RGN);
+		pos = setUint16(record, pos, META_PAINTREGION);
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		records.add(record);
 	}
@@ -659,7 +659,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[18];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_PAT_BLT);
+		pos = setUint16(record, pos, META_PATBLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, height);
 		pos = setInt16(record, pos, width);
@@ -672,7 +672,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[22];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_PIE);
+		pos = setUint16(record, pos, META_PIE);
 		pos = setInt16(record, pos, eyr);
 		pos = setInt16(record, pos, exr);
 		pos = setInt16(record, pos, syr);
@@ -696,7 +696,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8 + points.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_POLYGON);
+		pos = setUint16(record, pos, META_POLYGON);
 		pos = setInt16(record, pos, points.length);
 		for (int i = 0; i < points.length; i++) {
 			pos = setInt16(record, pos, points[i].x);
@@ -709,7 +709,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8 + points.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_POLYLINE);
+		pos = setUint16(record, pos, META_POLYLINE);
 		pos = setInt16(record, pos, points.length);
 		for (int i = 0; i < points.length; i++) {
 			pos = setInt16(record, pos, points[i].x);
@@ -726,7 +726,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[length];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_POLY_POLYGON);
+		pos = setUint16(record, pos, META_POLYPOLYGON);
 		pos = setInt16(record, pos, points.length);
 		for (int i = 0; i < points.length; i++) {
 			pos = setInt16(record, pos, points[i].length);
@@ -764,7 +764,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[6];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_REALIZE_PALETTE);
+		pos = setUint16(record, pos, META_REALIZEPALETTE);
 		records.add(record);
 	}
 
@@ -772,7 +772,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_RESTORE_DC);
+		pos = setUint16(record, pos, META_RESTOREDC);
 		pos = setInt16(record, pos, savedDC);
 		records.add(record);
 	}
@@ -781,7 +781,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_RECTANGLE);
+		pos = setUint16(record, pos, META_RECTANGLE);
 		pos = setInt16(record, pos, ey);
 		pos = setInt16(record, pos, ex);
 		pos = setInt16(record, pos, sy);
@@ -793,7 +793,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_RESIZE_PALETTE);
+		pos = setUint16(record, pos, META_RESIZEPALETTE);
 		pos = setUint16(record, pos, entries);
 		records.add(record);
 	}
@@ -802,7 +802,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[18];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_ROUND_RECT);
+		pos = setUint16(record, pos, META_ROUNDRECT);
 		pos = setInt16(record, pos, rh);
 		pos = setInt16(record, pos, rw);
 		pos = setInt16(record, pos, ey);
@@ -816,7 +816,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[6];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SAVE_DC);
+		pos = setUint16(record, pos, META_SAVEDC);
 		records.add(record);
 	}
 
@@ -824,7 +824,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SCALE_VIEWPORT_EXT_EX);
+		pos = setUint16(record, pos, META_SCALEVIEWPORTEXT);
 		pos = setInt16(record, pos, yd);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, xd);
@@ -838,7 +838,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SCALE_WINDOW_EXT_EX);
+		pos = setUint16(record, pos, META_SCALEWINDOWEXT);
 		pos = setInt16(record, pos, yd);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, xd);
@@ -852,7 +852,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SELECT_CLIP_RGN);
+		pos = setUint16(record, pos, META_SELECTCLIPREGION);
 		pos = setUint16(record, pos, ((WmfRegion)rgn).getID());
 		records.add(record);
 	}
@@ -869,7 +869,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SELECT_OBJECT);
+		pos = setUint16(record, pos, META_SELECTOBJECT);
 		pos = setUint16(record, pos, ((WmfObject)obj).getID());
 		records.add(record);
 
@@ -886,7 +886,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SELECT_PALETTE);
+		pos = setUint16(record, pos, META_SELECTPALETTE);
 		pos = setInt16(record, pos, mode ? 1 : 0);
 		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
 		records.add(record);
@@ -896,7 +896,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_BK_COLOR);
+		pos = setUint16(record, pos, META_SETBKCOLOR);
 		pos = setInt32(record, pos, color);
 		records.add(record);
 	}
@@ -905,7 +905,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_BK_MODE);
+		pos = setUint16(record, pos, META_SETBKMODE);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -927,7 +927,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[24 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_DIBITS_TO_DEVICE);
+		pos = setUint16(record, pos, META_SETDIBTODEV);
 		pos = setUint16(record, pos, colorUse);
 		pos = setUint16(record, pos, scanlines);
 		pos = setUint16(record, pos, startscan);
@@ -946,7 +946,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_LAYOUT);
+		pos = setUint16(record, pos, META_SETLAYOUT);
 		pos = setUint32(record, pos, layout);
 		records.add(record);
 	}
@@ -955,7 +955,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_MAP_MODE);
+		pos = setUint16(record, pos, META_SETMAPMODE);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -964,7 +964,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_MAPPER_FLAGS);
+		pos = setUint16(record, pos, META_SETMAPPERFLAGS);
 		pos = setUint32(record, pos, flags);
 		records.add(record);
 	}
@@ -993,7 +993,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[12 + entries.length * 4];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_PALETTE_ENTRIES);
+		pos = setUint16(record, pos, META_SETPALENTRIES);
 		pos = setUint16(record, pos, entries.length);
 		pos = setUint16(record, pos, startIndex);
 		pos = setUint16(record, pos, ((WmfPalette)palette).getID());
@@ -1007,7 +1007,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[14];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_PIXEL);
+		pos = setUint16(record, pos, META_SETPIXEL);
 		pos = setInt32(record, pos, color);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
@@ -1018,7 +1018,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_POLY_FILL_MODE);
+		pos = setUint16(record, pos, META_SETPOLYFILLMODE);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -1027,7 +1027,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_REL_ABS);
+		pos = setUint16(record, pos, META_SETRELABS);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -1036,7 +1036,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_ROP2);
+		pos = setUint16(record, pos, META_SETROP2);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -1045,7 +1045,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_STRETCH_BLT_MODE);
+		pos = setUint16(record, pos, META_SETSTRETCHBLTMODE);
 		pos = setInt16(record, pos, mode);
 		records.add(record);
 	}
@@ -1054,7 +1054,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_TEXT_ALIGN);
+		pos = setUint16(record, pos, META_SETTEXTALIGN);
 		pos = setInt16(record, pos, align);
 		records.add(record);
 
@@ -1065,7 +1065,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[8];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_TEXT_CHARACTER_EXTRA);
+		pos = setUint16(record, pos, META_SETTEXTCHAREXTRA);
 		pos = setInt16(record, pos, extra);
 		records.add(record);
 	}
@@ -1074,7 +1074,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_TEXT_COLOR);
+		pos = setUint16(record, pos, META_SETTEXTCOLOR);
 		pos = setInt32(record, pos, color);
 		records.add(record);
 	}
@@ -1083,7 +1083,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_TEXT_JUSTIFICATION);
+		pos = setUint16(record, pos, META_SETTEXTJUSTIFICATION);
 		pos = setInt16(record, pos, breakCount);
 		pos = setInt16(record, pos, breakExtra);
 		records.add(record);
@@ -1093,7 +1093,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_VIEWPORT_EXT_EX);
+		pos = setUint16(record, pos, META_SETVIEWPORTEXT);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -1103,7 +1103,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_VIEWPORT_ORG_EX);
+		pos = setUint16(record, pos, META_SETVIEWPORTORG);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -1113,7 +1113,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_WINDOW_EXT_EX);
+		pos = setUint16(record, pos, META_SETWINDOWEXT);
 		pos = setInt16(record, pos, height);
 		pos = setInt16(record, pos, width);
 		records.add(record);
@@ -1123,7 +1123,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[10];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_SET_WINDOW_ORG_EX);
+		pos = setUint16(record, pos, META_SETWINDOWORG);
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
@@ -1134,7 +1134,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[26 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_STRETCH_BLT);
+		pos = setUint16(record, pos, META_STRETCHBLT);
 		pos = setUint32(record, pos, rop);
 		pos = setInt16(record, pos, sh);
 		pos = setInt16(record, pos, sw);
@@ -1154,7 +1154,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[28 + (image.length + image.length%2)];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_STRETCH_DIBITS);
+		pos = setUint16(record, pos, META_STRETCHDIB);
 		pos = setUint32(record, pos, rop);
 		pos = setUint16(record, pos, usage);
 		pos = setInt16(record, pos, sh);
@@ -1179,7 +1179,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		byte[] record = new byte[12 + text.length + text.length%2];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
-		pos = setUint16(record, pos, RECORD_TEXT_OUT);
+		pos = setUint16(record, pos, META_TEXTOUT);
 		pos = setInt16(record, pos, text.length);
 		pos = setBytes(record, pos, text);
 		if (text.length%2 == 1) pos = setByte(record, pos, 0);

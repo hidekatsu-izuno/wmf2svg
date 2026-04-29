@@ -98,23 +98,23 @@ public class WmfParser implements Parser, WmfConstants {
 				int size = (int) in.readUint32() - 3;
 				int id = in.readUint16();
 
-				if (id == RECORD_EOF) {
+				if (id == META_EOF) {
 					break; // Last record
 				}
 
 				in.setCount(0);
 
-				if (enhancedMetafileComment && id != RECORD_ESCAPE && !isEnhancedMetafileStateRecord(id)) {
+				if (enhancedMetafileComment && id != META_ESCAPE && !isEnhancedMetafileStateRecord(id)) {
 					in.readBytes(size * 2);
 					continue;
 				}
 
 				switch (id) {
-				case RECORD_REALIZE_PALETTE: {
+				case META_REALIZEPALETTE: {
 					gdi.realizePalette();
 					break;
 				}
-				case RECORD_SET_PALETTE_ENTRIES: {
+				case META_SETPALENTRIES: {
 					int[] entries = new int[in.readUint16()];
 					int startIndex = in.readUint16();
 					int objID = in.readUint16();
@@ -124,52 +124,52 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.setPaletteEntries((GdiPalette) objs[objID], startIndex, entries);
 					break;
 				}
-				case RECORD_SET_BK_MODE: {
+				case META_SETBKMODE: {
 					int mode = in.readInt16();
 					gdi.setBkMode(mode);
 					break;
 				}
-				case RECORD_SET_MAP_MODE: {
+				case META_SETMAPMODE: {
 					int mode = in.readInt16();
 					gdi.setMapMode(mode);
 					break;
 				}
-				case RECORD_SET_ROP2: {
+				case META_SETROP2: {
 					int mode = in.readInt16();
 					gdi.setROP2(mode);
 					break;
 				}
-				case RECORD_SET_REL_ABS: {
+				case META_SETRELABS: {
 					int mode = in.readInt16();
 					gdi.setRelAbs(mode);
 					break;
 				}
-				case RECORD_SET_POLY_FILL_MODE: {
+				case META_SETPOLYFILLMODE: {
 					int mode = in.readInt16();
 					gdi.setPolyFillMode(mode);
 					break;
 				}
-				case RECORD_SET_STRETCH_BLT_MODE: {
+				case META_SETSTRETCHBLTMODE: {
 					int mode = in.readInt16();
 					gdi.setStretchBltMode(mode);
 					break;
 				}
-				case RECORD_SET_TEXT_CHARACTER_EXTRA: {
+				case META_SETTEXTCHAREXTRA: {
 					int extra = in.readInt16();
 					gdi.setTextCharacterExtra(extra);
 					break;
 				}
-				case RECORD_RESTORE_DC: {
+				case META_RESTOREDC: {
 					int dc = in.readInt16();
 					gdi.restoreDC(dc);
 					break;
 				}
-				case RECORD_RESIZE_PALETTE: {
+				case META_RESIZEPALETTE: {
 					int entries = in.readUint16();
 					gdi.resizePalette(null, entries);
 					break;
 				}
-				case RECORD_DIB_CREATE_PATTERN_BRUSH: {
+				case META_DIBCREATEPATTERNBRUSH: {
 					int usage = in.readInt32();
 					byte[] image = in.readBytes(size * 2 - in.getCount());
 
@@ -181,46 +181,46 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_SET_LAYOUT: {
+				case META_SETLAYOUT: {
 					long layout = in.readUint32();
 					gdi.setLayout(layout);
 					break;
 				}
-				case RECORD_SET_BK_COLOR: {
+				case META_SETBKCOLOR: {
 					int color = in.readInt32();
 					gdi.setBkColor(color);
 					break;
 				}
-				case RECORD_SET_TEXT_COLOR: {
+				case META_SETTEXTCOLOR: {
 					int color = in.readInt32();
 					gdi.setTextColor(color);
 					break;
 				}
-				case RECORD_OFFSET_VIEWPORT_ORG_EX: {
+				case META_OFFSETVIEWPORTORG: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.offsetViewportOrgEx(x, y, null);
 					break;
 				}
-				case RECORD_LINE_TO: {
+				case META_LINETO: {
 					int ey = in.readInt16();
 					int ex = in.readInt16();
 					gdi.lineTo(ex, ey);
 					break;
 				}
-				case RECORD_MOVE_TO_EX: {
+				case META_MOVETO: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.moveToEx(x, y, null);
 					break;
 				}
-				case RECORD_OFFSET_CLIP_RGN: {
+				case META_OFFSETCLIPRGN: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.offsetClipRgn(x, y);
 					break;
 				}
-				case RECORD_FILL_RGN: {
+				case META_FILLREGION: {
 					int rgnID = in.readUint16();
 					int brushID = in.readUint16();
 					if (isObjectIndex(rgnID, objs) && isObjectIndex(brushID, objs)
@@ -230,12 +230,12 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_SET_MAPPER_FLAGS: {
+				case META_SETMAPPERFLAGS: {
 					long flag = in.readUint32();
 					gdi.setMapperFlags(flag);
 					break;
 				}
-				case RECORD_SELECT_PALETTE: {
+				case META_SELECTPALETTE: {
 					boolean mode = (in.readInt16() != 0);
 					if ((size * 2 - in.getCount()) > 0) {
 						int objID = in.readUint16();
@@ -243,7 +243,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_POLYGON: {
+				case META_POLYGON: {
 					Point[] points = new Point[in.readInt16()];
 					for (int i = 0; i < points.length; i++) {
 						points[i] = new Point(in.readInt16(), in.readInt16());
@@ -251,7 +251,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.polygon(points);
 					break;
 				}
-				case RECORD_POLYLINE: {
+				case META_POLYLINE: {
 					Point[] points = new Point[in.readInt16()];
 					for (int i = 0; i < points.length; i++) {
 						points[i] = new Point(in.readInt16(), in.readInt16());
@@ -259,43 +259,43 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.polyline(points);
 					break;
 				}
-				case RECORD_SET_TEXT_JUSTIFICATION: {
+				case META_SETTEXTJUSTIFICATION: {
 					int breakCount = in.readInt16();
 					int breakExtra = in.readInt16();
 					gdi.setTextJustification(breakExtra, breakCount);
 					break;
 				}
-				case RECORD_SET_WINDOW_ORG_EX: {
+				case META_SETWINDOWORG: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.setWindowOrgEx(x, y, null);
 					break;
 				}
-				case RECORD_SET_WINDOW_EXT_EX: {
+				case META_SETWINDOWEXT: {
 					int height = in.readInt16();
 					int width = in.readInt16();
 					gdi.setWindowExtEx(width, height, null);
 					break;
 				}
-				case RECORD_SET_VIEWPORT_ORG_EX: {
+				case META_SETVIEWPORTORG: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.setViewportOrgEx(x, y, null);
 					break;
 				}
-				case RECORD_SET_VIEWPORT_EXT_EX: {
+				case META_SETVIEWPORTEXT: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.setViewportExtEx(x, y, null);
 					break;
 				}
-				case RECORD_OFFSET_WINDOW_ORG_EX: {
+				case META_OFFSETWINDOWORG: {
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.offsetWindowOrgEx(x, y, null);
 					break;
 				}
-				case RECORD_SCALE_WINDOW_EXT_EX: {
+				case META_SCALEWINDOWEXT: {
 					int yd = in.readInt16();
 					int y = in.readInt16();
 					int xd = in.readInt16();
@@ -303,7 +303,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.scaleWindowExtEx(x, xd, y, yd, null);
 					break;
 				}
-				case RECORD_SCALE_VIEWPORT_EXT_EX: {
+				case META_SCALEVIEWPORTEXT: {
 					int yd = in.readInt16();
 					int y = in.readInt16();
 					int xd = in.readInt16();
@@ -311,7 +311,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.scaleViewportExtEx(x, xd, y, yd, null);
 					break;
 				}
-				case RECORD_EXCLUDE_CLIP_RECT: {
+				case META_EXCLUDECLIPRECT: {
 					int ey = in.readInt16();
 					int ex = in.readInt16();
 					int sy = in.readInt16();
@@ -319,7 +319,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.excludeClipRect(sx, sy, ex, ey);
 					break;
 				}
-				case RECORD_INTERSECT_CLIP_RECT: {
+				case META_INTERSECTCLIPRECT: {
 					int ey = in.readInt16();
 					int ex = in.readInt16();
 					int sy = in.readInt16();
@@ -327,7 +327,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.intersectClipRect(sx, sy, ex, ey);
 					break;
 				}
-				case RECORD_ELLIPSE: {
+				case META_ELLIPSE: {
 					int ey = in.readInt16();
 					int ex = in.readInt16();
 					int sy = in.readInt16();
@@ -335,14 +335,14 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.ellipse(sx, sy, ex, ey);
 					break;
 				}
-				case RECORD_FLOOD_FILL: {
+				case META_FLOODFILL: {
 					int color = in.readInt32();
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.floodFill(x, y, color);
 					break;
 				}
-				case RECORD_FRAME_RGN: {
+				case META_FRAMEREGION: {
 					int rgnID = in.readUint16();
 					int brushID = in.readUint16();
 					int height = in.readInt16();
@@ -354,7 +354,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_ANIMATE_PALETTE: {
+				case META_ANIMATEPALETTE: {
 					int[] entries = new int[in.readUint16()];
 					int startIndex = in.readUint16();
 					int objID = in.readUint16();
@@ -364,7 +364,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.animatePalette((GdiPalette) objs[objID], startIndex, entries);
 					break;
 				}
-				case RECORD_TEXT_OUT: {
+				case META_TEXTOUT: {
 					int count = in.readInt16();
 					byte[] text = in.readBytes(count);
 					if (count % 2 == 1) {
@@ -375,7 +375,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.textOut(x, y, text);
 					break;
 				}
-				case RECORD_POLY_POLYGON: {
+				case META_POLYPOLYGON: {
 					Point[][] points = new Point[in.readInt16()][];
 					for (int i = 0; i < points.length; i++) {
 						points[i] = new Point[in.readInt16()];
@@ -388,7 +388,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.polyPolygon(points);
 					break;
 				}
-				case RECORD_EXT_FLOOD_FILL: {
+				case META_EXTFLOODFILL: {
 					int type = in.readUint16();
 					int color = in.readInt32();
 					int y = in.readInt16();
@@ -396,7 +396,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.extFloodFill(x, y, color, type);
 					break;
 				}
-				case RECORD_RECTANGLE: {
+				case META_RECTANGLE: {
 					int ey = in.readInt16();
 					int ex = in.readInt16();
 					int sy = in.readInt16();
@@ -404,14 +404,14 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.rectangle(sx, sy, ex, ey);
 					break;
 				}
-				case RECORD_SET_PIXEL: {
+				case META_SETPIXEL: {
 					int color = in.readInt32();
 					int y = in.readInt16();
 					int x = in.readInt16();
 					gdi.setPixel(x, y, color);
 					break;
 				}
-				case RECORD_ROUND_RECT: {
+				case META_ROUNDRECT: {
 					int rh = in.readInt16();
 					int rw = in.readInt16();
 					int ey = in.readInt16();
@@ -421,7 +421,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.roundRect(sx, sy, ex, ey, rw, rh);
 					break;
 				}
-				case RECORD_PAT_BLT: {
+				case META_PATBLT: {
 					long rop = in.readUint32();
 					int height = in.readInt16();
 					int width = in.readInt16();
@@ -430,11 +430,11 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.patBlt(x, y, width, height, rop);
 					break;
 				}
-				case RECORD_SAVE_DC: {
+				case META_SAVEDC: {
 					gdi.seveDC();
 					break;
 				}
-				case RECORD_PIE: {
+				case META_PIE: {
 					int eyr = in.readInt16();
 					int exr = in.readInt16();
 					int syr = in.readInt16();
@@ -446,7 +446,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.pie(sx, sy, ex, ey, sxr, syr, exr, eyr);
 					break;
 				}
-				case RECORD_STRETCH_BLT: {
+				case META_STRETCHBLT: {
 					long rop = in.readUint32();
 					int sh = in.readInt16();
 					int sw = in.readInt16();
@@ -462,7 +462,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.stretchBlt(image, dx, dy, dw, dh, sx, sy, sw, sh, rop);
 					break;
 				}
-				case RECORD_ESCAPE: {
+				case META_ESCAPE: {
 					byte[] data = in.readBytes(2 * size);
 					if (!EmfParser.parseEscape(data, gdi)) {
 						gdi.escape(data);
@@ -471,17 +471,17 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_INVERT_RGN: {
+				case META_INVERTREGION: {
 					int rgnID = in.readUint16();
 					gdi.invertRgn((GdiRegion) objs[rgnID]);
 					break;
 				}
-				case RECORD_PAINT_RGN: {
+				case META_PAINTREGION: {
 					int objID = in.readUint16();
 					gdi.paintRgn((GdiRegion) objs[objID]);
 					break;
 				}
-				case RECORD_SELECT_CLIP_RGN: {
+				case META_SELECTCLIPREGION: {
 					int objID = in.readUint16();
 					if (objID == 0 || objID == 0xFFFF) {
 						gdi.selectClipRgn(null);
@@ -490,17 +490,17 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_SELECT_OBJECT: {
+				case META_SELECTOBJECT: {
 					int objID = in.readUint16();
 					gdi.selectObject(objs[objID]);
 					break;
 				}
-				case RECORD_SET_TEXT_ALIGN: {
+				case META_SETTEXTALIGN: {
 					int align = in.readInt16();
 					gdi.setTextAlign(align);
 					break;
 				}
-				case RECORD_ARC: {
+				case META_ARC: {
 					int eya = in.readInt16();
 					int exa = in.readInt16();
 					int sya = in.readInt16();
@@ -512,7 +512,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.arc(sxr, syr, exr, eyr, sxa, sya, exa, eya);
 					break;
 				}
-				case RECORD_CHORD: {
+				case META_CHORD: {
 					int eya = in.readInt16();
 					int exa = in.readInt16();
 					int sya = in.readInt16();
@@ -524,7 +524,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.chord(sxr, syr, exr, eyr, sxa, sya, exa, eya);
 					break;
 				}
-				case RECORD_BIT_BLT: {
+				case META_BITBLT: {
 					long rop = in.readUint32();
 					int sy = in.readInt16();
 					int sx = in.readInt16();
@@ -538,7 +538,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.bitBlt(image, dx, dy, width, height, sx, sy, rop);
 					break;
 				}
-				case RECORD_EXT_TEXT_OUT: {
+				case META_EXTTEXTOUT: {
 					int rsize = size;
 
 					int y = in.readInt16();
@@ -568,7 +568,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.extTextOut(x, y, options, rect, text, dx);
 					break;
 				}
-				case RECORD_SET_DIBITS_TO_DEVICE: {
+				case META_SETDIBTODEV: {
 					int colorUse = in.readUint16();
 					int scanlines = in.readUint16();
 					int startscan = in.readUint16();
@@ -584,7 +584,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.setDIBitsToDevice(dx, dy, dw, dh, sx, sy, startscan, scanlines, image, colorUse);
 					break;
 				}
-				case RECORD_DIB_BIT_BLT: {
+				case META_DIBBITBLT: {
 					boolean isRop = false;
 
 					long rop = in.readUint32();
@@ -608,7 +608,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_DIB_STRETCH_BLT: {
+				case META_DIBSTRETCHBLT: {
 					long rop = in.readUint32();
 					int sh = in.readInt16();
 					int sw = in.readInt16();
@@ -624,7 +624,7 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.dibStretchBlt(image, dx, dy, dw, dh, sx, sy, sw, sh, rop);
 					break;
 				}
-				case RECORD_STRETCH_DIBITS: {
+				case META_STRETCHDIB: {
 					long rop = in.readUint32();
 					int usage = in.readUint16();
 					int sh = in.readInt16();
@@ -641,13 +641,13 @@ public class WmfParser implements Parser, WmfConstants {
 					gdi.stretchDIBits(dx, dy, dw, dh, sx, sy, sw, sh, image, usage, rop);
 					break;
 				}
-				case RECORD_DELETE_OBJECT: {
+				case META_DELETEOBJECT: {
 					int objID = in.readUint16();
 					gdi.deleteObject(objs[objID]);
 					objs[objID] = null;
 					break;
 				}
-				case RECORD_CREATE_PALETTE: {
+				case META_CREATEPALETTE: {
 					int version = in.readUint16();
 					int[] entries = new int[in.readUint16()];
 					for (int i = 0; i < entries.length; i++) {
@@ -662,7 +662,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_CREATE_PATTERN_BRUSH: {
+				case META_CREATEPATTERNBRUSH: {
 					byte[] image = in.readBytes(size * 2 - in.getCount());
 
 					for (int i = 0; i < objs.length; i++) {
@@ -673,7 +673,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_CREATE_PEN_INDIRECT: {
+				case META_CREATEPENINDIRECT: {
 					int style = in.readUint16();
 					int width = in.readInt16();
 					in.readInt16();
@@ -686,7 +686,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_CREATE_FONT_INDIRECT: {
+				case META_CREATEFONTINDIRECT: {
 					int height = in.readInt16();
 					int width = in.readInt16();
 					int escapement = in.readInt16();
@@ -714,7 +714,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_CREATE_BRUSH_INDIRECT: {
+				case META_CREATEBRUSHINDIRECT: {
 					int style = in.readUint16();
 					int color = in.readInt32();
 					int hatch = in.readUint16();
@@ -726,7 +726,7 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					break;
 				}
-				case RECORD_CREATE_RECT_RGN: {
+				case META_CREATEREGION: {
 					if (size >= 11) {
 						in.readInt16();
 						int objectType = in.readInt16();
@@ -769,15 +769,15 @@ public class WmfParser implements Parser, WmfConstants {
 
 	private boolean isEnhancedMetafileStateRecord(int id) {
 		switch (id) {
-		case RECORD_SET_MAP_MODE:
-		case RECORD_SET_WINDOW_ORG_EX:
-		case RECORD_SET_WINDOW_EXT_EX:
-		case RECORD_SET_VIEWPORT_ORG_EX:
-		case RECORD_SET_VIEWPORT_EXT_EX:
-		case RECORD_OFFSET_WINDOW_ORG_EX:
-		case RECORD_OFFSET_VIEWPORT_ORG_EX:
-		case RECORD_SCALE_WINDOW_EXT_EX:
-		case RECORD_SCALE_VIEWPORT_EXT_EX:
+		case META_SETMAPMODE:
+		case META_SETWINDOWORG:
+		case META_SETWINDOWEXT:
+		case META_SETVIEWPORTORG:
+		case META_SETVIEWPORTEXT:
+		case META_OFFSETWINDOWORG:
+		case META_OFFSETVIEWPORTORG:
+		case META_SCALEWINDOWEXT:
+		case META_SCALEVIEWPORTEXT:
 			return true;
 		default:
 			return false;

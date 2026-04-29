@@ -1,39 +1,44 @@
-# wmf2svg - WMF to SVG Converting Tool & Library for Java
+# wmf2svg - WMF/EMF to SVG Converting Tool & Library for Java
 
-This project's goal is to make tool & library for converting wmf to svg.
+This project's goal is to make tool & library for converting wmf/emf to svg.
 
 ## Example
 
 ```
-java -jar wmf2svg-[version].jar [options...] [wmf filename] [svg filename]
+java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg/svgz filename]
 ```
 
 ## Options
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
-- -replace-symbol-font: replace SYMBOL Font to serif or sans-serif Unicode SYMBOL.
+- -replace-symbol-font: replace SYMBOL/Wingdings[23]? Font to serif Unicode symbols.
 
 If you need to compress by gzip, you should use .svgz suffix as svg filename.
 
-It now requires Java 6.0 or later.
+It now requires Java 8.0 or later.
 
 ## Maven repository
 
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
+<version>0.10.2</version>
 ```
 
 ## Build
 
-This project uses Apache Ant to build a wmf2svg jar file.
+This project uses Maven to build a wmf2svg jar file.
 
 ```
-./gradlew jar
+mvn package
 ```
 
 ## History
 
+- 2026-04-30: Improve EMF+ GetDC, raw/indexed/high-depth/compressed bitmap images, continued object records, curve, anti-alias mode, pixel offset/compositing quality/compositing mode, terminal-server graphics state/clip including compressed clip, container state/transform, text/layout clipping/text rendering hint/text contrast/hotkey prefix/right-to-left/tracking/font unit preservation, path fill mode, clipping/offset clip/xor/complement clip combine, region/empty/infinite/intersect/union/xor/exclude/complement region, world/page transform, rendering origin, interpolation/image rendering mode, stroke-fill path, pen unit/dash/dash cap/cap/join/miter/transform data, image source rectangle clipping, linear gradient/preset color/horizontal and vertical blend factor/gamma correction/transform/wrap mode brush, path gradient/preset color/blend factor/focus scale/gamma correction/elliptical bounds/wrap mode brush, hatch brush, and texture brush transform/gamma correction support.
+- 2026-04-29: Fix some bugs
+- 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
+- 2026-04-26: Migrated to Maven build system. And some TODO implemented.
 - 2021-07-12: Fix a bug about images with palette.
 - 2021-06-30: Fix a bug that occurred when using Symbol type fonts.
 - 2018-11-24: Changed to gradle build system.
@@ -53,4 +58,4 @@ This project uses Apache Ant to build a wmf2svg jar file.
 - 2010-09-11: Some bugs fixed.
 - 2009-05-24: wmf2svg version 0.8.3 is supported on Google App Engine/Java.
 
-Copyright (c) 2007-2021 Hidekatsu Izuno, Shunsuke Mori All right reserved.
+Copyright (c) 2007-2026 Hidekatsu Izuno, Shunsuke Mori All right reserved.

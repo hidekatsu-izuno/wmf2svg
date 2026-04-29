@@ -141,6 +141,47 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testMaskBltKeepsDestinationOnZeroMaskWithForegroundRop() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(2, 1, null);
+
+		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, 0xAA000000L | Gdi.NOTSRCCOPY);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("NOTSRCCOPY_FILTER"));
+		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
+		Assert.assertTrue(matcher.find());
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
+		Assert.assertEquals(0, (image.getRGB(1, 0) >>> 24) & 0xFF);
+	}
+
+	@Test
+	public void testMaskBltAcceptsPlainSourceCopyRop() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(2, 1, null);
+
+		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, Gdi.SRCCOPY);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
+		Assert.assertTrue(matcher.find());
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
+		Assert.assertEquals(0, (image.getRGB(1, 0) >>> 24) & 0xFF);
+	}
+
+	@Test
 	public void testNegativeWindowExtentFlipsCoordinatesWithoutViewportExtent() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 10, 10, 96);

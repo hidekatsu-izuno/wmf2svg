@@ -78,6 +78,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private static final String TRANSPARENT_MASK_ROP_USER_DATA = "wmf2svg-transparent-mask-rop";
 	private static final String TRANSPARENT_MASK_ROP_SRCINVERT = "SRCINVERT";
 	private static final long MASKBLT_BACKGROUND_SRCCOPY = 0xCC000000L;
+	private static final long MASKBLT_BACKGROUND_DSTCOPY = 0xAA000000L;
 	private static final long MASKBLT_FOREGROUND_DSTCOPY = 0x00AA0029L;
 	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
 	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
@@ -491,14 +492,30 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
 			return;
 		}
-		if (!isSupportedMaskBltRop(rop)) {
-			log.fine("unsupported MASKBLT ROP4: " + Long.toHexString(rop));
-			return;
-		}
 
-		byte[] masked = createMaskedPng(image, mask, mx, my, false, isMaskBltCopyOnZeroMask(rop));
-		if (masked != null) {
-			appendPngToSvg(masked, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.SRCCOPY, 1.0f);
+		if (isMaskBltCopyOnZeroMask(rop)) {
+			byte[] masked = createMaskedPng(image, mask, mx, my, false, true);
+			if (masked != null) {
+				appendPngToSvg(masked, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.SRCCOPY, 1.0f);
+				return;
+			}
+		} else if (isMaskBltKeepDestinationOnZeroMask(rop)) {
+			long foregroundRop = rop & 0x00FFFFFFL;
+			if (isSupportedMaskedForegroundRop(foregroundRop)) {
+				byte[] masked = createMaskedPng(image, mask, mx, my, false);
+				if (masked != null) {
+					appendPngToSvg(masked, dx, dy, dw, dh, sx, sy, dw, dh, foregroundRop, 1.0f);
+					return;
+				}
+			}
+		} else if ((rop & 0xFF000000L) == 0 && isSupportedMaskedForegroundRop(rop)) {
+			byte[] masked = createMaskedPng(image, mask, mx, my, false);
+			if (masked != null) {
+				appendPngToSvg(masked, dx, dy, dw, dh, sx, sy, dw, dh, rop, 1.0f);
+				return;
+			}
+		} else {
+			log.fine("unsupported MASKBLT ROP4: " + Long.toHexString(rop));
 			return;
 		}
 
@@ -518,14 +535,17 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private boolean isSupportedMaskBltRop(long rop) {
-		return (rop & 0xFF000000L) != 0
-				&& ((rop & 0x00FFFFFFL) == Gdi.SRCCOPY || isMaskBltCopyOnZeroMask(rop));
-	}
-
 	private boolean isMaskBltCopyOnZeroMask(long rop) {
 		return (rop & 0xFF000000L) == MASKBLT_BACKGROUND_SRCCOPY
 				&& (rop & 0x00FFFFFFL) == MASKBLT_FOREGROUND_DSTCOPY;
+	}
+
+	private boolean isMaskBltKeepDestinationOnZeroMask(long rop) {
+		return (rop & 0xFF000000L) == MASKBLT_BACKGROUND_DSTCOPY;
+	}
+
+	private boolean isSupportedMaskedForegroundRop(long rop) {
+		return rop == Gdi.SRCCOPY || dc.getRopFilter(rop) != null;
 	}
 
 	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
@@ -656,7 +676,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void colorCorrectPalette(GdiPalette palette, int startIndex, int entries) {
-		log.fine("unsupported in SVG output: colorCorrectPalette");
+		if (palette == null || entries <= 0) {
+			return;
+		}
 	}
 
 	public GdiBrush createBrushIndirect(int style, int color, int hatch) {
@@ -6669,7 +6691,11 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	byte[] convertBrushPatternToPng(byte[] image, int usage) {
 		try {
-			return convertDibToPng(image, usage, false, null);
+			byte[] png = convertDibToPng(image, usage, false, null);
+			if (png == null && usage == Gdi.DIB_PAL_COLORS) {
+				png = convertDibToPng(image, Gdi.DIB_RGB_COLORS, false, null);
+			}
+			return png;
 		} catch (RuntimeException e) {
 			log.fine("unsupported pattern brush bitmap: " + e.getMessage());
 			return null;

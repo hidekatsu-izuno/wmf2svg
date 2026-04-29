@@ -722,21 +722,18 @@ public class EmfParser implements Parser, EmfConstants {
 	}
 
 	private static void readEscape(byte[] data, Gdi gdi) {
-		if (data.length < 8) {
+		if (data.length < 4) {
 			return;
 		}
 		int escapeFunction = readInt32(data, 0);
-		int count = readInt32(data, 4);
-		if (count < 0 || count > data.length - 8) {
-			return;
-		}
+		int count = data.length - 4;
 
 		byte[] escape = new byte[4 + count];
 		escape[0] = (byte)escapeFunction;
 		escape[1] = (byte)(escapeFunction >>> 8);
 		escape[2] = (byte)count;
 		escape[3] = (byte)(count >>> 8);
-		System.arraycopy(data, 8, escape, 4, count);
+		System.arraycopy(data, 4, escape, 4, count);
 		if (!parseEscape(escape, gdi)) {
 			gdi.escape(escape);
 		}

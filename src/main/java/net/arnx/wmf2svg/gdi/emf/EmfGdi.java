@@ -23,6 +23,8 @@ import net.arnx.wmf2svg.gdi.Trivertex;
 
 public class EmfGdi implements Gdi, EmfConstants {
 	private static final int EXT_LOG_FONT_W_SIZE = 320;
+	private static final int ETO_NO_RECT = 0x00000100;
+	private static final int ETO_SMALL_CHARS = 0x00000200;
 
 	private final List<byte[]> records = new ArrayList<byte[]>();
 	private int nextHandle = 1;
@@ -220,13 +222,21 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	public GdiPatternBrush dibCreatePatternBrush(byte[] image, int usage) {
+		return dibPatternBrushRecord(EMR_CREATEDIBPATTERNBRUSHPT, image, usage);
+	}
+
+	public GdiPatternBrush createMonoBrush(byte[] image, int usage) {
+		return dibPatternBrushRecord(EMR_CREATEMONOBRUSH, image, usage);
+	}
+
+	private GdiPatternBrush dibPatternBrushRecord(int type, byte[] image, int usage) {
 		EmfPatternBrush brush = new EmfPatternBrush(allocateHandle(), copy(image));
 		byte[] dib = brush.getPattern();
 		int bitsOffset = getDibBitsOffset(dib, usage);
 		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
 		int bitsSize = Math.max(0, dib.length - bmiSize);
 		int dibOffset = 32;
-		byte[] record = record(EMR_CREATEDIBPATTERNBRUSHPT, dibOffset - 8 + dib.length);
+		byte[] record = record(type, dibOffset - 8 + dib.length);
 		setInt32(record, 8, brush.id);
 		setInt32(record, 12, usage);
 		setInt32(record, 16, dibOffset);
@@ -251,7 +261,37 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	public void escape(byte[] data) {
-		throw new UnsupportedOperationException("EMF does not support Escape.");
+		byte[] bytes = copy(data);
+		if (bytes.length >= 4) {
+			int escapeFunction = readUInt16(bytes, 0);
+			int count = readUInt16(bytes, 2);
+			int length = Math.min(count, bytes.length - 4);
+			writeEscapeRecord(EMR_EXTESCAPE, escapeFunction, bytes, 4, length);
+		} else {
+			writeEscapeRecord(EMR_EXTESCAPE, 0, bytes, 0, bytes.length);
+		}
+	}
+
+	public void drawEscape(int escapeFunction, byte[] data) {
+		byte[] bytes = copy(data);
+		writeEscapeRecord(EMR_DRAWESCAPE, escapeFunction, bytes, 0, bytes.length);
+	}
+
+	public void extEscape(int escapeFunction, byte[] data) {
+		byte[] bytes = copy(data);
+		writeEscapeRecord(EMR_EXTESCAPE, escapeFunction, bytes, 0, bytes.length);
+	}
+
+	public void namedEscape(int escapeFunction, byte[] driver, byte[] data) {
+		byte[] driverBytes = unicodeNullTerminated(driver);
+		byte[] dataBytes = copy(data);
+		byte[] record = record(EMR_NAMEDESCAPE, 12 + driverBytes.length + dataBytes.length);
+		setInt32(record, 8, escapeFunction);
+		setInt32(record, 12, driverBytes.length);
+		setInt32(record, 16, dataBytes.length);
+		setBytes(record, 20, driverBytes);
+		setBytes(record, 20 + driverBytes.length, dataBytes);
+		records.add(record);
 	}
 
 	public void comment(byte[] data) {
@@ -302,6 +342,38 @@ public class EmfGdi implements Gdi, EmfConstants {
 		extTextOutRecord(EMR_EXTTEXTOUTW, x, y, options, rect, copy(text), lpdx, 2);
 	}
 
+	public void polyTextOutA(Point[] points, int[] options, int[][] rects, byte[][] texts, int[][] lpdx) {
+		polyTextOutRecord(EMR_POLYTEXTOUTA, points, options, rects, texts, lpdx, 1);
+	}
+
+	public void polyTextOutW(Point[] points, int[] options, int[][] rects, byte[][] texts, int[][] lpdx) {
+		polyTextOutRecord(EMR_POLYTEXTOUTW, points, options, rects, texts, lpdx, 2);
+	}
+
+	public void smallTextOut(int x, int y, int options, int[] rect, byte[] text) {
+		byte[] bytes = copy(text);
+		boolean smallChars = (options & ETO_SMALL_CHARS) != 0;
+		int chars = smallChars ? bytes.length : bytes.length / 2;
+		int rectSize = (options & ETO_NO_RECT) == 0 ? 16 : 0;
+		byte[] record = record(EMR_SMALLTEXTOUT, 28 + rectSize + bytes.length);
+		setInt32(record, 8, x);
+		setInt32(record, 12, y);
+		setInt32(record, 16, chars);
+		setInt32(record, 20, options);
+		setInt32(record, 24, 1);
+		setFloat(record, 28, 1);
+		setFloat(record, 32, 1);
+		if (rectSize > 0) {
+			writeRect(record, 36, rect);
+		}
+		setBytes(record, 36 + rectSize, bytes);
+		records.add(record);
+		includePoint(x, y);
+		if (rectSize > 0 && rect != null && rect.length >= 4) {
+			includeRect(rect[0], rect[1], rect[2], rect[3]);
+		}
+	}
+
 	public GdiPen extCreatePen(int style, int width, int color) {
 		EmfPen pen = new EmfPen(allocateHandle(), style, width, color);
 		byte[] record = record(EMR_EXTCREATEPEN, 44);
@@ -320,12 +392,20 @@ public class EmfGdi implements Gdi, EmfConstants {
 		polyPointRecord(EMR_POLYLINETO, points);
 	}
 
+	public void polyDraw(Point[] points, byte[] types) {
+		polyDrawRecord(EMR_POLYDRAW, points, types, false);
+	}
+
 	public void polyPolyline(Point[][] points) {
 		polyPolyPointRecord(EMR_POLYPOLYLINE, points);
 	}
 
 	public void polyBezier16(Point[] points) {
 		polyPointRecord16(EMR_POLYBEZIER16, points);
+	}
+
+	public void polyDraw16(Point[] points, byte[] types) {
+		polyDrawRecord(EMR_POLYDRAW16, points, types, true);
 	}
 
 	public void polygon16(Point[] points) {
@@ -382,6 +462,59 @@ public class EmfGdi implements Gdi, EmfConstants {
 		}
 		records.add(record);
 		includePoint(x, y);
+	}
+
+	private void polyTextOutRecord(int type, Point[] points, int[] options, int[][] rects,
+			byte[][] texts, int[][] lpdx, int charSize) {
+		byte[][] bytes = texts != null ? texts : new byte[0][];
+		int count = bytes.length;
+		byte[][] textValues = new byte[count][];
+		int stringOffset = align4(8 + 32 + count * 40);
+		int payload = stringOffset - 8;
+		for (int i = 0; i < count; i++) {
+			textValues[i] = copy(bytes[i]);
+			payload += textValues[i].length;
+			int[] dx = getIntArray(lpdx, i);
+			if (dx != null) {
+				payload = align4(8 + payload) - 8 + dx.length * 4;
+			}
+			payload = align4(8 + payload) - 8;
+		}
+
+		byte[] record = record(type, payload);
+		writeBounds(record, 8);
+		setInt32(record, 24, 1);
+		setFloat(record, 28, 1);
+		setFloat(record, 32, 1);
+		setInt32(record, 36, count);
+
+		int dataOffset = stringOffset;
+		for (int i = 0; i < count; i++) {
+			Point point = getPoint(points, i);
+			byte[] text = textValues[i];
+			int[] dx = getIntArray(lpdx, i);
+			int charCount = charSize > 1 ? text.length / charSize : text.length;
+			int entryOffset = 40 + i * 40;
+			setInt32(record, entryOffset, point.x);
+			setInt32(record, entryOffset + 4, point.y);
+			setInt32(record, entryOffset + 8, charCount);
+			setInt32(record, entryOffset + 12, dataOffset);
+			setInt32(record, entryOffset + 16, getIntValue(options, i));
+			writeRect(record, entryOffset + 20, getRect(rects, i));
+			setInt32(record, entryOffset + 36, dx != null ? align4(dataOffset + text.length) : 0);
+			setBytes(record, dataOffset, text);
+			if (dx != null) {
+				int dxOffset = align4(dataOffset + text.length);
+				for (int j = 0; j < dx.length; j++) {
+					setInt32(record, dxOffset + j * 4, dx[j]);
+				}
+				dataOffset = align4(dxOffset + dx.length * 4);
+			} else {
+				dataOffset = align4(dataOffset + text.length);
+			}
+			includePoint(point.x, point.y);
+		}
+		records.add(record);
 	}
 
 	public void fillRgn(GdiRegion rgn, GdiBrush brush) {
@@ -551,6 +684,19 @@ public class EmfGdi implements Gdi, EmfConstants {
 		scaleRecord(EMR_SCALEWINDOWEXTEX, x, xd, y, yd);
 	}
 
+	public void setWorldTransform(float[] xform) {
+		byte[] record = record(EMR_SETWORLDTRANSFORM, 24);
+		writeXForm(record, 8, xform);
+		records.add(record);
+	}
+
+	public void modifyWorldTransform(float[] xform, int mode) {
+		byte[] record = record(EMR_MODIFYWORLDTRANSFORM, 28);
+		writeXForm(record, 8, xform);
+		setInt32(record, 32, mode);
+		records.add(record);
+	}
+
 	public void selectClipRgn(GdiRegion rgn) {
 		extSelectClipRgn(rgn, GdiRegion.RGN_COPY);
 	}
@@ -624,8 +770,16 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	public boolean setICMProfile(byte[] profileName) {
+		return setICMProfileRecord(EMR_SETICMPROFILEW, profileName);
+	}
+
+	public boolean setICMProfileA(byte[] profileName) {
+		return setICMProfileRecord(EMR_SETICMPROFILEA, profileName);
+	}
+
+	private boolean setICMProfileRecord(int type, byte[] profileName) {
 		byte[] name = copy(profileName);
-		byte[] record = record(EMR_SETICMPROFILEW, 12 + name.length);
+		byte[] record = record(type, 12 + name.length);
 		setInt32(record, 8, 0);
 		setInt32(record, 12, name.length);
 		setInt32(record, 16, 0);
@@ -795,6 +949,13 @@ public class EmfGdi implements Gdi, EmfConstants {
 		records.add(record);
 	}
 
+	private void writeEscapeRecord(int type, int escapeFunction, byte[] data, int offset, int length) {
+		byte[] record = record(type, 4 + length);
+		setInt32(record, 8, escapeFunction);
+		setBytes(record, 12, data, offset, length);
+		records.add(record);
+	}
+
 	private void polyPointRecord(int type, Point[] points) {
 		Point[] values = points != null ? points : new Point[0];
 		byte[] record = record(type, 20 + values.length * 8);
@@ -811,6 +972,28 @@ public class EmfGdi implements Gdi, EmfConstants {
 		writePointBounds(record, 8, values);
 		setInt32(record, 24, values.length);
 		writePoints16(record, 28, values);
+		records.add(record);
+		includePoints(values);
+	}
+
+	private void polyDrawRecord(int type, Point[] points, byte[] types, boolean point16) {
+		Point[] pointValues = points != null ? points : new Point[0];
+		byte[] typeValues = types != null ? types : new byte[0];
+		int count = Math.min(pointValues.length, typeValues.length);
+		Point[] values = new Point[count];
+		for (int i = 0; i < count; i++) {
+			values[i] = pointValues[i];
+		}
+		int pointSize = point16 ? 4 : 8;
+		byte[] record = record(type, 20 + count * pointSize + count);
+		writePointBounds(record, 8, values);
+		setInt32(record, 24, count);
+		if (point16) {
+			writePoints16(record, 28, values);
+		} else {
+			writePoints(record, 28, values);
+		}
+		setBytes(record, 28 + count * pointSize, typeValues, 0, count);
 		records.add(record);
 		includePoints(values);
 	}
@@ -1195,6 +1378,19 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setFloat(record, pos + 20, 0);
 	}
 
+	private void writeXForm(byte[] record, int pos, float[] xform) {
+		float[] values = new float[] { 1, 0, 0, 1, 0, 0 };
+		if (xform != null) {
+			int length = Math.min(values.length, xform.length);
+			for (int i = 0; i < length; i++) {
+				values[i] = xform[i];
+			}
+		}
+		for (int i = 0; i < values.length; i++) {
+			setFloat(record, pos + i * 4, values[i]);
+		}
+	}
+
 	private byte[] createHeaderRecord() {
 		byte[] record = new byte[88];
 		setInt32(record, 0, EMR_HEADER);
@@ -1287,6 +1483,34 @@ public class EmfGdi implements Gdi, EmfConstants {
 		if (rect != null && rect.length >= 4) {
 			writeRect(record, pos, rect[0], rect[1], rect[2], rect[3]);
 		}
+	}
+
+	private static Point getPoint(Point[] points, int index) {
+		if (points != null && index < points.length && points[index] != null) {
+			return points[index];
+		}
+		return new Point(0, 0);
+	}
+
+	private static int getIntValue(int[] values, int index) {
+		if (values != null && index < values.length) {
+			return values[index];
+		}
+		return 0;
+	}
+
+	private static int[] getRect(int[][] rects, int index) {
+		if (rects != null && index < rects.length) {
+			return rects[index];
+		}
+		return null;
+	}
+
+	private static int[] getIntArray(int[][] values, int index) {
+		if (values != null && index < values.length) {
+			return values[index];
+		}
+		return null;
 	}
 
 	private void writeBounds(byte[] record, int pos) {
@@ -1391,6 +1615,26 @@ public class EmfGdi implements Gdi, EmfConstants {
 		}
 		byte[] dest = new byte[src.length];
 		System.arraycopy(src, 0, dest, 0, src.length);
+		return dest;
+	}
+
+	private static byte[] unicodeNullTerminated(byte[] src) {
+		byte[] bytes = copy(src);
+		boolean terminated = bytes.length >= 2
+				&& bytes[bytes.length - 2] == 0
+				&& bytes[bytes.length - 1] == 0;
+		int length = bytes.length;
+		if ((length & 1) != 0) {
+			length++;
+		}
+		if (!terminated) {
+			length += 2;
+		}
+		if (length == bytes.length) {
+			return bytes;
+		}
+		byte[] dest = new byte[length];
+		System.arraycopy(bytes, 0, dest, 0, bytes.length);
 		return dest;
 	}
 

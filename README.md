@@ -35,6 +35,7 @@ mvn package
 
 ## History
 
+- 2026-04-29: Improve an EMF+ support.
 - 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.

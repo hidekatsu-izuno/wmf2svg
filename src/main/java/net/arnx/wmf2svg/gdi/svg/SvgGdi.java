@@ -81,14 +81,44 @@ public class SvgGdi implements Gdi {
 	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
 	private static final int EMF_PLUS_HEADER_SIZE = 12;
 	private static final int EMF_PLUS_OBJECT = 0x4008;
+	private static final int EMF_PLUS_CLEAR = 0x4009;
+	private static final int EMF_PLUS_FILL_RECTS = 0x400A;
+	private static final int EMF_PLUS_DRAW_RECTS = 0x400B;
+	private static final int EMF_PLUS_FILL_POLYGON = 0x400C;
+	private static final int EMF_PLUS_DRAW_LINES = 0x400D;
+	private static final int EMF_PLUS_FILL_ELLIPSE = 0x400E;
+	private static final int EMF_PLUS_DRAW_ELLIPSE = 0x400F;
+	private static final int EMF_PLUS_FILL_PIE = 0x4010;
+	private static final int EMF_PLUS_DRAW_PIE = 0x4011;
+	private static final int EMF_PLUS_DRAW_ARC = 0x4012;
+	private static final int EMF_PLUS_FILL_PATH = 0x4014;
+	private static final int EMF_PLUS_DRAW_PATH = 0x4015;
+	private static final int EMF_PLUS_FILL_CLOSED_CURVE = 0x4016;
+	private static final int EMF_PLUS_DRAW_CLOSED_CURVE = 0x4017;
+	private static final int EMF_PLUS_DRAW_BEZIERS = 0x4019;
+	private static final int EMF_PLUS_DRAW_IMAGE = 0x401A;
 	private static final int EMF_PLUS_DRAW_IMAGE_POINTS = 0x401B;
 	private static final int EMF_PLUS_SAVE = 0x4025;
 	private static final int EMF_PLUS_RESTORE = 0x4026;
 	private static final int EMF_PLUS_SET_WORLD_TRANSFORM = 0x402A;
 	private static final int EMF_PLUS_RESET_WORLD_TRANSFORM = 0x402B;
 	private static final int EMF_PLUS_MULTIPLY_WORLD_TRANSFORM = 0x402C;
+	private static final int EMF_PLUS_FLAG_SOLID_COLOR = 0x8000;
+	private static final int EMF_PLUS_FLAG_COMPRESSED = 0x4000;
+	private static final int EMF_PLUS_FLAG_CLOSE = 0x2000;
+	private static final int EMF_PLUS_FLAG_RELATIVE = 0x0800;
 	private static final int EMF_PLUS_OBJECT_TYPE_IMAGE = 5;
+	private static final int EMF_PLUS_OBJECT_TYPE_BRUSH = 1;
+	private static final int EMF_PLUS_OBJECT_TYPE_PEN = 2;
+	private static final int EMF_PLUS_OBJECT_TYPE_PATH = 3;
 	private static final int EMF_PLUS_IMAGE_DATA_TYPE_METAFILE = 2;
+	private static final int EMF_PLUS_BRUSH_TYPE_SOLID_COLOR = 0;
+	private static final int EMF_PLUS_PATH_POINT_TYPE_START = 0;
+	private static final int EMF_PLUS_PATH_POINT_TYPE_LINE = 1;
+	private static final int EMF_PLUS_PATH_POINT_TYPE_BEZIER = 3;
+	private static final int EMF_PLUS_PATH_POINT_TYPE_MASK = 0x07;
+	private static final int EMF_PLUS_PATH_POINT_TYPE_CLOSE = 0x80;
+	private static final int EMF_PLUS_PATH_FLAG_RELATIVE = 0x0800;
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
 	private static final int DEFAULT_CANVAS_HEIGHT = 460;
 	private static final int TARGET_DPI = 144;
@@ -108,6 +138,9 @@ public class SvgGdi implements Gdi {
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
 	private Map<Integer, byte[]> emfPlusMetafileImages = new HashMap<Integer, byte[]>();
 	private Map<Integer, byte[]> emfPlusBitmapImages = new HashMap<Integer, byte[]>();
+	private Map<Integer, EmfPlusBrush> emfPlusBrushes = new HashMap<Integer, EmfPlusBrush>();
+	private Map<Integer, EmfPlusPen> emfPlusPens = new HashMap<Integer, EmfPlusPen>();
+	private Map<Integer, EmfPlusPath> emfPlusPaths = new HashMap<Integer, EmfPlusPath>();
 	private double[] emfPlusWorldTransform = new double[] { 1, 0, 0, 1, 0, 0 };
 	private LinkedList<double[]> emfPlusWorldTransformStack = new LinkedList<double[]>();
 	private Node emfPlusFallbackParent = null;
@@ -823,6 +856,38 @@ public class SvgGdi implements Gdi {
 			System.arraycopy(data, offset + EMF_PLUS_HEADER_SIZE, payload, 0, dataSize);
 			if (type == EMF_PLUS_OBJECT) {
 				handleEmfPlusObject(flags, payload);
+			} else if (type == EMF_PLUS_CLEAR) {
+				handleEmfPlusClear(payload);
+			} else if (type == EMF_PLUS_FILL_RECTS) {
+				handleEmfPlusRects(flags, payload, true);
+			} else if (type == EMF_PLUS_DRAW_RECTS) {
+				handleEmfPlusRects(flags, payload, false);
+			} else if (type == EMF_PLUS_FILL_POLYGON) {
+				handleEmfPlusPolygon(flags, payload);
+			} else if (type == EMF_PLUS_DRAW_LINES) {
+				handleEmfPlusDrawLines(flags, payload);
+			} else if (type == EMF_PLUS_FILL_ELLIPSE) {
+				handleEmfPlusEllipse(flags, payload, true);
+			} else if (type == EMF_PLUS_DRAW_ELLIPSE) {
+				handleEmfPlusEllipse(flags, payload, false);
+			} else if (type == EMF_PLUS_FILL_PIE) {
+				handleEmfPlusPie(flags, payload, true);
+			} else if (type == EMF_PLUS_DRAW_PIE) {
+				handleEmfPlusPie(flags, payload, false);
+			} else if (type == EMF_PLUS_DRAW_ARC) {
+				handleEmfPlusDrawArc(flags, payload);
+			} else if (type == EMF_PLUS_FILL_PATH) {
+				handleEmfPlusFillPath(flags, payload);
+			} else if (type == EMF_PLUS_DRAW_PATH) {
+				handleEmfPlusDrawPath(flags, payload);
+			} else if (type == EMF_PLUS_FILL_CLOSED_CURVE) {
+				handleEmfPlusClosedCurve(flags, payload, true);
+			} else if (type == EMF_PLUS_DRAW_CLOSED_CURVE) {
+				handleEmfPlusClosedCurve(flags, payload, false);
+			} else if (type == EMF_PLUS_DRAW_BEZIERS) {
+				handleEmfPlusDrawBeziers(flags, payload);
+			} else if (type == EMF_PLUS_DRAW_IMAGE) {
+				handleEmfPlusDrawImage(flags, payload);
 			} else if (type == EMF_PLUS_DRAW_IMAGE_POINTS) {
 				handleEmfPlusDrawImagePoints(flags, payload);
 			} else if (type == EMF_PLUS_SAVE) {
@@ -885,6 +950,27 @@ public class SvgGdi implements Gdi {
 	private void handleEmfPlusObject(int flags, byte[] payload) {
 		int objectId = flags & 0xFF;
 		int objectType = (flags >>> 8) & 0x7F;
+		if (objectType == EMF_PLUS_OBJECT_TYPE_BRUSH) {
+			EmfPlusBrush brush = readEmfPlusBrush(payload, 0);
+			if (brush != null) {
+				emfPlusBrushes.put(Integer.valueOf(objectId), brush);
+			}
+			return;
+		}
+		if (objectType == EMF_PLUS_OBJECT_TYPE_PEN) {
+			EmfPlusPen pen = readEmfPlusPen(payload);
+			if (pen != null) {
+				emfPlusPens.put(Integer.valueOf(objectId), pen);
+			}
+			return;
+		}
+		if (objectType == EMF_PLUS_OBJECT_TYPE_PATH) {
+			EmfPlusPath path = readEmfPlusPath(payload);
+			if (path != null) {
+				emfPlusPaths.put(Integer.valueOf(objectId), path);
+			}
+			return;
+		}
 		if (objectType != EMF_PLUS_OBJECT_TYPE_IMAGE || payload.length < 16) {
 			return;
 		}
@@ -910,13 +996,699 @@ public class SvgGdi implements Gdi {
 		emfPlusBitmapImages.put(Integer.valueOf(objectId), bitmap);
 	}
 
-	private void handleEmfPlusDrawImagePoints(int flags, byte[] payload) {
-		int objectId = flags & 0xFF;
-		byte[] bitmap = emfPlusBitmapImages.get(Integer.valueOf(objectId));
-		byte[] metafile = emfPlusMetafileImages.get(Integer.valueOf(objectId));
-		if (bitmap == null && metafile == null) {
+	private EmfPlusBrush readEmfPlusBrush(byte[] data, int offset) {
+		if (data.length < offset + 12) {
+			return null;
+		}
+		int brushType = readInt32(data, offset + 4);
+		if (brushType != EMF_PLUS_BRUSH_TYPE_SOLID_COLOR) {
+			return null;
+		}
+		return new EmfPlusBrush(readInt32(data, offset + 8));
+	}
+
+	private EmfPlusPen readEmfPlusPen(byte[] payload) {
+		if (payload.length < 32 || readInt32(payload, 4) != 0) {
+			return null;
+		}
+		int penDataFlags = readInt32(payload, 8);
+		if (penDataFlags != 0) {
+			return null;
+		}
+		float width = readFloat(payload, 16);
+		EmfPlusBrush brush = readEmfPlusBrush(payload, 20);
+		if (brush == null) {
+			return null;
+		}
+		return new EmfPlusPen(width, brush);
+	}
+
+	private EmfPlusPath readEmfPlusPath(byte[] payload) {
+		if (payload.length < 12) {
+			return null;
+		}
+		int count = readInt32(payload, 4);
+		int pathPointFlags = readInt32(payload, 8);
+		if (count < 0) {
+			return null;
+		}
+		boolean relative = (pathPointFlags & EMF_PLUS_PATH_FLAG_RELATIVE) != 0;
+		boolean compressed = (pathPointFlags & EMF_PLUS_FLAG_COMPRESSED) != 0;
+		double[][] points = readEmfPlusDrawingPoints(payload, 12, count, pathPointFlags);
+		if (points == null) {
+			return null;
+		}
+
+		int typesOffset = 12 + count * (relative ? 2 : (compressed ? 4 : 8));
+		byte[] types = relative
+				? readEmfPlusPathPointTypesRle(payload, typesOffset, count)
+				: readEmfPlusPathPointTypes(payload, typesOffset, count);
+		if (types == null) {
+			return null;
+		}
+		return new EmfPlusPath(points, types);
+	}
+
+	private byte[] readEmfPlusPathPointTypes(byte[] payload, int offset, int count) {
+		if (payload.length < offset || payload.length - offset < count) {
+			return null;
+		}
+		byte[] types = new byte[count];
+		System.arraycopy(payload, offset, types, 0, count);
+		return types;
+	}
+
+	private byte[] readEmfPlusPathPointTypesRle(byte[] payload, int offset, int count) {
+		if (payload.length < offset) {
+			return null;
+		}
+		byte[] types = new byte[count];
+		int typeCount = 0;
+		int pos = offset;
+		while (typeCount < count) {
+			if (payload.length - pos < 2) {
+				return null;
+			}
+			int header = payload[pos] & 0xFF;
+			int runCount = header & 0x3F;
+			int rawType = payload[pos + 1] & 0xFF;
+			if ((header & 0x80) != 0 && (rawType & EMF_PLUS_PATH_POINT_TYPE_MASK) != EMF_PLUS_PATH_POINT_TYPE_START) {
+				rawType = (rawType & ~EMF_PLUS_PATH_POINT_TYPE_MASK) | EMF_PLUS_PATH_POINT_TYPE_BEZIER;
+			}
+			if (runCount == 0 || count - typeCount < runCount) {
+				return null;
+			}
+			for (int i = 0; i < runCount; i++) {
+				types[typeCount++] = (byte)rawType;
+			}
+			pos += 2;
+		}
+		return types;
+	}
+
+	private void handleEmfPlusClear(byte[] payload) {
+		if (payload.length < 4) {
 			return;
 		}
+		int argb = readInt32(payload, 0);
+		Element rect = doc.createElement("rect");
+		rect.setAttribute("x", "-100000");
+		rect.setAttribute("y", "-100000");
+		rect.setAttribute("width", "200000");
+		rect.setAttribute("height", "200000");
+		rect.setAttribute("fill", toEmfPlusColor(argb));
+		setEmfPlusOpacity(rect, "fill-opacity", argb);
+		rect.setAttribute("stroke", "none");
+		parentNode.appendChild(rect);
+	}
+
+	private void handleEmfPlusRects(int flags, byte[] payload, boolean fill) {
+		int dataOffset = fill ? 8 : 4;
+		if (payload.length < dataOffset) {
+			return;
+		}
+
+		EmfPlusBrush brush = fill ? getEmfPlusBrush(flags, readInt32(payload, 0)) : null;
+		EmfPlusPen pen = fill ? null : emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (fill && brush == null || !fill && pen == null) {
+			return;
+		}
+
+		int count = readInt32(payload, dataOffset - 4);
+		double[][] rects = readEmfPlusRects(payload, dataOffset, count, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+		for (int i = 0; i < rects.length; i++) {
+			Element rect = doc.createElement("rect");
+			double[] p = toEmfPlusLogicalPoint(rects[i][0], rects[i][1]);
+			double[] size = toEmfPlusLogicalSize(rects[i][2], rects[i][3]);
+			rect.setAttribute("x", formatDouble(p[0]));
+			rect.setAttribute("y", formatDouble(p[1]));
+			rect.setAttribute("width", formatDouble(size[0]));
+			rect.setAttribute("height", formatDouble(size[1]));
+			if (fill) {
+				applyEmfPlusFill(rect, brush);
+			} else {
+				applyEmfPlusStroke(rect, pen);
+			}
+			parentNode.appendChild(rect);
+		}
+	}
+
+	private void handleEmfPlusEllipse(int flags, byte[] payload, boolean fill) {
+		int dataOffset = fill ? 4 : 0;
+		if (payload.length < dataOffset) {
+			return;
+		}
+
+		EmfPlusBrush brush = fill ? getEmfPlusBrush(flags, readInt32(payload, 0)) : null;
+		EmfPlusPen pen = fill ? null : emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (fill && brush == null || !fill && pen == null) {
+			return;
+		}
+
+		double[][] rects = readEmfPlusRects(payload, dataOffset, 1, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+		Element ellipse = doc.createElement("ellipse");
+		setEmfPlusEllipseBounds(ellipse, rects[0]);
+		if (fill) {
+			applyEmfPlusFill(ellipse, brush);
+		} else {
+			applyEmfPlusStroke(ellipse, pen);
+		}
+		parentNode.appendChild(ellipse);
+	}
+
+	private void handleEmfPlusPolygon(int flags, byte[] payload) {
+		if (payload.length < 8) {
+			return;
+		}
+		EmfPlusBrush brush = getEmfPlusBrush(flags, readInt32(payload, 0));
+		if (brush == null) {
+			return;
+		}
+		int count = readInt32(payload, 4);
+		double[][] points = readEmfPlusDrawingPoints(payload, 8, count, flags);
+		if (points == null || points.length < 3) {
+			return;
+		}
+		Element polygon = doc.createElement("polygon");
+		polygon.setAttribute("points", toEmfPlusSvgPoints(points));
+		applyEmfPlusFill(polygon, brush);
+		parentNode.appendChild(polygon);
+	}
+
+	private void handleEmfPlusDrawLines(int flags, byte[] payload) {
+		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (pen == null || payload.length < 4) {
+			return;
+		}
+		int count = readInt32(payload, 0);
+		double[][] points = readEmfPlusDrawingPoints(payload, 4, count, flags);
+		if (points == null || points.length < 2) {
+			return;
+		}
+		if ((flags & EMF_PLUS_FLAG_CLOSE) != 0) {
+			points = closeEmfPlusPoints(points);
+		}
+		Element polyline = doc.createElement("polyline");
+		polyline.setAttribute("points", toEmfPlusSvgPoints(points));
+		applyEmfPlusStroke(polyline, pen);
+		parentNode.appendChild(polyline);
+	}
+
+	private void handleEmfPlusPie(int flags, byte[] payload, boolean fill) {
+		int dataOffset = fill ? 12 : 8;
+		if (payload.length < dataOffset) {
+			return;
+		}
+
+		EmfPlusBrush brush = fill ? getEmfPlusBrush(flags, readInt32(payload, 0)) : null;
+		EmfPlusPen pen = fill ? null : emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (fill && brush == null || !fill && pen == null) {
+			return;
+		}
+
+		float startAngle = readFloat(payload, fill ? 4 : 0);
+		float sweepAngle = readFloat(payload, fill ? 8 : 4);
+		double[][] rects = readEmfPlusRects(payload, dataOffset, 1, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+
+		Element elem = createEmfPlusPie(rects[0], startAngle, sweepAngle);
+		if (elem == null) {
+			return;
+		}
+		if (fill) {
+			applyEmfPlusFill(elem, brush);
+		} else {
+			applyEmfPlusStroke(elem, pen);
+		}
+		parentNode.appendChild(elem);
+	}
+
+	private void handleEmfPlusDrawArc(int flags, byte[] payload) {
+		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (pen == null || payload.length < 8) {
+			return;
+		}
+
+		float startAngle = readFloat(payload, 0);
+		float sweepAngle = readFloat(payload, 4);
+		double[][] rects = readEmfPlusRects(payload, 8, 1, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+
+		Element elem = createEmfPlusArc(rects[0], startAngle, sweepAngle);
+		if (elem == null) {
+			return;
+		}
+		applyEmfPlusStroke(elem, pen);
+		parentNode.appendChild(elem);
+	}
+
+	private void handleEmfPlusDrawImage(int flags, byte[] payload) {
+		if (payload.length < 32) {
+			return;
+		}
+
+		int objectId = flags & 0xFF;
+		float srcX = readFloat(payload, 8);
+		float srcY = readFloat(payload, 12);
+		float srcWidth = readFloat(payload, 16);
+		float srcHeight = readFloat(payload, 20);
+		if (srcWidth == 0 || srcHeight == 0) {
+			return;
+		}
+
+		double[][] rects = readEmfPlusRects(payload, 24, 1, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+
+		double[] rect = rects[0];
+		double[][] points = new double[][] {
+				{ rect[0], rect[1] },
+				{ rect[0] + rect[2], rect[1] },
+				{ rect[0], rect[1] + rect[3] }
+		};
+		appendEmfPlusImage(objectId, srcX, srcY, srcWidth, srcHeight, points, false);
+	}
+
+	private void handleEmfPlusFillPath(int flags, byte[] payload) {
+		if (payload.length < 4) {
+			return;
+		}
+		EmfPlusBrush brush = getEmfPlusBrush(flags, readInt32(payload, 0));
+		EmfPlusPath path = emfPlusPaths.get(Integer.valueOf(flags & 0xFF));
+		if (brush == null || path == null) {
+			return;
+		}
+		Element elem = createEmfPlusPathElement(path);
+		if (elem == null) {
+			return;
+		}
+		applyEmfPlusFill(elem, brush);
+		parentNode.appendChild(elem);
+	}
+
+	private void handleEmfPlusDrawPath(int flags, byte[] payload) {
+		if (payload.length < 4) {
+			return;
+		}
+		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(readInt32(payload, 0) & 0xFF));
+		EmfPlusPath path = emfPlusPaths.get(Integer.valueOf(flags & 0xFF));
+		if (pen == null || path == null) {
+			return;
+		}
+		Element elem = createEmfPlusPathElement(path);
+		if (elem == null) {
+			return;
+		}
+		applyEmfPlusStroke(elem, pen);
+		parentNode.appendChild(elem);
+	}
+
+	private void handleEmfPlusDrawBeziers(int flags, byte[] payload) {
+		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (pen == null || payload.length < 4) {
+			return;
+		}
+		int count = readInt32(payload, 0);
+		if (count < 4) {
+			return;
+		}
+		double[][] points = readEmfPlusDrawingPoints(payload, 4, count, flags);
+		if (points == null) {
+			return;
+		}
+
+		String path = toEmfPlusBezierPath(points);
+		if (path.length() == 0) {
+			return;
+		}
+		Element elem = doc.createElement("path");
+		elem.setAttribute("d", path);
+		applyEmfPlusStroke(elem, pen);
+		parentNode.appendChild(elem);
+	}
+
+	private void handleEmfPlusClosedCurve(int flags, byte[] payload, boolean fill) {
+		int dataOffset = fill ? 12 : 8;
+		if (payload.length < dataOffset) {
+			return;
+		}
+
+		EmfPlusBrush brush = fill ? getEmfPlusBrush(flags, readInt32(payload, 0)) : null;
+		EmfPlusPen pen = fill ? null : emfPlusPens.get(Integer.valueOf(flags & 0xFF));
+		if (fill && brush == null || !fill && pen == null) {
+			return;
+		}
+
+		float tension = readFloat(payload, fill ? 4 : 0);
+		int count = readInt32(payload, fill ? 8 : 4);
+		double[][] points = readEmfPlusDrawingPoints(payload, dataOffset, count, flags);
+		if (points == null || points.length < 3) {
+			return;
+		}
+
+		String path = toEmfPlusClosedCurvePath(points, tension);
+		if (path.length() == 0) {
+			return;
+		}
+		Element elem = doc.createElement("path");
+		elem.setAttribute("d", path);
+		if (fill) {
+			applyEmfPlusFill(elem, brush);
+		} else {
+			applyEmfPlusStroke(elem, pen);
+		}
+		parentNode.appendChild(elem);
+	}
+
+	private boolean isEmfPlusCompressed(int flags) {
+		return (flags & EMF_PLUS_FLAG_COMPRESSED) != 0;
+	}
+
+	private EmfPlusBrush getEmfPlusBrush(int flags, int brushId) {
+		if ((flags & EMF_PLUS_FLAG_SOLID_COLOR) != 0) {
+			return new EmfPlusBrush(brushId);
+		}
+		return emfPlusBrushes.get(Integer.valueOf(brushId));
+	}
+
+	private double[][] readEmfPlusRects(byte[] payload, int offset, int count, boolean compressed) {
+		if (count < 0) {
+			return null;
+		}
+		int elementSize = compressed ? 8 : 16;
+		if (payload.length < offset || (payload.length - offset) / elementSize < count) {
+			return null;
+		}
+		double[][] rects = new double[count][4];
+		for (int i = 0; i < count; i++) {
+			int pos = offset + i * elementSize;
+			if (compressed) {
+				rects[i][0] = readInt16(payload, pos);
+				rects[i][1] = readInt16(payload, pos + 2);
+				rects[i][2] = readInt16(payload, pos + 4);
+				rects[i][3] = readInt16(payload, pos + 6);
+			} else {
+				rects[i][0] = readFloat(payload, pos);
+				rects[i][1] = readFloat(payload, pos + 4);
+				rects[i][2] = readFloat(payload, pos + 8);
+				rects[i][3] = readFloat(payload, pos + 12);
+			}
+		}
+		return rects;
+	}
+
+	private double[][] readEmfPlusDrawingPoints(byte[] payload, int offset, int count, boolean compressed) {
+		if (count < 0) {
+			return null;
+		}
+		int elementSize = compressed ? 4 : 8;
+		if (payload.length < offset || (payload.length - offset) / elementSize < count) {
+			return null;
+		}
+		double[][] points = new double[count][2];
+		for (int i = 0; i < count; i++) {
+			int pos = offset + i * elementSize;
+			if (compressed) {
+				points[i][0] = readInt16(payload, pos);
+				points[i][1] = readInt16(payload, pos + 2);
+			} else {
+				points[i][0] = readFloat(payload, pos);
+				points[i][1] = readFloat(payload, pos + 4);
+			}
+		}
+		return points;
+	}
+
+	private double[][] readEmfPlusDrawingPoints(byte[] payload, int offset, int count, int flags) {
+		if ((flags & EMF_PLUS_FLAG_RELATIVE) == 0) {
+			return readEmfPlusDrawingPoints(payload, offset, count, isEmfPlusCompressed(flags));
+		}
+		if (count < 0 || payload.length < offset || payload.length - offset < count * 2) {
+			return null;
+		}
+		double[][] points = new double[count][2];
+		int x = 0;
+		int y = 0;
+		for (int i = 0; i < count; i++) {
+			x += payload[offset + i * 2];
+			y += payload[offset + i * 2 + 1];
+			points[i][0] = x;
+			points[i][1] = y;
+		}
+		return points;
+	}
+
+	private double[][] closeEmfPlusPoints(double[][] points) {
+		double[][] closed = new double[points.length + 1][2];
+		for (int i = 0; i < points.length; i++) {
+			closed[i][0] = points[i][0];
+			closed[i][1] = points[i][1];
+		}
+		closed[points.length][0] = points[0][0];
+		closed[points.length][1] = points[0][1];
+		return closed;
+	}
+
+	private String toEmfPlusSvgPoints(double[][] points) {
+		buffer.setLength(0);
+		for (int i = 0; i < points.length; i++) {
+			double[] point = toEmfPlusLogicalPoint(points[i][0], points[i][1]);
+			if (buffer.length() > 0) {
+				buffer.append(" ");
+			}
+			buffer.append(formatDouble(point[0])).append(",").append(formatDouble(point[1]));
+		}
+		return buffer.toString();
+	}
+
+	private double[] toEmfPlusLogicalSize(double width, double height) {
+		double x = emfPlusWorldTransform[0] * width + emfPlusWorldTransform[2] * height;
+		double y = emfPlusWorldTransform[1] * width + emfPlusWorldTransform[3] * height;
+		return new double[] { Math.abs(x), Math.abs(y) };
+	}
+
+	private void applyEmfPlusFill(Element elem, EmfPlusBrush brush) {
+		elem.setAttribute("fill", toEmfPlusColor(brush.argb));
+		setEmfPlusOpacity(elem, "fill-opacity", brush.argb);
+		elem.setAttribute("stroke", "none");
+	}
+
+	private void applyEmfPlusStroke(Element elem, EmfPlusPen pen) {
+		elem.setAttribute("fill", "none");
+		elem.setAttribute("stroke", toEmfPlusColor(pen.brush.argb));
+		setEmfPlusOpacity(elem, "stroke-opacity", pen.brush.argb);
+		elem.setAttribute("stroke-width", formatDouble(Math.max(1.0, pen.width)));
+		elem.setAttribute("stroke-linecap", "round");
+		elem.setAttribute("stroke-linejoin", "round");
+	}
+
+	private void setEmfPlusOpacity(Element elem, String name, int argb) {
+		int alpha = (argb >>> 24) & 0xFF;
+		if (alpha < 255) {
+			elem.setAttribute(name, formatDouble(alpha / 255.0));
+		}
+	}
+
+	private String toEmfPlusColor(int argb) {
+		int r = (argb >>> 16) & 0xFF;
+		int g = (argb >>> 8) & 0xFF;
+		int b = argb & 0xFF;
+		return "rgb(" + r + "," + g + "," + b + ")";
+	}
+
+	private Element createEmfPlusPathElement(EmfPlusPath path) {
+		String d = toEmfPlusSvgPath(path);
+		if (d.length() == 0) {
+			return null;
+		}
+		Element elem = doc.createElement("path");
+		elem.setAttribute("d", d);
+		return elem;
+	}
+
+	private String toEmfPlusSvgPath(EmfPlusPath path) {
+		StringBuffer result = new StringBuffer();
+		int i = 0;
+		while (i < path.points.length) {
+			int rawType = path.types[i] & 0xFF;
+			int type = rawType & EMF_PLUS_PATH_POINT_TYPE_MASK;
+			if (type == EMF_PLUS_PATH_POINT_TYPE_START || result.length() == 0) {
+				appendEmfPlusPathCommand(result, "M", path.points[i]);
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_LINE) {
+				appendEmfPlusPathCommand(result, "L", path.points[i]);
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_BEZIER && i + 2 < path.points.length) {
+				double[] p1 = toEmfPlusLogicalPoint(path.points[i][0], path.points[i][1]);
+				double[] p2 = toEmfPlusLogicalPoint(path.points[i + 1][0], path.points[i + 1][1]);
+				double[] p3 = toEmfPlusLogicalPoint(path.points[i + 2][0], path.points[i + 2][1]);
+				if (result.length() > 0) {
+					result.append(" ");
+				}
+				result.append("C ")
+						.append(formatDouble(p1[0])).append(",").append(formatDouble(p1[1])).append(" ")
+						.append(formatDouble(p2[0])).append(",").append(formatDouble(p2[1])).append(" ")
+						.append(formatDouble(p3[0])).append(",").append(formatDouble(p3[1]));
+				if (((path.types[i + 2] & 0xFF) & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i += 3;
+			} else {
+				i++;
+			}
+		}
+		return result.toString();
+	}
+
+	private String toEmfPlusBezierPath(double[][] points) {
+		if (points.length < 4) {
+			return "";
+		}
+		StringBuffer result = new StringBuffer();
+		appendEmfPlusPathCommand(result, "M", points[0]);
+		for (int i = 1; i + 2 < points.length; i += 3) {
+			double[] p1 = toEmfPlusLogicalPoint(points[i][0], points[i][1]);
+			double[] p2 = toEmfPlusLogicalPoint(points[i + 1][0], points[i + 1][1]);
+			double[] p3 = toEmfPlusLogicalPoint(points[i + 2][0], points[i + 2][1]);
+			result.append(" C ")
+					.append(formatDouble(p1[0])).append(",").append(formatDouble(p1[1])).append(" ")
+					.append(formatDouble(p2[0])).append(",").append(formatDouble(p2[1])).append(" ")
+					.append(formatDouble(p3[0])).append(",").append(formatDouble(p3[1]));
+		}
+		return result.toString();
+	}
+
+	private String toEmfPlusClosedCurvePath(double[][] points, double tension) {
+		StringBuffer result = new StringBuffer();
+		appendEmfPlusPathCommand(result, "M", points[0]);
+		double factor = tension / 3.0;
+		for (int i = 0; i < points.length; i++) {
+			double[] previous = points[(i + points.length - 1) % points.length];
+			double[] current = points[i];
+			double[] next = points[(i + 1) % points.length];
+			double[] afterNext = points[(i + 2) % points.length];
+			double[] control1 = new double[] {
+					current[0] + (next[0] - previous[0]) * factor,
+					current[1] + (next[1] - previous[1]) * factor
+			};
+			double[] control2 = new double[] {
+					next[0] - (afterNext[0] - current[0]) * factor,
+					next[1] - (afterNext[1] - current[1]) * factor
+			};
+			double[] p1 = toEmfPlusLogicalPoint(control1[0], control1[1]);
+			double[] p2 = toEmfPlusLogicalPoint(control2[0], control2[1]);
+			double[] p3 = toEmfPlusLogicalPoint(next[0], next[1]);
+			result.append(" C ")
+					.append(formatDouble(p1[0])).append(",").append(formatDouble(p1[1])).append(" ")
+					.append(formatDouble(p2[0])).append(",").append(formatDouble(p2[1])).append(" ")
+					.append(formatDouble(p3[0])).append(",").append(formatDouble(p3[1]));
+		}
+		result.append(" Z");
+		return result.toString();
+	}
+
+	private void appendEmfPlusPathCommand(StringBuffer result, String command, double[] point) {
+		double[] p = toEmfPlusLogicalPoint(point[0], point[1]);
+		if (result.length() > 0) {
+			result.append(" ");
+		}
+		result.append(command).append(" ")
+				.append(formatDouble(p[0])).append(",").append(formatDouble(p[1]));
+	}
+
+	private Element createEmfPlusArc(double[] rect, double startAngle, double sweepAngle) {
+		double sweep = clampEmfPlusSweepAngle(sweepAngle);
+		if (rect[2] == 0 || rect[3] == 0 || sweep == 0) {
+			return null;
+		}
+		if (Math.abs(sweep) >= 360.0) {
+			Element ellipse = doc.createElement("ellipse");
+			setEmfPlusEllipseBounds(ellipse, rect);
+			return ellipse;
+		}
+
+		double[] start = getEmfPlusEllipsePoint(rect, startAngle);
+		double[] end = getEmfPlusEllipsePoint(rect, startAngle + sweep);
+		double[] radius = toEmfPlusLogicalSize(rect[2] / 2.0, rect[3] / 2.0);
+		Element path = doc.createElement("path");
+		path.setAttribute("d", "M " + formatDouble(start[0]) + "," + formatDouble(start[1])
+				+ " A " + formatDouble(radius[0]) + "," + formatDouble(radius[1])
+				+ " 0 " + (Math.abs(sweep) > 180.0 ? "1" : "0") + " "
+				+ (sweep > 0 ? "1" : "0") + " "
+				+ formatDouble(end[0]) + "," + formatDouble(end[1]));
+		return path;
+	}
+
+	private Element createEmfPlusPie(double[] rect, double startAngle, double sweepAngle) {
+		double sweep = clampEmfPlusSweepAngle(sweepAngle);
+		if (rect[2] == 0 || rect[3] == 0 || sweep == 0) {
+			return null;
+		}
+		if (Math.abs(sweep) >= 360.0) {
+			Element ellipse = doc.createElement("ellipse");
+			setEmfPlusEllipseBounds(ellipse, rect);
+			return ellipse;
+		}
+
+		double[] center = toEmfPlusLogicalPoint(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
+		double[] start = getEmfPlusEllipsePoint(rect, startAngle);
+		double[] end = getEmfPlusEllipsePoint(rect, startAngle + sweep);
+		double[] radius = toEmfPlusLogicalSize(rect[2] / 2.0, rect[3] / 2.0);
+		Element path = doc.createElement("path");
+		path.setAttribute("d", "M " + formatDouble(center[0]) + "," + formatDouble(center[1])
+				+ " L " + formatDouble(start[0]) + "," + formatDouble(start[1])
+				+ " A " + formatDouble(radius[0]) + "," + formatDouble(radius[1])
+				+ " 0 " + (Math.abs(sweep) > 180.0 ? "1" : "0") + " "
+				+ (sweep > 0 ? "1" : "0") + " "
+				+ formatDouble(end[0]) + "," + formatDouble(end[1]) + " Z");
+		return path;
+	}
+
+	private void setEmfPlusEllipseBounds(Element ellipse, double[] rect) {
+		double[] center = toEmfPlusLogicalPoint(rect[0] + rect[2] / 2.0, rect[1] + rect[3] / 2.0);
+		double[] radius = toEmfPlusLogicalSize(rect[2] / 2.0, rect[3] / 2.0);
+		ellipse.setAttribute("cx", formatDouble(center[0]));
+		ellipse.setAttribute("cy", formatDouble(center[1]));
+		ellipse.setAttribute("rx", formatDouble(radius[0]));
+		ellipse.setAttribute("ry", formatDouble(radius[1]));
+	}
+
+	private double[] getEmfPlusEllipsePoint(double[] rect, double angle) {
+		double radians = Math.toRadians(angle);
+		double x = rect[0] + rect[2] / 2.0 + Math.cos(radians) * rect[2] / 2.0;
+		double y = rect[1] + rect[3] / 2.0 + Math.sin(radians) * rect[3] / 2.0;
+		return toEmfPlusLogicalPoint(x, y);
+	}
+
+	private double clampEmfPlusSweepAngle(double angle) {
+		if (angle > 360.0) {
+			return 360.0;
+		}
+		if (angle < -360.0) {
+			return -360.0;
+		}
+		return angle;
+	}
+
+	private void handleEmfPlusDrawImagePoints(int flags, byte[] payload) {
+		int objectId = flags & 0xFF;
 		if (payload.length < 28) {
 			return;
 		}
@@ -930,8 +1702,19 @@ public class SvgGdi implements Gdi {
 			return;
 		}
 
-		double[][] points = readEmfPlusImagePoints(payload, 28, count);
+		double[][] points = readEmfPlusDrawingPoints(payload, 28, count, flags);
 		if (points == null) {
+			return;
+		}
+
+		appendEmfPlusImage(objectId, srcX, srcY, srcWidth, srcHeight, points, true);
+	}
+
+	private void appendEmfPlusImage(int objectId, double srcX, double srcY,
+			double srcWidth, double srcHeight, double[][] points, boolean normalizeUnit) {
+		byte[] bitmap = emfPlusBitmapImages.get(Integer.valueOf(objectId));
+		byte[] metafile = emfPlusMetafileImages.get(Integer.valueOf(objectId));
+		if (bitmap == null && metafile == null) {
 			return;
 		}
 
@@ -958,10 +1741,12 @@ public class SvgGdi implements Gdi {
 		double[] p0 = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
 		double[] p1 = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
 		double[] p2 = toEmfPlusLogicalPoint(points[2][0], points[2][1]);
-		double[] unit = getEmfPlusImageUnitScale(p0, p1, p2, srcWidth, srcHeight);
-		p0 = normalizeEmfPlusImagePoint(p0, unit);
-		p1 = normalizeEmfPlusImagePoint(p1, unit);
-		p2 = normalizeEmfPlusImagePoint(p2, unit);
+		if (normalizeUnit) {
+			double[] unit = getEmfPlusImageUnitScale(p0, p1, p2, srcWidth, srcHeight);
+			p0 = normalizeEmfPlusImagePoint(p0, unit);
+			p1 = normalizeEmfPlusImagePoint(p1, unit);
+			p2 = normalizeEmfPlusImagePoint(p2, unit);
+		}
 		double x0 = p0[0];
 		double y0 = p0[1];
 		double x1 = p1[0];
@@ -1071,25 +1856,6 @@ public class SvgGdi implements Gdi {
 		return false;
 	}
 
-	private double[][] readEmfPlusImagePoints(byte[] payload, int offset, int count) {
-		if (payload.length >= offset + count * 8) {
-			double[][] points = new double[count][2];
-			for (int i = 0; i < count; i++) {
-				points[i][0] = readFloat(payload, offset + i * 8);
-				points[i][1] = readFloat(payload, offset + i * 8 + 4);
-			}
-			return points;
-		} else if (payload.length >= offset + count * 4) {
-			double[][] points = new double[count][2];
-			for (int i = 0; i < count; i++) {
-				points[i][0] = readInt16(payload, offset + i * 4);
-				points[i][1] = readInt16(payload, offset + i * 4 + 2);
-			}
-			return points;
-		}
-		return null;
-	}
-
 	private String createSvgDataUri(byte[] metafile) {
 		try {
 			SvgGdi svg = new SvgGdi(compatible);
@@ -1168,6 +1934,34 @@ public class SvgGdi implements Gdi {
 		private PendingEmf(byte[] data, SvgDc dc) {
 			this.data = data;
 			this.dc = dc;
+		}
+	}
+
+	private static class EmfPlusBrush {
+		private final int argb;
+
+		private EmfPlusBrush(int argb) {
+			this.argb = argb;
+		}
+	}
+
+	private static class EmfPlusPen {
+		private final double width;
+		private final EmfPlusBrush brush;
+
+		private EmfPlusPen(double width, EmfPlusBrush brush) {
+			this.width = width;
+			this.brush = brush;
+		}
+	}
+
+	private static class EmfPlusPath {
+		private final double[][] points;
+		private final byte[] types;
+
+		private EmfPlusPath(double[][] points, byte[] types) {
+			this.points = points;
+			this.types = types;
 		}
 	}
 

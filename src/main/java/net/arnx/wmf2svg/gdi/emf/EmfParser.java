@@ -768,7 +768,7 @@ public class EmfParser implements Parser {
 		int width = right - left;
 		int height = bottom - top;
 		if (width != 0 && height != 0) {
-			gdi.setWindowOrgEx(left, top, null);
+			gdi.setWindowOrgEx(0, 0, null);
 			gdi.setWindowExtEx(width, height, null);
 		}
 	}
@@ -1193,17 +1193,19 @@ public class EmfParser implements Parser {
 		}
 
 		byte[] text;
+		int[] dx = null;
 		if (unicode) {
 			text = readUtf16StringBytes(data, stringOffset, count, charset);
+			if (dxOffset >= 0 && dxOffset + count * 4 <= data.length) {
+				dx = readUtf16Dx(data, stringOffset, count, charset, dxOffset);
+			}
 		} else {
 			text = copyRange(data, stringOffset, count);
-		}
-
-		int[] dx = null;
-		if (dxOffset >= 0 && dxOffset + count * 4 <= data.length) {
-			dx = new int[count];
-			for (int i = 0; i < dx.length; i++) {
-				dx[i] = readInt32(data, dxOffset + i * 4);
+			if (dxOffset >= 0 && dxOffset + count * 4 <= data.length) {
+				dx = new int[count];
+				for (int i = 0; i < dx.length; i++) {
+					dx[i] = readInt32(data, dxOffset + i * 4);
+				}
 			}
 		}
 		gdi.extTextOut(point.x, point.y, options, rect, text, dx);
@@ -1246,6 +1248,45 @@ public class EmfParser implements Parser {
 			return value.getBytes(GdiUtils.getCharset(charset));
 		} catch (UnsupportedEncodingException e) {
 			return new byte[0];
+		}
+	}
+
+	private static int[] readUtf16Dx(byte[] data, int textOffset, int chars, int charset, int dxOffset) {
+		if (textOffset < 0 || chars <= 0 || textOffset + chars * 2 > data.length) {
+			return null;
+		}
+		try {
+			String charsetName = GdiUtils.getCharset(charset);
+			int length = chars;
+			for (int i = 0; i < chars; i++) {
+				if (readUInt16(data, textOffset + i * 2) == 0) {
+					length = i;
+					break;
+				}
+			}
+
+			int dxLength = 0;
+			for (int i = 0; i < length; i++) {
+				String ch = new String(data, textOffset + i * 2, 2, "UTF-16LE");
+				dxLength += ch.getBytes(charsetName).length;
+			}
+
+			int[] dx = new int[dxLength];
+			int pos = 0;
+			for (int i = 0; i < length; i++) {
+				String ch = new String(data, textOffset + i * 2, 2, "UTF-16LE");
+				int bytes = ch.getBytes(charsetName).length;
+				if (bytes == 0) {
+					continue;
+				}
+				dx[pos++] = readInt32(data, dxOffset + i * 4);
+				for (int j = 1; j < bytes; j++) {
+					dx[pos++] = 0;
+				}
+			}
+			return dx;
+		} catch (UnsupportedEncodingException e) {
+			return null;
 		}
 	}
 

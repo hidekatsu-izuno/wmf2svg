@@ -34,10 +34,10 @@ class SvgRectRegion extends SvgRegion {
 	
 	public Element createElement() {
 		Element elem = getGDI().getDocument().createElement("rect");
-		elem.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(getLeft()));
-		elem.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(getTop()));
-		elem.setAttribute("width", "" + (int)getGDI().getDC().toRelativeX(getRight() - getLeft()));
-		elem.setAttribute("height", "" + (int)getGDI().getDC().toRelativeY(getBottom() - getTop()));
+		elem.setAttribute("x", "" + getLeft());
+		elem.setAttribute("y", "" + getTop());
+		elem.setAttribute("width", "" + (getRight() - getLeft()));
+		elem.setAttribute("height", "" + (getBottom() - getTop()));
 		return elem;
 	}
 

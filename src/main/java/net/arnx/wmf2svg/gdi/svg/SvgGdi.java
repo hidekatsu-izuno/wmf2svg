@@ -76,6 +76,17 @@ public class SvgGdi implements Gdi {
 	private static final String TRANSPARENT_MASK_ROP_USER_DATA = "wmf2svg-transparent-mask-rop";
 	private static final String TRANSPARENT_MASK_ROP_SRCINVERT = "SRCINVERT";
 	private static final String PNG_DATA_URI_PREFIX = "data:image/png;base64,";
+	private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml;base64,";
+	private static final int EMF_PLUS_HEADER_SIZE = 12;
+	private static final int EMF_PLUS_OBJECT = 0x4008;
+	private static final int EMF_PLUS_DRAW_IMAGE_POINTS = 0x401B;
+	private static final int EMF_PLUS_SAVE = 0x4025;
+	private static final int EMF_PLUS_RESTORE = 0x4026;
+	private static final int EMF_PLUS_SET_WORLD_TRANSFORM = 0x402A;
+	private static final int EMF_PLUS_RESET_WORLD_TRANSFORM = 0x402B;
+	private static final int EMF_PLUS_MULTIPLY_WORLD_TRANSFORM = 0x402C;
+	private static final int EMF_PLUS_OBJECT_TYPE_IMAGE = 5;
+	private static final int EMF_PLUS_IMAGE_DATA_TYPE_METAFILE = 2;
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
 	private static final int DEFAULT_CANVAS_HEIGHT = 460;
 	private static final int TARGET_DPI = 144;
@@ -86,11 +97,20 @@ public class SvgGdi implements Gdi {
 
 	private boolean replaceSymbolFont = false;
 
+	private boolean parseEmfPlusComments = true;
+
 	private Properties props = new Properties();
 
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
-	private ArrayList<byte[]> pendingEmfList = new ArrayList<byte[]>();
+	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
+	private Map<Integer, byte[]> emfPlusMetafileImages = new HashMap<Integer, byte[]>();
+	private Map<Integer, byte[]> emfPlusBitmapImages = new HashMap<Integer, byte[]>();
+	private double[] emfPlusWorldTransform = new double[] { 1, 0, 0, 1, 0, 0 };
+	private LinkedList<double[]> emfPlusWorldTransformStack = new LinkedList<double[]>();
+	private Node emfPlusFallbackParent = null;
+	private Node emfPlusFallbackKeepNode = null;
+	private Node emfPlusFallbackRootKeepNode = null;
 	private boolean pendingEmfBoundsSet = false;
 	private int pendingEmfBoundsLeft = 0;
 	private int pendingEmfBoundsTop = 0;
@@ -222,6 +242,10 @@ public class SvgGdi implements Gdi {
 
 	public boolean isReplaceSymbolFont() {
 		return replaceSymbolFont;
+	}
+
+	private void setParseEmfPlusComments(boolean flag) {
+		parseEmfPlusComments = flag;
 	}
 
 	public SvgDc getDC() {
@@ -381,12 +405,10 @@ public class SvgGdi implements Gdi {
 			double ex = rx * Math.cos(ea);
 			double ey = ry * Math.sin(ea);
 
-			double a = Math.atan2((ex-sx) * (-sy) - (ey-sy) * (-sx), (ex-sx) * (-sx) + (ey-sy) * (-sy));
-
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy));
 		}
 
@@ -581,12 +603,10 @@ public class SvgGdi implements Gdi {
 			double ex = rx * Math.cos(ea);
 			double ey = ry * Math.sin(ea);
 
-			double a = Math.atan2((ex-sx) * (-sy) - (ey-sy) * (-sx), (ex-sx) * (-sx) + (ey-sy) * (-sy));
-
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
@@ -740,6 +760,12 @@ public class SvgGdi implements Gdi {
 	}
 
 	public void comment(byte[] data) {
+		if (parseEmfPlusComments && isEmfPlusComment(data)) {
+			removeEmfPlusFallbackAfterSupportedDraw();
+			parseEmfPlusComment(data);
+			return;
+		}
+
 		if (!EmfParser.isEnhancedMetafileEscape(data)) {
 			return;
 		}
@@ -755,10 +781,322 @@ public class SvgGdi implements Gdi {
 		if (emfBuffer.size() >= emfTotalSize) {
 			byte[] bytesToParse = new byte[emfTotalSize];
 			System.arraycopy(emfBuffer.toByteArray(), 0, bytesToParse, 0, emfTotalSize);
-			pendingEmfList.add(bytesToParse);
+			pendingEmfList.add(new PendingEmf(bytesToParse, (SvgDc)dc.clone()));
 			includePendingEmfBounds(bytesToParse);
 			emfBuffer = null;
 			emfTotalSize = 0;
+		}
+	}
+
+	private boolean isEmfPlusComment(byte[] data) {
+		return data.length >= 4
+				&& data[0] == 'E'
+				&& data[1] == 'M'
+				&& data[2] == 'F'
+				&& data[3] == '+';
+	}
+
+	private void parseEmfPlusComment(byte[] data) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int flags = readUInt16(data, offset + 2);
+			int size = readInt32(data, offset + 4);
+			int dataSize = readInt32(data, offset + 8);
+			if (size < EMF_PLUS_HEADER_SIZE || dataSize < 0 || dataSize > size - EMF_PLUS_HEADER_SIZE
+					|| offset + size > data.length) {
+				break;
+			}
+
+			byte[] payload = new byte[dataSize];
+			System.arraycopy(data, offset + EMF_PLUS_HEADER_SIZE, payload, 0, dataSize);
+			if (type == EMF_PLUS_OBJECT) {
+				handleEmfPlusObject(flags, payload);
+			} else if (type == EMF_PLUS_DRAW_IMAGE_POINTS) {
+				handleEmfPlusDrawImagePoints(flags, payload);
+			} else if (type == EMF_PLUS_SAVE) {
+				emfPlusWorldTransformStack.addFirst(emfPlusWorldTransform.clone());
+			} else if (type == EMF_PLUS_RESTORE) {
+				if (!emfPlusWorldTransformStack.isEmpty()) {
+					emfPlusWorldTransform = emfPlusWorldTransformStack.removeFirst();
+				}
+			} else if (type == EMF_PLUS_SET_WORLD_TRANSFORM) {
+				setEmfPlusWorldTransform(payload);
+			} else if (type == EMF_PLUS_RESET_WORLD_TRANSFORM) {
+				emfPlusWorldTransform = new double[] { 1, 0, 0, 1, 0, 0 };
+			} else if (type == EMF_PLUS_MULTIPLY_WORLD_TRANSFORM) {
+				multiplyEmfPlusWorldTransform(payload);
+			}
+			offset += size;
+		}
+	}
+
+	private void setEmfPlusWorldTransform(byte[] payload) {
+		if (payload.length < 24) {
+			return;
+		}
+		emfPlusWorldTransform = new double[] {
+				readFloat(payload, 0),
+				readFloat(payload, 4),
+				readFloat(payload, 8),
+				readFloat(payload, 12),
+				readFloat(payload, 16),
+				readFloat(payload, 20)
+		};
+	}
+
+	private void multiplyEmfPlusWorldTransform(byte[] payload) {
+		if (payload.length < 24) {
+			return;
+		}
+		double[] matrix = new double[] {
+				readFloat(payload, 0),
+				readFloat(payload, 4),
+				readFloat(payload, 8),
+				readFloat(payload, 12),
+				readFloat(payload, 16),
+				readFloat(payload, 20)
+		};
+		emfPlusWorldTransform = multiplyEmfPlusMatrix(matrix, emfPlusWorldTransform);
+	}
+
+	private double[] multiplyEmfPlusMatrix(double[] a, double[] b) {
+		return new double[] {
+				a[0] * b[0] + a[1] * b[2],
+				a[0] * b[1] + a[1] * b[3],
+				a[2] * b[0] + a[3] * b[2],
+				a[2] * b[1] + a[3] * b[3],
+				a[4] * b[0] + a[5] * b[2] + b[4],
+				a[4] * b[1] + a[5] * b[3] + b[5]
+		};
+	}
+
+	private void handleEmfPlusObject(int flags, byte[] payload) {
+		int objectId = flags & 0xFF;
+		int objectType = (flags >>> 8) & 0x7F;
+		if (objectType != EMF_PLUS_OBJECT_TYPE_IMAGE || payload.length < 16) {
+			return;
+		}
+
+		int imageDataType = readInt32(payload, 4);
+		if (imageDataType == EMF_PLUS_IMAGE_DATA_TYPE_METAFILE) {
+			int metafileSize = readInt32(payload, 12);
+			if (metafileSize <= 0 || 16 + metafileSize > payload.length) {
+				return;
+			}
+
+			byte[] metafile = new byte[metafileSize];
+			System.arraycopy(payload, 16, metafile, 0, metafileSize);
+			emfPlusMetafileImages.put(Integer.valueOf(objectId), metafile);
+			includePendingEmfBounds(metafile);
+			return;
+		}
+
+		byte[] bitmap = readEmfPlusBitmapImage(payload);
+		if (bitmap == null) {
+			return;
+		}
+		emfPlusBitmapImages.put(Integer.valueOf(objectId), bitmap);
+	}
+
+	private void handleEmfPlusDrawImagePoints(int flags, byte[] payload) {
+		int objectId = flags & 0xFF;
+		byte[] bitmap = emfPlusBitmapImages.get(Integer.valueOf(objectId));
+		byte[] metafile = emfPlusMetafileImages.get(Integer.valueOf(objectId));
+		if (bitmap == null && metafile == null) {
+			return;
+		}
+		if (payload.length < 28) {
+			return;
+		}
+
+		float srcX = readFloat(payload, 8);
+		float srcY = readFloat(payload, 12);
+		float srcWidth = readFloat(payload, 16);
+		float srcHeight = readFloat(payload, 20);
+		int count = readInt32(payload, 24);
+		if (count < 3 || srcWidth == 0 || srcHeight == 0) {
+			return;
+		}
+
+		double[][] points = readEmfPlusImagePoints(payload, 28, count);
+		if (points == null) {
+			return;
+		}
+
+		String href;
+		boolean suppressFallback = false;
+		if (bitmap != null) {
+			href = PNG_DATA_URI_PREFIX + Base64.encode(bitmap);
+		} else {
+			href = createSvgDataUri(metafile);
+			suppressFallback = true;
+		}
+		if (href == null) {
+			return;
+		}
+
+		Element image = doc.createElement("image");
+		image.setAttribute("x", formatDouble(srcX));
+		image.setAttribute("y", formatDouble(srcY));
+		image.setAttribute("width", formatDouble(srcWidth));
+		image.setAttribute("height", formatDouble(srcHeight));
+		image.setAttribute("preserveAspectRatio", "none");
+		image.setAttribute("xlink:href", href);
+
+		double[] p0 = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
+		double[] p1 = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
+		double[] p2 = toEmfPlusLogicalPoint(points[2][0], points[2][1]);
+		double[] unit = getEmfPlusImageUnitScale(p0, p1, p2, srcWidth, srcHeight);
+		p0 = normalizeEmfPlusImagePoint(p0, unit);
+		p1 = normalizeEmfPlusImagePoint(p1, unit);
+		p2 = normalizeEmfPlusImagePoint(p2, unit);
+		double x0 = p0[0];
+		double y0 = p0[1];
+		double x1 = p1[0];
+		double y1 = p1[1];
+		double x2 = p2[0];
+		double y2 = p2[1];
+		image.setAttribute("transform", "matrix("
+				+ formatDouble((x1 - x0) / srcWidth) + " "
+				+ formatDouble((y1 - y0) / srcWidth) + " "
+				+ formatDouble((x2 - x0) / srcHeight) + " "
+				+ formatDouble((y2 - y0) / srcHeight) + " "
+				+ formatDouble(x0) + " " + formatDouble(y0) + ")");
+		parentNode.appendChild(image);
+		if (suppressFallback) {
+			emfPlusFallbackParent = parentNode;
+			emfPlusFallbackKeepNode = image;
+			emfPlusFallbackRootKeepNode = doc.getDocumentElement().getLastChild();
+		}
+	}
+
+	private byte[] readEmfPlusBitmapImage(byte[] payload) {
+		int pngOffset = findBytes(payload, new byte[] {
+				(byte)0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A
+		});
+		if (pngOffset >= 0) {
+			byte[] image = new byte[payload.length - pngOffset];
+			System.arraycopy(payload, pngOffset, image, 0, image.length);
+			return image;
+		}
+
+		int jpegOffset = findBytes(payload, new byte[] { (byte)0xFF, (byte)0xD8, (byte)0xFF });
+		if (jpegOffset >= 0) {
+			byte[] image = new byte[payload.length - jpegOffset];
+			System.arraycopy(payload, jpegOffset, image, 0, image.length);
+			return ImageUtil.convert(image, "png", false);
+		}
+		return null;
+	}
+
+	private int findBytes(byte[] data, byte[] pattern) {
+		for (int i = 0; i <= data.length - pattern.length; i++) {
+			boolean match = true;
+			for (int j = 0; j < pattern.length; j++) {
+				if (data[i + j] != pattern[j]) {
+					match = false;
+					break;
+				}
+			}
+			if (match) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private double[] toEmfPlusLogicalPoint(double x, double y) {
+		double tx = emfPlusWorldTransform[0] * x + emfPlusWorldTransform[2] * y + emfPlusWorldTransform[4];
+		double ty = emfPlusWorldTransform[1] * x + emfPlusWorldTransform[3] * y + emfPlusWorldTransform[5];
+		return new double[] { tx, ty };
+	}
+
+	private double[] getEmfPlusImageUnitScale(double[] p0, double[] p1, double[] p2,
+			double srcWidth, double srcHeight) {
+		double scaleX = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / Math.abs(srcWidth);
+		double scaleY = Math.hypot(p2[0] - p0[0], p2[1] - p0[1]) / Math.abs(srcHeight);
+		if (scaleX <= 0 || Double.isNaN(scaleX) || Double.isInfinite(scaleX)) {
+			scaleX = 1;
+		}
+		if (scaleY <= 0 || Double.isNaN(scaleY) || Double.isInfinite(scaleY)) {
+			scaleY = 1;
+		}
+		return new double[] { scaleX, scaleY };
+	}
+
+	private double[] normalizeEmfPlusImagePoint(double[] point, double[] unit) {
+		return new double[] { point[0] / unit[0], point[1] / unit[1] };
+	}
+
+	private void removeEmfPlusFallbackAfterSupportedDraw() {
+		if (emfPlusFallbackParent == null || emfPlusFallbackKeepNode == null) {
+			return;
+		}
+		while (emfPlusFallbackKeepNode.getNextSibling() != null) {
+			emfPlusFallbackParent.removeChild(emfPlusFallbackKeepNode.getNextSibling());
+		}
+		if (emfPlusFallbackRootKeepNode != null) {
+			while (emfPlusFallbackRootKeepNode.getNextSibling() != null) {
+				doc.getDocumentElement().removeChild(emfPlusFallbackRootKeepNode.getNextSibling());
+			}
+			if (!isInDocument(parentNode)) {
+				parentNode = doc.createElement("g");
+				doc.getDocumentElement().appendChild(parentNode);
+			}
+		}
+		emfPlusFallbackParent = null;
+		emfPlusFallbackKeepNode = null;
+		emfPlusFallbackRootKeepNode = null;
+	}
+
+	private boolean isInDocument(Node node) {
+		while (node != null) {
+			if (node == doc.getDocumentElement()) {
+				return true;
+			}
+			node = node.getParentNode();
+		}
+		return false;
+	}
+
+	private double[][] readEmfPlusImagePoints(byte[] payload, int offset, int count) {
+		if (payload.length >= offset + count * 8) {
+			double[][] points = new double[count][2];
+			for (int i = 0; i < count; i++) {
+				points[i][0] = readFloat(payload, offset + i * 8);
+				points[i][1] = readFloat(payload, offset + i * 8 + 4);
+			}
+			return points;
+		} else if (payload.length >= offset + count * 4) {
+			double[][] points = new double[count][2];
+			for (int i = 0; i < count; i++) {
+				points[i][0] = readInt16(payload, offset + i * 4);
+				points[i][1] = readInt16(payload, offset + i * 4 + 2);
+			}
+			return points;
+		}
+		return null;
+	}
+
+	private String createSvgDataUri(byte[] metafile) {
+		try {
+			SvgGdi svg = new SvgGdi(compatible);
+			svg.setReplaceSymbolFont(replaceSymbolFont);
+			svg.setParseEmfPlusComments(false);
+			new EmfParser().parse(new ByteArrayInputStream(metafile), svg);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			svg.write(out);
+			return SVG_DATA_URI_PREFIX + Base64.encode(out.toByteArray());
+		} catch (IOException e) {
+			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
+			return null;
+		} catch (EmfParseException e) {
+			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
+			return null;
+		} catch (SvgGdiException e) {
+			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
+			return null;
 		}
 	}
 
@@ -795,13 +1133,13 @@ public class SvgGdi implements Gdi {
 			return;
 		}
 
-		ArrayList<byte[]> list = pendingEmfList;
-		pendingEmfList = new ArrayList<byte[]>();
+		ArrayList<PendingEmf> list = pendingEmfList;
+		pendingEmfList = new ArrayList<PendingEmf>();
 		SvgDc savedDc = dc;
-		for (byte[] data : list) {
+		for (PendingEmf pendingEmf : list) {
 			try {
-				dc = (SvgDc)savedDc.clone();
-				new EmfParser(false).parse(new ByteArrayInputStream(data), this);
+				dc = (SvgDc)pendingEmf.dc.clone();
+				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
 			} catch (EmfParseException e) {
@@ -809,6 +1147,16 @@ public class SvgGdi implements Gdi {
 			} finally {
 				dc = savedDc;
 			}
+		}
+	}
+
+	private static class PendingEmf {
+		private final byte[] data;
+		private final SvgDc dc;
+
+		private PendingEmf(byte[] data, SvgDc dc) {
+			this.data = data;
+			this.dc = dc;
 		}
 	}
 
@@ -1151,8 +1499,7 @@ public class SvgGdi implements Gdi {
 	public void fillRgn(GdiRegion rgn, GdiBrush brush) {
 		if (rgn == null) return;
 
-		Element elem = doc.createElement("use");
-		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
+		Element elem = createRegionElement(rgn);
 		elem.setAttribute("class", getClassString(brush));
 		SvgBrush sbrush = (SvgBrush)brush;
 		setFillPattern(elem, sbrush);
@@ -1276,8 +1623,7 @@ public class SvgGdi implements Gdi {
 	public void invertRgn(GdiRegion rgn) {
 		if (rgn == null) return;
 
-		Element elem = doc.createElement("use");
-		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
+		Element elem = createRegionElement(rgn);
 		String ropFilter = dc.getRopFilter(DSTINVERT);
 		if (ropFilter != null) {
 			elem.setAttribute("filter", ropFilter);
@@ -1401,13 +1747,11 @@ public class SvgGdi implements Gdi {
 			double ex = rx * Math.cos(ea);
 			double ey = ry * Math.sin(ea);
 
-			double a = Math.atan2((ex-sx) * (-sy) - (ey-sy) * (-sx), (ex-sx) * (-sx) + (ey-sy) * (-sy));
-
 			elem = doc.createElement("path");
 			elem.setAttribute("d", "M " + dc.toAbsoluteX(cx) + "," + dc.toAbsoluteY(cy)
 					+ " L " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy)
 					+ " A " + dc.toRelativeX(rx)  + "," + dc.toRelativeY(ry)
-					+ " 0 " + getArcLargeFlag(a) + " " + getArcSweepFlag()
+					+ " 0 " + getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag()
 					+ " " + dc.toAbsoluteX(ex + cx) + "," + dc.toAbsoluteY(ey + cy) + " Z");
 		}
 
@@ -1705,10 +2049,18 @@ public class SvgGdi implements Gdi {
 	}
 
 	private Element createRegionUse(GdiRegion rgn, String fill) {
-		Element clip = doc.createElement("use");
-		clip.setAttribute("xlink:href", "#" + nameMap.get(rgn));
+		Element clip = createRegionElement(rgn);
 		clip.setAttribute("fill", fill);
 		return clip;
+	}
+
+	private Element createRegionElement(GdiRegion rgn) {
+		if (rgn instanceof SvgRegion) {
+			return ((SvgRegion)rgn).createElement();
+		}
+		Element elem = doc.createElement("use");
+		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
+		return elem;
 	}
 
 	public void selectClipPath(int mode) {
@@ -1786,8 +2138,24 @@ public class SvgGdi implements Gdi {
 		return (dc.getArcDirection() == Gdi.AD_CLOCKWISE) ? "1" : "0";
 	}
 
-	private String getArcLargeFlag(double angle) {
-		return (Math.abs(angle) > Math.PI) ? "1" : "0";
+	private String getArcLargeFlag(double sx, double sy, double ex, double ey) {
+		double start = Math.atan2(sy, sx);
+		double end = Math.atan2(ey, ex);
+		double sweep;
+		if (dc.getArcDirection() == Gdi.AD_CLOCKWISE) {
+			sweep = normalizeSweep(end - start);
+		} else {
+			sweep = normalizeSweep(start - end);
+		}
+		return (sweep > Math.PI) ? "1" : "0";
+	}
+
+	private double normalizeSweep(double angle) {
+		double sweep = angle % (Math.PI * 2.0);
+		if (sweep < 0) {
+			sweep += Math.PI * 2.0;
+		}
+		return sweep;
 	}
 
 	private void setMiterLimit(Element elem) {
@@ -2508,12 +2876,13 @@ public class SvgGdi implements Gdi {
 
 	public void footer() {
 		flushPendingEmf();
+		removeEmfPlusFallbackAfterSupportedDraw();
 
 		Element root = doc.getDocumentElement();
 		int width = dc.getViewportWidth() != 0 ? dc.getViewportWidth() : dc.getWindowWidth();
 		int height = dc.getViewportHeight() != 0 ? dc.getViewportHeight() : dc.getWindowHeight();
-		int x = dc.getViewportWidth() != 0 ? dc.getViewportX() : 0;
-		int y = dc.getViewportHeight() != 0 ? dc.getViewportY() : 0;
+		int x = dc.getViewportWidth() != 0 ? dc.getViewportX() : (placeableHeader ? 0 : dc.getWindowX());
+		int y = dc.getViewportHeight() != 0 ? dc.getViewportY() : (placeableHeader ? 0 : dc.getWindowY());
 		double[] contentBounds = getRootContentBounds(root);
 		double[] physicalCanvasBounds = getPhysicalCanvasBounds(root);
 		double[] canvasBounds = getCanvasBounds(x, y, width, height, contentBounds, physicalCanvasBounds);
@@ -2559,7 +2928,8 @@ public class SvgGdi implements Gdi {
 			double logicalRight = x + Math.abs(width);
 			double logicalBottom = y + Math.abs(height);
 			double[] bounds = new double[] { x, y, logicalRight, logicalBottom };
-			if (placeableHeader && pendingEmfBoundsSet) {
+			if (placeableHeader && pendingEmfBoundsSet
+					&& pendingEmfBoundsLeft == 0 && pendingEmfBoundsTop == 0) {
 				bounds = getPendingEmfBounds();
 			} else if (physicalCanvasBounds != null && isPhysicalCanvasLargerThanLogical(width, height, physicalCanvasBounds)) {
 				bounds = physicalCanvasBounds;
@@ -3483,12 +3853,30 @@ public class SvgGdi implements Gdi {
 				| (data[offset + 3] << 24);
 	}
 
+	private static int readInt16(byte[] data, int offset) {
+		return (short)((data[offset] & 0xFF) | (data[offset + 1] << 8));
+	}
+
 	private static int readUInt16(byte[] data, int offset) {
 		return (data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8);
 	}
 
 	private static long readUInt32(byte[] data, int offset) {
 		return readInt32(data, offset) & 0xFFFFFFFFL;
+	}
+
+	private static float readFloat(byte[] data, int offset) {
+		return Float.intBitsToFloat(readInt32(data, offset));
+	}
+
+	private static String formatDouble(double value) {
+		if (Double.isNaN(value) || Double.isInfinite(value)) {
+			return "0";
+		}
+		if (Math.rint(value) == value) {
+			return Long.toString((long)value);
+		}
+		return Double.toString(value);
 	}
 
 	private byte[] dibToBmp(byte[] dib) {

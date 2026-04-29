@@ -204,6 +204,50 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testEmbeddedEmfHeaderDoesNotOffsetDeferredContent() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEnhancedMetafileComment(createEmfWithPolyline(-10, -20, 90, 80)));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("points=\"-10,-20 90,80\""));
+	}
+
+	@Test
+	public void testEmbeddedEmfPlusCommentKeepsGdiFallbackContent() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEnhancedMetafileComment(createEmfPlusWithPolyline(-10, -20, 90, 80)));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("points=\"-10,-20 90,80\""));
+	}
+
+	@Test
+	public void testEmfPlusMetafileImageSuppressesDetachedGdiFallback() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusMetafileImageComment(0, createMinimalEmf(0, 0, 20, 10)));
+		gdi.intersectClipRect(0, 0, 10, 10);
+		gdi.moveToEx(1, 1, null);
+		gdi.lineTo(9, 9);
+		gdi.comment(createEmfPlusDrawImagePointsComment(0));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertEquals(2, count(svg, "<image "));
+		Assert.assertFalse(svg.contains("<line "));
+	}
+
+	@Test
 	public void testFooterUsesDefaultCanvasWithoutPlaceableHeaderOrExtents() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -262,6 +306,41 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("width=\"1.0729166666666667in\""));
 		Assert.assertTrue(svg.contains("height=\"0.8541666666666666in\""));
 		Assert.assertTrue(svg.contains("viewBox=\"0 0 718 572\""));
+	}
+
+	@Test
+	public void testPlaceableWindowOriginDoesNotShiftRootViewBox() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.placeableHeader(-671, -1308, 2450, 37, 1000);
+		gdi.header();
+		gdi.setWindowOrgEx(-671, 37, null);
+		gdi.setWindowExtEx(3121, -1345, null);
+		gdi.moveToEx(-671, 37, null);
+		gdi.lineTo(2450, -1308);
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 3121 1345\""));
+		Assert.assertFalse(svg.contains("viewBox=\"-671"));
+	}
+
+	@Test
+	public void testNonPlaceableWindowOriginDefinesRootViewBox() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(-4100, -1866, null);
+		gdi.setWindowExtEx(8204, 3735, null);
+		gdi.moveToEx(-4100, -1866, null);
+		gdi.lineTo(4104, 1869);
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("viewBox=\"-4100 -1866 8204 3735\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 8204 3735\""));
 	}
 
 	@Test
@@ -345,6 +424,168 @@ public class SvgGdiTest {
 		return out.toByteArray();
 	}
 
+	private byte[] createEmfWithPolyline(int left, int top, int right, int bottom) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 1000);
+		writeInt(data, 500);
+		writeInt(data, 0x464D4520);
+		writeInt(data, 0x00010000);
+		writeInt(data, 108);
+		writeInt(data, 3);
+		writeShort(data, 1);
+		writeShort(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, right - left);
+		writeInt(data, bottom - top);
+		writeInt(data, right - left);
+		writeInt(data, bottom - top);
+		writeRecord(out, 1, data.toByteArray());
+
+		data.reset();
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeInt(data, 2);
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeRecord(out, 4, data.toByteArray());
+
+		writeRecord(out, 14, new byte[12]);
+		return out.toByteArray();
+	}
+
+	private byte[] createEmfPlusWithPolyline(int left, int top, int right, int bottom) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 1000);
+		writeInt(data, 500);
+		writeInt(data, 0x464D4520);
+		writeInt(data, 0x00010000);
+		writeInt(data, 108);
+		writeInt(data, 4);
+		writeShort(data, 1);
+		writeShort(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, right - left);
+		writeInt(data, bottom - top);
+		writeInt(data, right - left);
+		writeInt(data, bottom - top);
+		writeRecord(out, 1, data.toByteArray());
+
+		writeRecord(out, 70, createEmfPlusHeaderComment());
+
+		data.reset();
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeInt(data, 2);
+		writeInt(data, left);
+		writeInt(data, top);
+		writeInt(data, right);
+		writeInt(data, bottom);
+		writeRecord(out, 4, data.toByteArray());
+
+		writeRecord(out, 14, new byte[12]);
+		return out.toByteArray();
+	}
+
+	private byte[] createEmfPlusHeaderComment() {
+		ByteArrayOutputStream comment = new ByteArrayOutputStream();
+		comment.write('E');
+		comment.write('M');
+		comment.write('F');
+		comment.write('+');
+		writeShort(comment, 0x4001);
+		writeShort(comment, 0x0001);
+		writeInt(comment, 28);
+		writeInt(comment, 16);
+		writeInt(comment, 0x00010000);
+		writeInt(comment, 0);
+		writeInt(comment, 0);
+		writeInt(comment, 0);
+
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		writeInt(data, comment.size());
+		byte[] bytes = comment.toByteArray();
+		data.write(bytes, 0, bytes.length);
+		return data.toByteArray();
+	}
+
+	private byte[] createEmfPlusMetafileImageComment(int objectId, byte[] metafile) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeInt(payload, metafile.length);
+		payload.write(metafile, 0, metafile.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500 | objectId, payload.toByteArray());
+		writeEmfPlusDrawImagePointsRecord(comment, objectId);
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDrawImagePointsComment(int objectId) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		writeEmfPlusDrawImagePointsRecord(comment, objectId);
+		return comment.toByteArray();
+	}
+
+	private ByteArrayOutputStream createEmfPlusComment() {
+		ByteArrayOutputStream comment = new ByteArrayOutputStream();
+		comment.write('E');
+		comment.write('M');
+		comment.write('F');
+		comment.write('+');
+		return comment;
+	}
+
+	private void writeEmfPlusDrawImagePointsRecord(ByteArrayOutputStream comment, int objectId) {
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 10);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, objectId, payload.toByteArray());
+	}
+
+	private void writeEmfPlusRecord(ByteArrayOutputStream out, int type, int flags, byte[] data) {
+		writeShort(out, type);
+		writeShort(out, flags);
+		writeInt(out, data.length + 12);
+		writeInt(out, data.length);
+		out.write(data, 0, data.length);
+	}
+
 	private void writeRecord(ByteArrayOutputStream out, int type, byte[] data) {
 		writeInt(out, type);
 		writeInt(out, data.length + 8);
@@ -361,6 +602,20 @@ public class SvgGdiTest {
 	private void writeShort(ByteArrayOutputStream out, int value) {
 		out.write(value & 0xFF);
 		out.write((value >>> 8) & 0xFF);
+	}
+
+	private void writeFloat(ByteArrayOutputStream out, float value) {
+		writeInt(out, Float.floatToIntBits(value));
+	}
+
+	private int count(String value, String token) {
+		int count = 0;
+		int offset = 0;
+		while ((offset = value.indexOf(token, offset)) >= 0) {
+			count++;
+			offset += token.length();
+		}
+		return count;
 	}
 
 	private void setUInt16(byte[] data, int pos, int value) {

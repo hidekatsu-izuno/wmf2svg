@@ -173,6 +173,7 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_BRUSH_DATA_PRESET_COLORS = 0x00000004;
 	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_H = 0x00000008;
 	private static final int EMF_PLUS_BRUSH_DATA_BLEND_FACTORS_V = 0x00000010;
+	private static final int EMF_PLUS_BRUSH_DATA_FOCUS_SCALES = 0x00000040;
 	private static final int EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED = 0x00000080;
 	private static final int EMF_PLUS_WRAP_MODE_TILE = 0;
 	private static final int EMF_PLUS_WRAP_MODE_TILE_FLIP_X = 1;
@@ -213,7 +214,12 @@ public class SvgGdi implements Gdi {
 	private static final int EMF_PLUS_LINE_JOIN_BEVEL = 1;
 	private static final int EMF_PLUS_LINE_JOIN_ROUND = 2;
 	private static final int EMF_PLUS_INTERPOLATION_MODE_LOW_QUALITY = 1;
+	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY = 2;
+	private static final int EMF_PLUS_INTERPOLATION_MODE_BILINEAR = 3;
+	private static final int EMF_PLUS_INTERPOLATION_MODE_BICUBIC = 4;
 	private static final int EMF_PLUS_INTERPOLATION_MODE_NEAREST_NEIGHBOR = 5;
+	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BILINEAR = 6;
+	private static final int EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BICUBIC = 7;
 	private static final int EMF_PLUS_COMPOSITING_MODE_SOURCE_COPY = 1;
 	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HIGH_QUALITY = 2;
 	private static final int EMF_PLUS_PIXEL_OFFSET_MODE_HALF = 4;
@@ -1499,9 +1505,11 @@ public class SvgGdi implements Gdi {
 						readFloat(data, optionalOffset + 16),
 						readFloat(data, optionalOffset + 20)
 				};
+				optionalOffset += 24;
 			}
 			byte[] bitmap = readEmfPlusBitmapImage(data, optionalOffset);
-			return bitmap != null ? new EmfPlusBrush(bitmap, brushTransform) : null;
+			boolean gammaCorrected = (brushDataFlags & EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED) != 0;
+			return bitmap != null ? new EmfPlusBrush(bitmap, brushTransform, gammaCorrected) : null;
 		}
 		if (brushType == EMF_PLUS_BRUSH_TYPE_PATH_GRADIENT) {
 			if (data.length < offset + 32) {
@@ -1566,6 +1574,16 @@ public class SvgGdi implements Gdi {
 				};
 				boundaryOffset += 24;
 			}
+			double focusScaleX = 0.0;
+			double focusScaleY = 0.0;
+			if ((brushDataFlags & EMF_PLUS_BRUSH_DATA_FOCUS_SCALES) != 0) {
+				if (data.length < boundaryOffset + 8) {
+					return null;
+				}
+				focusScaleX = readFloat(data, boundaryOffset);
+				focusScaleY = readFloat(data, boundaryOffset + 4);
+				boundaryOffset += 8;
+			}
 			double[] blendPositions = null;
 			int[] blendColors = null;
 			if ((brushDataFlags & EMF_PLUS_BRUSH_DATA_PRESET_COLORS) != 0) {
@@ -1582,8 +1600,9 @@ public class SvgGdi implements Gdi {
 					blendColors = toEmfPlusBlendFactorColors(centerColor, surroundColor, factors.factors);
 				}
 			}
+			boolean gammaCorrected = (brushDataFlags & EMF_PLUS_BRUSH_DATA_IS_GAMMA_CORRECTED) != 0;
 			return new EmfPlusBrush(center, bounds, centerColor, surroundColor, blendPositions, blendColors,
-					brushTransform, wrapMode);
+					brushTransform, wrapMode, gammaCorrected, focusScaleX, focusScaleY);
 		}
 		if (brushType == EMF_PLUS_BRUSH_TYPE_LINEAR_GRADIENT) {
 			if (data.length < offset + 48) {
@@ -2350,7 +2369,7 @@ public class SvgGdi implements Gdi {
 		Element elem = doc.createElement("text");
 		applyEmfPlusStringFormatPosition(elem, rects[0], format);
 		elem.setAttribute("font-family", font.familyName);
-		elem.setAttribute("font-size", formatDouble(toEmfPlusFontSize(font)));
+		elem.setAttribute("font-size", toEmfPlusFontSize(font));
 		applyEmfPlusFill(elem, brush);
 		applyEmfPlusFontStyle(elem, font);
 		applyEmfPlusStringTracking(elem, format);
@@ -2406,7 +2425,7 @@ public class SvgGdi implements Gdi {
 
 		Element elem = doc.createElement("text");
 		elem.setAttribute("font-family", font.familyName);
-		elem.setAttribute("font-size", formatDouble(toEmfPlusFontSize(font)));
+		elem.setAttribute("font-size", toEmfPlusFontSize(font));
 		elem.setAttribute("dominant-baseline", "text-before-edge");
 		if ((options & EMF_PLUS_DRIVER_STRING_VERTICAL) != 0) {
 			elem.setAttribute("writing-mode", "tb");
@@ -3019,11 +3038,35 @@ public class SvgGdi implements Gdi {
 		}
 	}
 
-	private double toEmfPlusFontSize(EmfPlusFont font) {
-		if (font.sizeUnit == EMF_PLUS_UNIT_POINT) {
-			return font.emSize * 96.0 / 72.0;
+	private String toEmfPlusFontSize(EmfPlusFont font) {
+		switch (font.sizeUnit) {
+		case EMF_PLUS_UNIT_DISPLAY:
+		case EMF_PLUS_UNIT_PIXEL:
+			return formatEmfPlusFontSize(font.emSize, "");
+		case EMF_PLUS_UNIT_POINT:
+			return formatEmfPlusFontSize(font.emSize, "pt");
+		case EMF_PLUS_UNIT_INCH:
+			return formatEmfPlusFontSize(font.emSize, "in");
+		case EMF_PLUS_UNIT_DOCUMENT:
+			return formatEmfPlusFontSize(font.emSize / 300.0, "in");
+		case EMF_PLUS_UNIT_MILLIMETER:
+			return formatEmfPlusFontSize(font.emSize, "mm");
+		default:
+			return formatEmfPlusFontSize(font.emSize, "");
 		}
-		return font.emSize;
+	}
+
+	private String formatEmfPlusFontSize(double value, String unit) {
+		double rounded = Math.rint(value);
+		if (Math.abs(value - rounded) < 0.00001) {
+			value = rounded;
+		} else {
+			double rounded5 = Math.rint(value * 100000.0) / 100000.0;
+			if (Math.abs(value - rounded5) < 0.00001) {
+				value = rounded5;
+			}
+		}
+		return formatDouble(value) + unit;
 	}
 
 	private void applyEmfPlusStringTracking(Element elem, EmfPlusStringFormat format) {
@@ -3203,20 +3246,33 @@ public class SvgGdi implements Gdi {
 		gradient.setAttribute("id", id);
 		gradient.setIdAttribute("id", true);
 		gradient.setAttribute("gradientUnits", "userSpaceOnUse");
+		if (brush.gammaCorrected) {
+			gradient.setAttribute("color-interpolation", "linearRGB");
+		}
 		applyEmfPlusGradientWrapMode(gradient, brush.wrapMode);
 		double[] center = toEmfPlusLogicalPoint(brush.pathGradientCenter[0], brush.pathGradientCenter[1]);
 		double[] radius = toEmfPlusLogicalSize(brush.pathGradientBounds[2] / 2.0, brush.pathGradientBounds[3] / 2.0);
+		double r = Math.max(radius[0], radius[1]);
 		gradient.setAttribute("cx", formatDouble(center[0]));
 		gradient.setAttribute("cy", formatDouble(center[1]));
-		gradient.setAttribute("r", formatDouble(Math.max(radius[0], radius[1])));
-		if (brush.brushTransform != null) {
-			gradient.setAttribute("gradientTransform", "matrix("
-					+ formatDouble(brush.brushTransform[0]) + " "
-					+ formatDouble(brush.brushTransform[1]) + " "
-					+ formatDouble(brush.brushTransform[2]) + " "
-					+ formatDouble(brush.brushTransform[3]) + " "
-					+ formatDouble(brush.brushTransform[4]) + " "
-					+ formatDouble(brush.brushTransform[5]) + ")");
+		gradient.setAttribute("r", formatDouble(r));
+		double[] gradientTransform = brush.brushTransform;
+		if (r > 0.0 && Math.abs(radius[0] - radius[1]) > 0.000001) {
+			double sx = radius[0] / r;
+			double sy = radius[1] / r;
+			double[] ellipseTransform = new double[] {
+					sx,
+					0.0,
+					0.0,
+					sy,
+					center[0] * (1.0 - sx),
+					center[1] * (1.0 - sy)
+			};
+			gradientTransform = gradientTransform != null
+					? multiplyEmfPlusMatrix(ellipseTransform, gradientTransform) : ellipseTransform;
+		}
+		if (gradientTransform != null) {
+			gradient.setAttribute("gradientTransform", toEmfPlusMatrix(gradientTransform));
 		}
 		if (brush.blendPositions != null && brush.blendColors != null) {
 			for (int i = 0; i < brush.blendPositions.length; i++) {
@@ -3225,10 +3281,38 @@ public class SvgGdi implements Gdi {
 			}
 		} else {
 			appendEmfPlusGradientStop(gradient, "0%", brush.centerColor);
+			if (isEmfPlusUniformFocusScale(brush.focusScaleX, brush.focusScaleY)) {
+				appendEmfPlusGradientStop(gradient, formatDouble(clampEmfPlusUnit(brush.focusScaleX) * 100.0) + "%",
+						brush.centerColor);
+			}
 			appendEmfPlusGradientStop(gradient, "100%", brush.surroundColor);
 		}
 		defsNode.appendChild(gradient);
 		return id;
+	}
+
+	private boolean isEmfPlusUniformFocusScale(double xScale, double yScale) {
+		return xScale > 0.0 && yScale > 0.0 && Math.abs(xScale - yScale) < 0.000001;
+	}
+
+	private String toEmfPlusMatrix(double[] matrix) {
+		return "matrix("
+				+ formatDouble(matrix[0]) + " "
+				+ formatDouble(matrix[1]) + " "
+				+ formatDouble(matrix[2]) + " "
+				+ formatDouble(matrix[3]) + " "
+				+ formatDouble(matrix[4]) + " "
+				+ formatDouble(matrix[5]) + ")";
+	}
+
+	private double clampEmfPlusUnit(double value) {
+		if (value < 0.0) {
+			return 0.0;
+		}
+		if (value > 1.0) {
+			return 1.0;
+		}
+		return value;
 	}
 
 	private void applyEmfPlusGradientWrapMode(Element gradient, int wrapMode) {
@@ -3332,11 +3416,14 @@ public class SvgGdi implements Gdi {
 		image.setAttribute("x", "0");
 		image.setAttribute("y", "0");
 		image.setAttribute("width", formatDouble(size[0]));
-			image.setAttribute("height", formatDouble(size[1]));
-			image.setAttribute("preserveAspectRatio", "none");
-			image.setAttribute("xlink:href", PNG_DATA_URI_PREFIX + Base64.encode(brush.textureImage));
-			applyEmfPlusImageRendering(image);
-			pattern.appendChild(image);
+		image.setAttribute("height", formatDouble(size[1]));
+		image.setAttribute("preserveAspectRatio", "none");
+		image.setAttribute("xlink:href", PNG_DATA_URI_PREFIX + Base64.encode(brush.textureImage));
+		if (brush.gammaCorrected) {
+			image.setAttribute("color-interpolation", "linearRGB");
+		}
+		applyEmfPlusImageRendering(image);
+		pattern.appendChild(image);
 
 		defsNode.appendChild(pattern);
 		return id;
@@ -3807,16 +3894,22 @@ public class SvgGdi implements Gdi {
 			emfPlusFallbackKeepNode = keepNode;
 			emfPlusFallbackRootKeepNode = doc.getDocumentElement().getLastChild();
 		}
-		}
+	}
 
-		private void applyEmfPlusImageRendering(Element image) {
-			if (emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_LOW_QUALITY
-					|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_NEAREST_NEIGHBOR) {
-				image.setAttribute("image-rendering", "pixelated");
-			}
+	private void applyEmfPlusImageRendering(Element image) {
+		if (emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_LOW_QUALITY
+				|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_NEAREST_NEIGHBOR) {
+			image.setAttribute("image-rendering", "pixelated");
+		} else if (emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY
+				|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_BILINEAR
+				|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_BICUBIC
+				|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BILINEAR
+				|| emfPlusInterpolationMode == EMF_PLUS_INTERPOLATION_MODE_HIGH_QUALITY_BICUBIC) {
+			image.setAttribute("image-rendering", "optimizeQuality");
 		}
+	}
 
-		private String createEmfPlusImageClipPath(double x, double y, double width, double height) {
+	private String createEmfPlusImageClipPath(double x, double y, double width, double height) {
 		String id = "clip" + (maskNo++);
 		Element clipPath = doc.createElement("clipPath");
 		clipPath.setAttribute("id", id);
@@ -4258,6 +4351,8 @@ public class SvgGdi implements Gdi {
 		private final byte[] textureImage;
 		private final int wrapMode;
 		private final boolean gammaCorrected;
+		private final double focusScaleX;
+		private final double focusScaleY;
 
 		private EmfPlusBrush(int argb) {
 			this.argb = argb;
@@ -4277,6 +4372,8 @@ public class SvgGdi implements Gdi {
 			this.textureImage = null;
 			this.wrapMode = -1;
 			this.gammaCorrected = false;
+			this.focusScaleX = 0.0;
+			this.focusScaleY = 0.0;
 		}
 
 		private EmfPlusBrush(int hatchStyle, int foreColor, int backColor) {
@@ -4297,9 +4394,15 @@ public class SvgGdi implements Gdi {
 			this.textureImage = null;
 			this.wrapMode = -1;
 			this.gammaCorrected = false;
+			this.focusScaleX = 0.0;
+			this.focusScaleY = 0.0;
 		}
 
 		private EmfPlusBrush(byte[] textureImage, double[] brushTransform) {
+			this(textureImage, brushTransform, false);
+		}
+
+		private EmfPlusBrush(byte[] textureImage, double[] brushTransform, boolean gammaCorrected) {
 			this.argb = 0;
 			this.hatchStyle = -1;
 			this.foreColor = 0;
@@ -4316,7 +4419,9 @@ public class SvgGdi implements Gdi {
 			this.brushTransform = brushTransform;
 			this.textureImage = textureImage;
 			this.wrapMode = -1;
-			this.gammaCorrected = false;
+			this.gammaCorrected = gammaCorrected;
+			this.focusScaleX = 0.0;
+			this.focusScaleY = 0.0;
 		}
 
 		private EmfPlusBrush(double[] linearGradientRect, int startColor, int endColor) {
@@ -4354,11 +4459,28 @@ public class SvgGdi implements Gdi {
 			this.textureImage = null;
 			this.wrapMode = wrapMode;
 			this.gammaCorrected = gammaCorrected;
+			this.focusScaleX = 0.0;
+			this.focusScaleY = 0.0;
 		}
 
 		private EmfPlusBrush(double[] pathGradientCenter, double[] pathGradientBounds,
 				int centerColor, int surroundColor, double[] blendPositions, int[] blendColors,
 				double[] brushTransform, int wrapMode) {
+			this(pathGradientCenter, pathGradientBounds, centerColor, surroundColor, blendPositions, blendColors,
+					brushTransform, wrapMode, false);
+		}
+
+		private EmfPlusBrush(double[] pathGradientCenter, double[] pathGradientBounds,
+				int centerColor, int surroundColor, double[] blendPositions, int[] blendColors,
+				double[] brushTransform, int wrapMode, boolean gammaCorrected) {
+			this(pathGradientCenter, pathGradientBounds, centerColor, surroundColor, blendPositions, blendColors,
+					brushTransform, wrapMode, gammaCorrected, 0.0, 0.0);
+		}
+
+		private EmfPlusBrush(double[] pathGradientCenter, double[] pathGradientBounds,
+				int centerColor, int surroundColor, double[] blendPositions, int[] blendColors,
+				double[] brushTransform, int wrapMode, boolean gammaCorrected,
+				double focusScaleX, double focusScaleY) {
 			this.argb = 0;
 			this.hatchStyle = -1;
 			this.foreColor = 0;
@@ -4375,7 +4497,9 @@ public class SvgGdi implements Gdi {
 			this.brushTransform = brushTransform;
 			this.textureImage = null;
 			this.wrapMode = wrapMode;
-			this.gammaCorrected = false;
+			this.gammaCorrected = gammaCorrected;
+			this.focusScaleX = focusScaleX;
+			this.focusScaleY = focusScaleY;
 		}
 	}
 

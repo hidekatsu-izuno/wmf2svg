@@ -538,6 +538,7 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("cx=\"10\""));
 		Assert.assertTrue(svg.contains("cy=\"5\""));
 		Assert.assertTrue(svg.contains("r=\"10\""));
+		Assert.assertTrue(svg.contains("gradientTransform=\"matrix(1 0 0 0.5 0 2.5)\""));
 		Assert.assertTrue(svg.contains("stop-color=\"rgb(255,0,0)\""));
 		Assert.assertTrue(svg.contains("stop-color=\"rgb(0,0,255)\""));
 		Assert.assertTrue(svg.contains("fill=\"url(#gradient"));
@@ -555,6 +556,36 @@ public class SvgGdiTest {
 		String svg = out.toString("UTF-8");
 		Assert.assertTrue(svg.contains("<radialGradient "));
 		Assert.assertTrue(svg.contains("spreadMethod=\"pad\""));
+	}
+
+	@Test
+	public void testEmfPlusPathGradientBrushUsesGammaCorrection() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusPathGradientBrushComment(0, 0x00000081));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<radialGradient "));
+		Assert.assertTrue(svg.contains("color-interpolation=\"linearRGB\""));
+	}
+
+	@Test
+	public void testEmfPlusPathGradientBrushUsesFocusScale() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusFocusScalePathGradientBrushComment());
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<radialGradient "));
+		Assert.assertTrue(svg.contains("offset=\"50%\""));
+		Assert.assertTrue(svg.contains("stop-color=\"rgb(255,0,0)\""));
+		Assert.assertTrue(svg.contains("stop-color=\"rgb(0,0,255)\""));
 	}
 
 	@Test
@@ -707,6 +738,21 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("height=\"3\""));
 		Assert.assertTrue(svg.contains("xlink:href=\"data:image/png;base64,"));
 		Assert.assertTrue(svg.contains("fill=\"url(#pattern"));
+	}
+
+	@Test
+	public void testEmfPlusTextureBrushUsesGammaCorrection() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusTextureBrushComment(createPng(2, 3), 0x00000082));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<pattern "));
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("color-interpolation=\"linearRGB\""));
 	}
 
 	@Test
@@ -980,7 +1026,7 @@ public class SvgGdiTest {
 	public void testEmfPlusSetInterpolationModeNearestNeighborRendersPixelatedImage() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
-		gdi.comment(createEmfPlusNearestNeighborImageComment(0, createPng(2, 1)));
+		gdi.comment(createEmfPlusInterpolationImageComment(0, 5, createPng(2, 1)));
 		gdi.footer();
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -988,6 +1034,20 @@ public class SvgGdiTest {
 		String svg = out.toString("UTF-8");
 		Assert.assertTrue(svg.contains("<image "));
 		Assert.assertTrue(svg.contains("image-rendering=\"pixelated\""));
+	}
+
+	@Test
+	public void testEmfPlusSetInterpolationModeHighQualityRendersOptimizedImage() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusInterpolationImageComment(0, 7, createPng(2, 1)));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("image-rendering=\"optimizeQuality\""));
 	}
 
 	@Test
@@ -1121,12 +1181,35 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("x=\"5\""));
 		Assert.assertTrue(svg.contains("y=\"7\""));
 		Assert.assertTrue(svg.contains("font-family=\"Arial\""));
-		Assert.assertTrue(svg.contains("font-size=\"16\""));
+		Assert.assertTrue(svg.contains("font-size=\"12pt\""));
 		Assert.assertTrue(svg.contains("font-weight=\"bold\""));
 		Assert.assertTrue(svg.contains("font-style=\"italic\""));
 		Assert.assertTrue(svg.contains("text-decoration=\"underline\""));
 		Assert.assertTrue(svg.contains("fill=\"rgb(51,102,153)\""));
 		Assert.assertTrue(svg.contains(">Hello EMF+</text>"));
+	}
+
+	@Test
+	public void testEmfPlusFontObjectPreservesPhysicalFontUnits() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusFontUnitDrawStringComment(3, 12f, "Point"));
+		gdi.comment(createEmfPlusFontUnitDrawStringComment(4, 0.5f, "Inch"));
+		gdi.comment(createEmfPlusFontUnitDrawStringComment(5, 300f, "Document"));
+		gdi.comment(createEmfPlusFontUnitDrawStringComment(6, 25.4f, "Millimeter"));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("font-size=\"12pt\""));
+		Assert.assertTrue(svg.contains(">Point</text>"));
+		Assert.assertTrue(svg.contains("font-size=\"0.5in\""));
+		Assert.assertTrue(svg.contains(">Inch</text>"));
+		Assert.assertTrue(svg.contains("font-size=\"1in\""));
+		Assert.assertTrue(svg.contains(">Document</text>"));
+		Assert.assertTrue(svg.contains("font-size=\"25.4mm\""));
+		Assert.assertTrue(svg.contains(">Millimeter</text>"));
 	}
 
 	@Test
@@ -1274,7 +1357,7 @@ public class SvgGdiTest {
 		String svg = out.toString("UTF-8");
 		Assert.assertTrue(svg.contains("<text "));
 		Assert.assertTrue(svg.contains("font-family=\"Arial\""));
-		Assert.assertTrue(svg.contains("font-size=\"16\""));
+		Assert.assertTrue(svg.contains("font-size=\"12pt\""));
 		Assert.assertTrue(svg.contains("<tspan x=\"5\" y=\"7\">A</tspan>"));
 		Assert.assertTrue(svg.contains("<tspan x=\"15\" y=\"7\">B</tspan>"));
 		Assert.assertTrue(svg.contains("<tspan x=\"25\" y=\"7\">C</tspan>"));
@@ -2320,6 +2403,10 @@ public class SvgGdiTest {
 	}
 
 	private byte[] createEmfPlusPathGradientBrushComment(int wrapMode) {
+		return createEmfPlusPathGradientBrushComment(wrapMode, 0x00000001);
+	}
+
+	private byte[] createEmfPlusPathGradientBrushComment(int wrapMode, int brushDataFlags) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream path = new ByteArrayOutputStream();
 		writeInt(path, 0);
@@ -2341,7 +2428,7 @@ public class SvgGdiTest {
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
 		writeInt(payload, 3);
-		writeInt(payload, 0x00000001);
+		writeInt(payload, brushDataFlags);
 		writeInt(payload, wrapMode);
 		writeInt(payload, 0xFFFF0000);
 		writeFloat(payload, 10);
@@ -2350,6 +2437,52 @@ public class SvgGdiTest {
 		writeInt(payload, 0xFF0000FF);
 		writeInt(payload, path.size());
 		payload.write(path.toByteArray(), 0, path.size());
+		writeEmfPlusRecord(comment, 0x4008, 0x0101, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 1);
+		writeInt(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x400A, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusFocusScalePathGradientBrushComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream path = new ByteArrayOutputStream();
+		writeInt(path, 0);
+		writeInt(path, 4);
+		writeInt(path, 0);
+		writeFloat(path, 0);
+		writeFloat(path, 0);
+		writeFloat(path, 20);
+		writeFloat(path, 0);
+		writeFloat(path, 20);
+		writeFloat(path, 10);
+		writeFloat(path, 0);
+		writeFloat(path, 10);
+		path.write(0);
+		path.write(1);
+		path.write(1);
+		path.write(0x81);
+
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 3);
+		writeInt(payload, 0x00000041);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFFFF0000);
+		writeFloat(payload, 10);
+		writeFloat(payload, 5);
+		writeInt(payload, 1);
+		writeInt(payload, 0xFF0000FF);
+		writeInt(payload, path.size());
+		payload.write(path.toByteArray(), 0, path.size());
+		writeFloat(payload, 0.5f);
+		writeFloat(payload, 0.5f);
 		writeEmfPlusRecord(comment, 0x4008, 0x0101, payload.toByteArray());
 
 		payload.reset();
@@ -2652,11 +2785,15 @@ public class SvgGdiTest {
 	}
 
 	private byte[] createEmfPlusTextureBrushComment(byte[] png) {
+		return createEmfPlusTextureBrushComment(png, 0x00000002);
+	}
+
+	private byte[] createEmfPlusTextureBrushComment(byte[] png, int brushDataFlags) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
 		writeInt(payload, 2);
-		writeInt(payload, 0x00000002);
+		writeInt(payload, brushDataFlags);
 		writeInt(payload, 0);
 		writeFloat(payload, 1);
 		writeFloat(payload, 0);
@@ -3035,9 +3172,9 @@ public class SvgGdiTest {
 		return comment.toByteArray();
 	}
 
-	private byte[] createEmfPlusNearestNeighborImageComment(int objectId, byte[] png) {
+	private byte[] createEmfPlusInterpolationImageComment(int objectId, int interpolationMode, byte[] png) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
-		writeEmfPlusRecord(comment, 0x4021, 5, new byte[0]);
+		writeEmfPlusRecord(comment, 0x4021, interpolationMode, new byte[0]);
 
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
@@ -3360,6 +3497,31 @@ public class SvgGdiTest {
 		writeFloat(payload, 120);
 		writeFloat(payload, 20);
 		writeUtf16Le(payload, "Hello EMF+");
+		writeEmfPlusRecord(comment, 0x401C, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusFontUnitDrawStringComment(int sizeUnit, float emSize, String text) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeFloat(payload, emSize);
+		writeInt(payload, sizeUnit);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, "Arial".length());
+		writeUtf16Le(payload, "Arial");
+		writeEmfPlusRecord(comment, 0x4008, 0x0600, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 0);
+		writeInt(payload, text.length());
+		writeFloat(payload, 5);
+		writeFloat(payload, 7);
+		writeFloat(payload, 120);
+		writeFloat(payload, 40);
+		writeUtf16Le(payload, text);
 		writeEmfPlusRecord(comment, 0x401C, 0x8000, payload.toByteArray());
 		return comment.toByteArray();
 	}

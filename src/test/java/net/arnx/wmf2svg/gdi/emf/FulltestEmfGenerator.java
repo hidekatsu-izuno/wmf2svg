@@ -2,7 +2,6 @@ package net.arnx.wmf2svg.gdi.emf;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 
 import net.arnx.wmf2svg.gdi.Gdi;

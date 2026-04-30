@@ -179,7 +179,7 @@ public class Main {
 	}
 
 	private static void usage() {
-		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [output filename(svg, xml, svgz, png, jpg)]");
+		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [output filename(svg, svgz, png, jpg)]");
 		System.exit(-1);
 	}
 }

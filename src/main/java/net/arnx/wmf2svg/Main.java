@@ -24,6 +24,7 @@ import java.util.logging.Logger;
 import java.util.zip.GZIPOutputStream;
 
 import net.arnx.wmf2svg.gdi.Gdi;
+import net.arnx.wmf2svg.gdi.awt.AwtGdi;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.svg.*;
 import net.arnx.wmf2svg.gdi.wmf.*;
@@ -70,8 +71,13 @@ public class Main {
 		try {
 			InputStream in = new FileInputStream(src);
 			Parser parser = src.toLowerCase().endsWith(".emf") ? new EmfParser() : new WmfParser();
-			final SvgGdi gdi = new SvgGdi(compatible);
-			gdi.setReplaceSymbolFont(replaceSymbolFont);
+			String destLower = dest.toLowerCase();
+			boolean imageOutput = destLower.endsWith(".png") || destLower.endsWith(".jpg")
+					|| destLower.endsWith(".jpeg");
+			final Gdi gdi = imageOutput ? new AwtGdi() : new SvgGdi(compatible);
+			if (gdi instanceof SvgGdi) {
+				((SvgGdi) gdi).setReplaceSymbolFont(replaceSymbolFont);
+			}
 			if (debug) {
 				ClassLoader cl = gdi.getClass().getClassLoader();
 				Class<?>[] interfaces = new Class[]{Gdi.class};
@@ -154,7 +160,11 @@ public class Main {
 					out = new GZIPOutputStream(out);
 				}
 
-				gdi.write(out);
+				if (imageOutput) {
+					((AwtGdi) gdi).write(out, destLower.endsWith(".png") ? "png" : "jpeg");
+				} else {
+					((SvgGdi) gdi).write(out);
+				}
 			} finally {
 				if (out != null)
 					out.close();
@@ -165,7 +175,7 @@ public class Main {
 	}
 
 	private static void usage() {
-		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [svg filename(svg, xml, or .svgz)]");
+		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [output filename(svg, xml, svgz, png, jpg)]");
 		System.exit(-1);
 	}
 }

@@ -286,6 +286,24 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testFooterUsesEmbeddedEmfBoundsWithoutShiftingPlaceableOrigin() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.placeableHeader(0, 157, 6299, 5707, 1000);
+		gdi.header();
+		gdi.comment(createEnhancedMetafileComment(createEmfWithPolyline(0, 20, 799, 724)));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("width=\"9.447916666666666in\""));
+		Assert.assertTrue(svg.contains("height=\"8.322916666666666in\""));
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 799 724\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 20 799 704\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 6299 5550\""));
+	}
+
+	@Test
 	public void testEmbeddedEmfHeaderDoesNotOffsetDeferredContent() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();

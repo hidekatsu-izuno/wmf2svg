@@ -6228,8 +6228,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			double logicalBottom = y + Math.abs(height);
 			double[] bounds = new double[] { x, y, logicalRight, logicalBottom };
 			if (placeableHeader && pendingEmfBoundsSet
-					&& pendingEmfBoundsLeft == 0 && pendingEmfBoundsTop == 0) {
-				bounds = getPendingEmfBounds();
+					&& pendingEmfBoundsLeft == 0 && pendingEmfBoundsTop >= 0) {
+				bounds = getPlaceablePendingEmfBounds();
 			} else if (physicalCanvasBounds != null && isPhysicalCanvasLargerThanLogical(width, height, physicalCanvasBounds)) {
 				bounds = physicalCanvasBounds;
 			} else if (!placeableHeader && dc.getWindowX() == 0 && dc.getWindowY() == 0
@@ -6253,6 +6253,15 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return new double[] { 0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT };
 		}
 		return null;
+	}
+
+	private double[] getPlaceablePendingEmfBounds() {
+		return new double[] {
+				0.0,
+				0.0,
+				pendingEmfBoundsRight,
+				pendingEmfBoundsBottom
+		};
 	}
 
 	private double[] getPendingEmfBounds() {

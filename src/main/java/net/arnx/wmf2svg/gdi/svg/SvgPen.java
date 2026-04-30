@@ -84,8 +84,9 @@ class SvgPen extends SvgObject implements GdiPen {
 
 	public String toString() {
 		StringBuffer buffer = new StringBuffer();
+		int penStyle = style & PS_STYLE_MASK;
 
-		if (style == PS_NULL) {
+		if (penStyle == PS_NULL) {
 			buffer.append("stroke: none; ");
 		} else {
 			// stroke
@@ -99,9 +100,9 @@ class SvgPen extends SvgObject implements GdiPen {
 			buffer.append("stroke-linejoin: round; ");
 
 			// stroke-dasharray
-			if (PS_DASH <= style && style <= PS_DASHDOTDOT) {
+			if (PS_DASH <= penStyle && penStyle <= PS_DASHDOTDOT) {
 				buffer.append("stroke-dasharray: ");
-				switch (style) {
+				switch (penStyle) {
 					case PS_DASH :
 						buffer.append(
 							"" + toStrokePatternSize(18) + "," + toStrokePatternSize(6));
@@ -149,6 +150,9 @@ class SvgPen extends SvgObject implements GdiPen {
 	}
 
 	private double toStrokeWidth() {
+		if ((style & PS_DEVICE_WIDTH) != 0) {
+			return Math.max(1.0, width);
+		}
 		return getGDI().getDC().toStrokeWidth(width);
 	}
 }

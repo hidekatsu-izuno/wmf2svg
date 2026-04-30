@@ -302,6 +302,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 
 		dc.setWindowExtEx(Math.abs(wex - wsx), Math.abs(wey - wsy), null);
+		dc.setViewportExtEx(Math.abs(wex - wsx), Math.abs(wey - wsy), null);
 		dc.setDpi(dpi);
 
 		Element root = doc.getDocumentElement();

@@ -189,9 +189,10 @@ public class EmfGdi implements Gdi, EmfConstants {
 
 	public GdiPen createPenIndirect(int style, int width, int color) {
 		EmfPen pen = new EmfPen(allocateHandle(), style, width, color);
+		int emfStyle = style & ~GdiPen.PS_DEVICE_WIDTH;
 		byte[] record = record(EMR_CREATEPEN, 20);
 		setInt32(record, 8, pen.id);
-		setInt32(record, 12, style);
+		setInt32(record, 12, emfStyle);
 		setInt32(record, 16, width);
 		setInt32(record, 20, 0);
 		setInt32(record, 24, color);
@@ -376,9 +377,10 @@ public class EmfGdi implements Gdi, EmfConstants {
 
 	public GdiPen extCreatePen(int style, int width, int color) {
 		EmfPen pen = new EmfPen(allocateHandle(), style, width, color);
+		int emfStyle = style & ~GdiPen.PS_DEVICE_WIDTH;
 		byte[] record = record(EMR_EXTCREATEPEN, 44);
 		setInt32(record, 8, pen.id);
-		setInt32(record, 28, style);
+		setInt32(record, 28, emfStyle);
 		setInt32(record, 32, width);
 		setInt32(record, 36, GdiBrush.BS_SOLID);
 		setInt32(record, 40, color);

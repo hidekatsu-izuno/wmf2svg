@@ -223,6 +223,27 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testPenWidthUsesXScaleInAnisotropicMap() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(8);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 1, null);
+		gdi.setViewportExtEx(10, 20, null);
+		GdiPen pen = gdi.createPenIndirect(0, 2, 0);
+		gdi.selectObject(pen);
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("stroke-width: 2.0;"));
+		Assert.assertFalse(svg.contains("stroke-width: 40.0;"));
+	}
+
+	@Test
 	public void testFooterDoesNotClipExistingContentToLaterSmallViewport() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 28000, 21000, 2540);

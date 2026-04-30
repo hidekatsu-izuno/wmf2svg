@@ -246,7 +246,8 @@ public class EmfParser implements Parser, EmfConstants {
 				break;
 			}
 			case EMR_CREATEPEN:
-				objects.put(readInt32(data, 0), gdi.createPenIndirect(readInt32(data, 4) & 0xFF, Math.max(1, Math.abs(readInt32(data, 8))), readInt32(data, 16)));
+				objects.put(readInt32(data, 0), createEmfPen(gdi, readInt32(data, 4), readInt32(data, 8),
+						readInt32(data, 16), transform));
 				break;
 			case EMR_CREATEBRUSHINDIRECT:
 				objects.put(readInt32(data, 0), gdi.createBrushIndirect(readInt32(data, 4), readInt32(data, 8), readInt32(data, 12)));
@@ -388,7 +389,8 @@ public class EmfParser implements Parser, EmfConstants {
 				break;
 			}
 			case EMR_EXTCREATEPEN:
-				objects.put(readInt32(data, 0), gdi.createPenIndirect(readInt32(data, 20) & 0xFF, Math.max(1, Math.abs(readInt32(data, 24))), readInt32(data, 32)));
+				objects.put(readInt32(data, 0), createEmfPen(gdi, readInt32(data, 20), readInt32(data, 24),
+						readInt32(data, 32), transform));
 				break;
 			case EMR_SETICMMODE:
 				gdi.setICMMode(readInt32(data, 0));
@@ -488,7 +490,7 @@ public class EmfParser implements Parser, EmfConstants {
 				if (regionSize == 0) {
 					gdi.extSelectClipRgn(null, mode);
 				} else {
-					GdiRegion region = readRegion(data, 8, regionSize, transform, gdi);
+					GdiRegion region = readRegion(data, 8, regionSize, null, gdi);
 					if (region != null) {
 						gdi.extSelectClipRgn(region, mode);
 					}
@@ -1188,6 +1190,37 @@ public class EmfParser implements Parser, EmfConstants {
 		return gdi.extCreateRegion(toXForm(transform), count, rgnData);
 	}
 
+	private static GdiPen createEmfPen(Gdi gdi, int style, int width, int color, double[] transform) {
+		int penStyle = readEmfPenStyle(style, transform);
+		int penWidth = readEmfPenWidth(style, width, transform);
+		return gdi.createPenIndirect(penStyle, penWidth, color);
+	}
+
+	private static int readEmfPenStyle(int style, double[] transform) {
+		if ((style & GdiPen.PS_TYPE_MASK) == GdiPen.PS_GEOMETRIC) {
+			if (!isIdentity(transform)) {
+				return style | GdiPen.PS_DEVICE_WIDTH;
+			}
+			return style;
+		}
+		return style | GdiPen.PS_DEVICE_WIDTH;
+	}
+
+	private static int readEmfPenWidth(int style, int width, double[] transform) {
+		int value = Math.abs(width);
+		if ((style & GdiPen.PS_TYPE_MASK) == GdiPen.PS_GEOMETRIC && !isIdentity(transform)) {
+			double scale = Math.hypot(transform[0], transform[1]);
+			return (int)Math.max(1, Math.round(value * scale));
+		}
+		return value;
+	}
+
+	private static boolean isIdentity(double[] transform) {
+		return transform == null || (transform[0] == 1.0 && transform[1] == 0.0
+				&& transform[2] == 0.0 && transform[3] == 1.0
+				&& transform[4] == 0.0 && transform[5] == 0.0);
+	}
+
 	private static byte[] copyRange(byte[] data, int offset, int length) {
 		if (offset < 0 || length <= 0 || offset + length > data.length) {
 			return new byte[0];
@@ -1295,6 +1328,9 @@ public class EmfParser implements Parser, EmfConstants {
 	}
 
 	private static float[] toXForm(double[] transform) {
+		if (transform == null) {
+			return null;
+		}
 		return new float[] {
 			(float)transform[0],
 			(float)transform[1],

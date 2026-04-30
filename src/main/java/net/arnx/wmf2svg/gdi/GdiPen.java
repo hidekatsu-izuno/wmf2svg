@@ -26,6 +26,10 @@ public interface GdiPen extends GdiObject {
     public static final int PS_DASHDOTDOT = 4;
     public static final int PS_NULL = 5;
     public static final int PS_INSIDEFRAME = 6;
+    public static final int PS_STYLE_MASK = 0x0000000F;
+    public static final int PS_TYPE_MASK = 0x000F0000;
+    public static final int PS_GEOMETRIC = 0x00010000;
+    public static final int PS_DEVICE_WIDTH = 0x40000000;
     
     public int getStyle();
     public int getWidth();

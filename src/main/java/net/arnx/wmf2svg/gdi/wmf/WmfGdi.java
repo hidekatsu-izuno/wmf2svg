@@ -286,10 +286,11 @@ public class WmfGdi implements Gdi, WmfConstants {
 
 	public GdiPen createPenIndirect(int style, int width, int color) {
 		byte[] record = new byte[16];
+		int wmfStyle = style & ~GdiPen.PS_DEVICE_WIDTH;
 		int pos = 0;
 		pos = setUint32(record, pos, record.length/2);
 		pos = setUint16(record, pos, META_CREATEPENINDIRECT);
-		pos = setUint16(record, pos, style);
+		pos = setUint16(record, pos, wmfStyle);
 		pos = setInt16(record, pos, width);
 		pos = setInt16(record, pos, 0);
 		pos = setInt32(record, pos, color);

@@ -302,9 +302,7 @@ public class SvgDc implements Cloneable {
 	}
 
 	public double toStrokeWidth(double width) {
-		double x = Math.abs(toRelativeX(width));
-		double y = Math.abs(toRelativeY(width));
-		return Math.max(1.0, Math.max(x, y));
+		return Math.max(1.0, Math.abs(toRelativeX(width)));
 	}
 
 	private double viewportScaleX() {

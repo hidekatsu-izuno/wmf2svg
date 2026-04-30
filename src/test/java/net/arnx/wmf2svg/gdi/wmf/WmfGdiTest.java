@@ -1,6 +1,11 @@
 package net.arnx.wmf2svg.gdi.wmf;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,8 +17,62 @@ import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.gdi.svg.SvgGdi;
 
 public class WmfGdiTest {
+	@Test
+	public void testPlaceableViewportScalesChangedWindowExt() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.placeableHeader(0, 0, 1000, 1000, 1000);
+		gdi.header();
+		gdi.setMapMode(8);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1000, 1000, null);
+		gdi.setWindowOrgEx(10, 20, null);
+		gdi.setWindowExtEx(100, 200, null);
+		gdi.rectangle(20, 40, 30, 60);
+		gdi.footer();
+
+		ByteArrayOutputStream wmf = new ByteArrayOutputStream();
+		gdi.write(wmf);
+
+		SvgGdi svgGdi = new SvgGdi();
+		new WmfParser().parse(new ByteArrayInputStream(wmf.toByteArray()), svgGdi);
+
+		ByteArrayOutputStream svg = new ByteArrayOutputStream();
+		svgGdi.write(svg);
+		String text = new String(svg.toByteArray(), "UTF-8");
+
+		assertTrue(text.indexOf("height=\"100\" width=\"100\" x=\"100\" y=\"100\"") >= 0);
+	}
+
+	@Test
+	public void testParsedPenWidthUsesLogicalUnits() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.placeableHeader(0, 0, 222, 41, 96);
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4416, 736, null);
+		GdiPen pen = gdi.createPenIndirect(0, 16, 0);
+		gdi.selectObject(pen);
+		gdi.moveToEx(1371, 416, null);
+		gdi.lineTo(1666, 416);
+		gdi.footer();
+
+		ByteArrayOutputStream wmf = new ByteArrayOutputStream();
+		gdi.write(wmf);
+
+		SvgGdi svgGdi = new SvgGdi();
+		new WmfParser().parse(new ByteArrayInputStream(wmf.toByteArray()), svgGdi);
+
+		ByteArrayOutputStream svg = new ByteArrayOutputStream();
+		svgGdi.write(svg);
+		String text = new String(svg.toByteArray(), "UTF-8");
+
+		assertTrue(text.indexOf("stroke-width: 1.0;") >= 0);
+		assertFalse(text.indexOf("stroke-width: 16.0;") >= 0);
+	}
+
 	@Test
 	public void testEllipse() throws IOException {
 		WmfGdi gdi = new WmfGdi();

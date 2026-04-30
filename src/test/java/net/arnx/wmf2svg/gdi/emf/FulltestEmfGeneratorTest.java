@@ -26,6 +26,7 @@ public class FulltestEmfGeneratorTest {
 		assertTrue(hasRecord(data, EmfConstants.EMR_SMALLTEXTOUT));
 		assertTrue(hasRecord(data, EmfConstants.EMR_SETWORLDTRANSFORM));
 		assertTrue(hasRecord(data, EmfConstants.EMR_MODIFYWORLDTRANSFORM));
+		assertTrue(hasEmfPlusComment(data));
 
 		SvgGdi gdi = new SvgGdi();
 		new EmfParser().parse(new ByteArrayInputStream(data), gdi);
@@ -38,6 +39,8 @@ public class FulltestEmfGeneratorTest {
 		assertTrue(svg.indexOf("PolyTextOutW") >= 0);
 		assertTrue(svg.indexOf("SmallTextOut") >= 0);
 		assertTrue(svg.indexOf("CreateMonoBrush") >= 0);
+		assertTrue(svg.indexOf("14 EMF+ records") >= 0);
+		assertTrue(svg.indexOf("EMF+ text") >= 0);
 		assertTrue(svg.indexOf("data:image/png;base64,") >= 0);
 	}
 
@@ -51,6 +54,30 @@ public class FulltestEmfGeneratorTest {
 			}
 			if (size < 8 || pos + size > data.length) {
 				return false;
+			}
+			pos += size;
+		}
+		return false;
+	}
+
+	private static boolean hasEmfPlusComment(byte[] data) {
+		int pos = 0;
+		while (pos + 12 <= data.length) {
+			int recordType = readInt32(data, pos);
+			int size = readInt32(data, pos + 4);
+			if (size < 8 || pos + size > data.length) {
+				return false;
+			}
+			if (recordType == EmfConstants.EMR_GDICOMMENT && size >= 16) {
+				int commentSize = readInt32(data, pos + 8);
+				int commentOffset = pos + 12;
+				if (commentSize >= 4 && commentOffset + commentSize <= pos + size
+						&& data[commentOffset] == 'E'
+						&& data[commentOffset + 1] == 'M'
+						&& data[commentOffset + 2] == 'F'
+						&& data[commentOffset + 3] == '+') {
+					return true;
+				}
 			}
 			pos += size;
 		}

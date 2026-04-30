@@ -21,6 +21,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Paint;
 import java.awt.Polygon;
@@ -63,6 +64,7 @@ import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.Trivertex;
 import net.arnx.wmf2svg.gdi.emf.EmfParseException;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
+import net.arnx.wmf2svg.util.SymbolFontMappings;
 
 public class AwtGdi implements Gdi {
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
@@ -86,6 +88,7 @@ public class AwtGdi implements Gdi {
 	private int canvasWidth = DEFAULT_CANVAS_WIDTH;
 	private int canvasHeight = DEFAULT_CANVAS_HEIGHT;
 	private boolean opaqueBackground;
+	private boolean replaceSymbolFont;
 	private AwtBrush defaultBrush;
 	private AwtPen defaultPen;
 	private AwtFont defaultFont;
@@ -116,6 +119,14 @@ public class AwtGdi implements Gdi {
 
 	public void setOpaqueBackground(boolean opaqueBackground) {
 		this.opaqueBackground = opaqueBackground;
+	}
+
+	public void setReplaceSymbolFont(boolean flag) {
+		replaceSymbolFont = flag;
+	}
+
+	public boolean isReplaceSymbolFont() {
+		return replaceSymbolFont;
 	}
 
 	public void write(OutputStream out, String format) throws IOException {
@@ -611,6 +622,9 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void lineTo(int ex, int ey) {
+		if (dc.getCurrentX() == ex && dc.getCurrentY() == ey) {
+			return;
+		}
 		if (currentPath != null) {
 			currentPath.lineTo(tx(ex), ty(ey));
 			dc.moveToEx(ex, ey, null);
@@ -738,10 +752,22 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void polyPolygon(Point[][] points) {
-		if (points != null) {
+		if (points == null || points.length == 0) {
+			return;
+		}
+		if (currentPath != null) {
 			for (int i = 0; i < points.length; i++) {
-				polygon(points[i]);
+				appendPoints(points[i], true);
 			}
+			return;
+		}
+		Path2D.Double path = new Path2D.Double(
+				dc.getPolyFillMode() == Gdi.WINDING ? Path2D.WIND_NON_ZERO : Path2D.WIND_EVEN_ODD);
+		for (int i = 0; i < points.length; i++) {
+			appendPoints(path, points[i], true);
+		}
+		if (path.getCurrentPoint() != null) {
+			drawShape(path);
 		}
 	}
 
@@ -1231,10 +1257,10 @@ public class AwtGdi implements Gdi {
 		double start = toArcAngle(tx(sxa), ty(sya), cx, cy);
 		double end = toArcAngle(tx(exa), ty(eya), cx, cy);
 		double extent = dc.getArcDirection() == Gdi.AD_CLOCKWISE
-				? normalizeDegrees(start - end)
-				: -normalizeDegrees(end - start);
+				? -normalizeDegrees(start - end)
+				: normalizeDegrees(end - start);
 		if (sxa == exa && sya == eya) {
-			extent = dc.getArcDirection() == Gdi.AD_CLOCKWISE ? 360.0 : -360.0;
+			extent = dc.getArcDirection() == Gdi.AD_CLOCKWISE ? -360.0 : 360.0;
 		}
 		return new Arc2D.Double(frame.getX(), frame.getY(), frame.getWidth(), frame.getHeight(), start, extent, type);
 	}
@@ -1392,12 +1418,19 @@ public class AwtGdi implements Gdi {
 		if (currentPath == null || points == null || points.length == 0) {
 			return;
 		}
-		currentPath.moveTo(tx(points[0].x), ty(points[0].y));
+		appendPoints(currentPath, points, close);
+	}
+
+	private void appendPoints(Path2D.Double path, Point[] points, boolean close) {
+		if (path == null || points == null || points.length == 0) {
+			return;
+		}
+		path.moveTo(tx(points[0].x), ty(points[0].y));
 		for (int i = 1; i < points.length; i++) {
-			currentPath.lineTo(tx(points[i].x), ty(points[i].y));
+			path.lineTo(tx(points[i].x), ty(points[i].y));
 		}
 		if (close) {
-			currentPath.closePath();
+			path.closePath();
 		}
 	}
 
@@ -1678,6 +1711,14 @@ public class AwtGdi implements Gdi {
 		}
 		AwtFont gdiFont = dc.getFont();
 		Font font = toFont(gdiFont);
+		String mappedText = mapSymbolText(gdiFont, text);
+		if (mappedText != text) {
+			if (mappedText.length() != text.length()) {
+				lpdx = null;
+			}
+			text = mappedText;
+			font = toSymbolReplacementFont(font);
+		}
 		graphics.setFont(font);
 		graphics.setPaint(toColor(dc.getTextColor()));
 		FontMetrics metrics = graphics.getFontMetrics(font);
@@ -1805,6 +1846,31 @@ public class AwtGdi implements Gdi {
 		}
 		float fittedSize = Math.max(1.0f, font.getSize2D() * targetHeight / actualHeight);
 		return font.deriveFont(fittedSize);
+	}
+
+	private String mapSymbolText(AwtFont font, String text) {
+		if (replaceSymbolFont && font != null && SymbolFontMappings.isMappedFont(font.getFaceName())) {
+			return SymbolFontMappings.replace(font.getFaceName(), text);
+		}
+		return text;
+	}
+
+	private Font toSymbolReplacementFont(Font font) {
+		Font replacement = new Font(getSymbolReplacementFontFamily(), font.getStyle(), Math.max(1, font.getSize()));
+		return replacement.deriveFont(font.getSize2D());
+	}
+
+	private String getSymbolReplacementFontFamily() {
+		String[] candidates = {"Noto Sans Symbols 2", "Noto Sans Symbols", "Noto Sans", Font.SANS_SERIF};
+		String[] families = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+		for (int i = 0; i < candidates.length; i++) {
+			for (int j = 0; j < families.length; j++) {
+				if (candidates[i].equalsIgnoreCase(families[j])) {
+					return families[j];
+				}
+			}
+		}
+		return Font.SANS_SERIF;
 	}
 
 	private void drawBitmap(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, int usage,

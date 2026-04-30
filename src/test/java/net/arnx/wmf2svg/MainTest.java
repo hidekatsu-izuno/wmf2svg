@@ -34,10 +34,12 @@ public class MainTest {
 
 		for (int i = 0; i < files.length; i++) {
 			String wmf = files[i].getAbsolutePath();
-			String svg = new File(outdir, files[i].getName().substring(0, files[i].getName().length() - 4) + ".svg")
-					.getAbsolutePath();
+			String baseName = files[i].getName().substring(0, files[i].getName().length() - 4);
+			String svg = new File(outdir, baseName + ".svg").getAbsolutePath();
+			String png = new File(outdir, baseName + ".png").getAbsolutePath();
 			System.out.println(wmf + " transforming...");
 			Main.main(new String[]{"-debug", "-replace-symbol-font", wmf, svg});
+			Main.main(new String[]{"-replace-symbol-font", wmf, png});
 		}
 	}
 }

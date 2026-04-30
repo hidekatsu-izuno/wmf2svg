@@ -76,6 +76,7 @@ public class Main {
 			if (destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg")) {
 				AwtGdi awtGdi = new AwtGdi();
 				awtGdi.setOpaqueBackground(src.toLowerCase().endsWith(".emf"));
+				awtGdi.setReplaceSymbolFont(replaceSymbolFont);
 				gdi = awtGdi;
 			} else {
 				gdi = new SvgGdi(compatible);

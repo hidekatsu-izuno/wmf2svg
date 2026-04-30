@@ -50,32 +50,32 @@ public class EmfGdiTest {
 	public void testEscapeWritesExtescape() throws Exception {
 		EmfGdi gdi = new EmfGdi();
 
-		gdi.escape(new byte[] { 0x34, 0x12, 0x03, 0x00, 1, 2, 3 });
+		gdi.escape(new byte[]{0x34, 0x12, 0x03, 0x00, 1, 2, 3});
 		byte[] emf = write(gdi);
 
 		assertEquals(106, readInt32(emf, 88));
 		assertEquals(0x1234, readInt32(emf, 96));
-		assertArrayEquals(new byte[] { 1, 2, 3 }, copyRange(emf, 100, 3));
+		assertArrayEquals(new byte[]{1, 2, 3}, copyRange(emf, 100, 3));
 	}
 
 	@Test
 	public void testNamedEscapeWritesNamedescape() throws Exception {
 		EmfGdi gdi = new EmfGdi();
 
-		gdi.namedEscape(0x100, new byte[] { 'D', 0, 'R', 0, 'V', 0, 0, 0 }, new byte[] { 5, 6 });
+		gdi.namedEscape(0x100, new byte[]{'D', 0, 'R', 0, 'V', 0, 0, 0}, new byte[]{5, 6});
 		byte[] emf = write(gdi);
 
 		assertEquals(110, readInt32(emf, 88));
 		assertEquals(0x100, readInt32(emf, 96));
 		assertEquals(8, readInt32(emf, 100));
 		assertEquals(2, readInt32(emf, 104));
-		assertArrayEquals(new byte[] { 'D', 0, 'R', 0, 'V', 0, 0, 0, 5, 6 }, copyRange(emf, 108, 10));
+		assertArrayEquals(new byte[]{'D', 0, 'R', 0, 'V', 0, 0, 0, 5, 6}, copyRange(emf, 108, 10));
 	}
 
 	@Test
 	public void testWorldTransformRecords() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		float[] xform = new float[] { 1, 2, 3, 4, 5, 6 };
+		float[] xform = new float[]{1, 2, 3, 4, 5, 6};
 
 		gdi.setWorldTransform(xform);
 		gdi.modifyWorldTransform(xform, 2);
@@ -95,7 +95,7 @@ public class EmfGdiTest {
 	public void testPolyDrawWritesPolydraw() throws Exception {
 		EmfGdi gdi = new EmfGdi();
 
-		gdi.polyDraw(new Point[] { new Point(10, 20), new Point(30, 40) }, new byte[] { 6, 2 });
+		gdi.polyDraw(new Point[]{new Point(10, 20), new Point(30, 40)}, new byte[]{6, 2});
 		byte[] emf = write(gdi);
 
 		assertEquals(56, readInt32(emf, 88));
@@ -104,15 +104,15 @@ public class EmfGdiTest {
 		assertEquals(20, readInt32(emf, 120));
 		assertEquals(30, readInt32(emf, 124));
 		assertEquals(40, readInt32(emf, 128));
-		assertArrayEquals(new byte[] { 6, 2 }, copyRange(emf, 132, 2));
+		assertArrayEquals(new byte[]{6, 2}, copyRange(emf, 132, 2));
 	}
 
 	@Test
 	public void testPolyTextOutWWritesPolytextoutw() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] text = new byte[] { 'A', 0, 'B', 0 };
+		byte[] text = new byte[]{'A', 0, 'B', 0};
 
-		gdi.polyTextOutW(new Point[] { new Point(11, 22) }, null, null, new byte[][] { text }, null);
+		gdi.polyTextOutW(new Point[]{new Point(11, 22)}, null, null, new byte[][]{text}, null);
 		byte[] emf = write(gdi);
 
 		assertEquals(97, readInt32(emf, 88));
@@ -127,7 +127,7 @@ public class EmfGdiTest {
 	@Test
 	public void testSmallTextOutWritesSmalltextout() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] text = new byte[] { 'A', 'B', 'C' };
+		byte[] text = new byte[]{'A', 'B', 'C'};
 
 		gdi.smallTextOut(11, 22, 0x00000300, null, text);
 		byte[] emf = write(gdi);
@@ -143,7 +143,7 @@ public class EmfGdiTest {
 	@Test
 	public void testCreateColorSpaceWritesCreatecolorspace() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] logColorSpace = new byte[] { 1, 2, 3, 4, 5 };
+		byte[] logColorSpace = new byte[]{1, 2, 3, 4, 5};
 
 		GdiColorSpace colorSpace = gdi.createColorSpace(logColorSpace);
 		byte[] emf = write(gdi);
@@ -156,7 +156,7 @@ public class EmfGdiTest {
 	@Test
 	public void testCreateColorSpaceWWritesCreatecolorspacew() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] logColorSpace = new byte[] { 6, 7, 8, 9 };
+		byte[] logColorSpace = new byte[]{6, 7, 8, 9};
 
 		GdiColorSpace colorSpace = gdi.createColorSpaceW(logColorSpace);
 		byte[] emf = write(gdi);
@@ -169,7 +169,7 @@ public class EmfGdiTest {
 	@Test
 	public void testColorMatchToTargetWWritesColormatchtotargetw() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] profile = new byte[] { 10, 20, 30 };
+		byte[] profile = new byte[]{10, 20, 30};
 
 		gdi.colorMatchToTarget(1, 2, profile);
 		byte[] emf = write(gdi);
@@ -185,7 +185,7 @@ public class EmfGdiTest {
 	@Test
 	public void testSetICMProfileAWritesSeticmprofilea() throws Exception {
 		EmfGdi gdi = new EmfGdi();
-		byte[] profile = new byte[] { 's', 'R', 'G', 'B', 0 };
+		byte[] profile = new byte[]{'s', 'R', 'G', 'B', 0};
 
 		gdi.setICMProfileA(profile);
 		byte[] emf = write(gdi);
@@ -222,21 +222,19 @@ public class EmfGdiTest {
 	}
 
 	private static int readInt32(byte[] data, int pos) {
-		return (data[pos] & 0xFF)
-				| ((data[pos + 1] & 0xFF) << 8)
-				| ((data[pos + 2] & 0xFF) << 16)
+		return (data[pos] & 0xFF) | ((data[pos + 1] & 0xFF) << 8) | ((data[pos + 2] & 0xFF) << 16)
 				| (data[pos + 3] << 24);
 	}
 
 	private static void setUInt16(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
 	}
 
 	private static void setInt32(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
-		data[pos + 2] = (byte)((value >>> 16) & 0xFF);
-		data[pos + 3] = (byte)((value >>> 24) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
+		data[pos + 2] = (byte) ((value >>> 16) & 0xFF);
+		data[pos + 3] = (byte) ((value >>> 24) & 0xFF);
 	}
 }

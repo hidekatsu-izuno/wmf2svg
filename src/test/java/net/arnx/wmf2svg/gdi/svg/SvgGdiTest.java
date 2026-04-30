@@ -71,10 +71,10 @@ public class SvgGdiTest {
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(2, 1, null);
 
-		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1,
-				createTopDown24BitDib(new int[] { 0xFF0000, 0x00FF00 }), Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
-		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1,
-				createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
+		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1, createTopDown24BitDib(new int[]{0xFF0000, 0x00FF00}),
+				Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
+		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1, createTopDown24BitDib(new int[]{0xFF0000, 0x0000FF}),
+				Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
@@ -100,10 +100,10 @@ public class SvgGdiTest {
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(2, 1, null);
 
-		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1,
-				createTopDown24BitDib(new int[] { 0xFF0000 }), Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
-		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1,
-				createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
+		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCINVERT);
+		gdi.stretchDIBits(0, 0, 2, 1, 0, 0, 2, 1, createTopDown24BitDib(new int[]{0xFF0000, 0x0000FF}),
+				Gdi.DIB_RGB_COLORS, Gdi.SRCINVERT);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
@@ -127,15 +127,16 @@ public class SvgGdiTest {
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(2, 1, null);
 
-		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
-				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, 0xCCAA0029L);
+		gdi.maskBlt(createTopDown24BitDib(new int[]{0xFF0000, 0x0000FF}), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[]{0x80}), 0, 0, 0xCCAA0029L);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
 		String svg = out.toString("UTF-8");
 		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
 		Assert.assertTrue(matcher.find());
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		BufferedImage image = ImageIO
+				.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
 		Assert.assertEquals(0, (image.getRGB(0, 0) >>> 24) & 0xFF);
 		Assert.assertEquals(0xFF0000FF, image.getRGB(1, 0));
 	}
@@ -147,8 +148,8 @@ public class SvgGdiTest {
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(2, 1, null);
 
-		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
-				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, 0xAA000000L | Gdi.NOTSRCCOPY);
+		gdi.maskBlt(createTopDown24BitDib(new int[]{0xFF0000, 0x0000FF}), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[]{0x80}), 0, 0, 0xAA000000L | Gdi.NOTSRCCOPY);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
@@ -156,7 +157,8 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("NOTSRCCOPY_FILTER"));
 		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
 		Assert.assertTrue(matcher.find());
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		BufferedImage image = ImageIO
+				.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
 		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
 		Assert.assertEquals(0, (image.getRGB(1, 0) >>> 24) & 0xFF);
 	}
@@ -168,15 +170,16 @@ public class SvgGdiTest {
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(2, 1, null);
 
-		gdi.maskBlt(createTopDown24BitDib(new int[] { 0xFF0000, 0x0000FF }), 0, 0, 2, 1, 0, 0,
-				createMonochromeDib(2, 1, new int[] { 0x80 }), 0, 0, Gdi.SRCCOPY);
+		gdi.maskBlt(createTopDown24BitDib(new int[]{0xFF0000, 0x0000FF}), 0, 0, 2, 1, 0, 0,
+				createMonochromeDib(2, 1, new int[]{0x80}), 0, 0, Gdi.SRCCOPY);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
 		String svg = out.toString("UTF-8");
 		Matcher matcher = PNG_DATA_PATTERN.matcher(svg);
 		Assert.assertTrue(matcher.find());
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
+		BufferedImage image = ImageIO
+				.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
 		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
 		Assert.assertEquals(0, (image.getRGB(1, 0) >>> 24) & 0xFF);
 	}
@@ -250,12 +253,9 @@ public class SvgGdiTest {
 		gdi.header();
 		gdi.setWindowOrgEx(0, 0, null);
 		gdi.setWindowExtEx(28000, 21000, null);
-		gdi.polygon(new net.arnx.wmf2svg.gdi.Point[] {
-				new net.arnx.wmf2svg.gdi.Point(0, 0),
-				new net.arnx.wmf2svg.gdi.Point(1058, 0),
-				new net.arnx.wmf2svg.gdi.Point(1058, 793),
-				new net.arnx.wmf2svg.gdi.Point(0, 793)
-		});
+		gdi.polygon(new net.arnx.wmf2svg.gdi.Point[]{new net.arnx.wmf2svg.gdi.Point(0, 0),
+				new net.arnx.wmf2svg.gdi.Point(1058, 0), new net.arnx.wmf2svg.gdi.Point(1058, 793),
+				new net.arnx.wmf2svg.gdi.Point(0, 793)});
 		gdi.setViewportExtEx(96, 96, null);
 		gdi.footer();
 
@@ -994,8 +994,7 @@ public class SvgGdiTest {
 		String pngData = matcher.group(1);
 		Assert.assertFalse(matcher.find());
 
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(
-				java.util.Base64.getDecoder().decode(pngData)));
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(pngData)));
 		Assert.assertEquals(2, image.getWidth());
 		Assert.assertEquals(1, image.getHeight());
 		Assert.assertTrue(svg.contains("transform=\"matrix(15 0 0 40 5 7)\""));
@@ -1016,8 +1015,7 @@ public class SvgGdiTest {
 		String pngData = matcher.group(1);
 		Assert.assertFalse(matcher.find());
 
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(
-				java.util.Base64.getDecoder().decode(pngData)));
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(pngData)));
 		Assert.assertEquals(2, image.getWidth());
 		Assert.assertEquals(1, image.getHeight());
 		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
@@ -1027,35 +1025,28 @@ public class SvgGdiTest {
 
 	@Test
 	public void testEmfPlusHighDepthRawBitmapImagesRenderAsPng() throws Exception {
-		assertEmfPlusRawBitmapPixels(createEmfPlusRawBitmapDrawImageComment(0,
-				0x00061007, 4, new byte[] {
-						0, (byte)0xFC,
-						(byte)0xE0, 0x03
-				}), 0xFFFF0000, 0x0000FF00);
-		assertEmfPlusRawBitmapPixels(createEmfPlusRawBitmapDrawImageComment(0,
-				0x0034400D, 16, new byte[] {
-						0, 0, 0, 0, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
-						0, 0, (byte)0xFF, (byte)0xFF, 0, 0, 0, (byte)0x80
-				}), 0xFFFF0000, 0x8000FF00);
-		assertEmfPlusRawBitmapPixels(createEmfPlusRawBitmapDrawImageComment(0,
-				0x001A400E, 16, new byte[] {
-						0, 0, 0, 0, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
-						0, 0, 0, (byte)0x80, 0, 0, 0, (byte)0x80
-				}), 0xFFFF0000, 0x8000FF00);
+		assertEmfPlusRawBitmapPixels(
+				createEmfPlusRawBitmapDrawImageComment(0, 0x00061007, 4, new byte[]{0, (byte) 0xFC, (byte) 0xE0, 0x03}),
+				0xFFFF0000, 0x0000FF00);
+		assertEmfPlusRawBitmapPixels(
+				createEmfPlusRawBitmapDrawImageComment(0, 0x0034400D, 16, new byte[]{0, 0, 0, 0, (byte) 0xFF,
+						(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0, 0, (byte) 0xFF, (byte) 0xFF, 0, 0, 0, (byte) 0x80}),
+				0xFFFF0000, 0x8000FF00);
+		assertEmfPlusRawBitmapPixels(
+				createEmfPlusRawBitmapDrawImageComment(0, 0x001A400E, 16, new byte[]{0, 0, 0, 0, (byte) 0xFF,
+						(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0, 0, 0, (byte) 0x80, 0, 0, 0, (byte) 0x80}),
+				0xFFFF0000, 0x8000FF00);
 	}
 
 	@Test
 	public void testEmfPlusWideRawBitmapImagesRenderAsPng() throws Exception {
-		assertEmfPlusRawBitmapPixels(createEmfPlusRawBitmapDrawImageComment(0,
-				0x0010300C, 12, new byte[] {
-						0, 0, 0, 0, (byte)0xFF, (byte)0xFF,
-						0, 0, (byte)0xFF, (byte)0xFF, 0, 0
-				}), 0xFFFF0000, 0xFF00FF00);
-		assertEmfPlusRawBitmapPixels(createEmfPlusRawBitmapDrawImageComment(0,
-				0x00101004, 4, new byte[] {
-						0, 0,
-						(byte)0xFF, (byte)0xFF
-				}), 0xFF000000, 0xFFFFFFFF);
+		assertEmfPlusRawBitmapPixels(
+				createEmfPlusRawBitmapDrawImageComment(0, 0x0010300C, 12,
+						new byte[]{0, 0, 0, 0, (byte) 0xFF, (byte) 0xFF, 0, 0, (byte) 0xFF, (byte) 0xFF, 0, 0}),
+				0xFFFF0000, 0xFF00FF00);
+		assertEmfPlusRawBitmapPixels(
+				createEmfPlusRawBitmapDrawImageComment(0, 0x00101004, 4, new byte[]{0, 0, (byte) 0xFF, (byte) 0xFF}),
+				0xFF000000, 0xFFFFFFFF);
 	}
 
 	@Test
@@ -1073,8 +1064,7 @@ public class SvgGdiTest {
 		String pngData = matcher.group(1);
 		Assert.assertFalse(matcher.find());
 
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(
-				java.util.Base64.getDecoder().decode(pngData)));
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(pngData)));
 		Assert.assertEquals(2, image.getWidth());
 		Assert.assertEquals(1, image.getHeight());
 		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
@@ -1094,8 +1084,7 @@ public class SvgGdiTest {
 		String pngData = matcher.group(1);
 		Assert.assertFalse(matcher.find());
 
-		BufferedImage image = ImageIO.read(new ByteArrayInputStream(
-				java.util.Base64.getDecoder().decode(pngData)));
+		BufferedImage image = ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(pngData)));
 		Assert.assertEquals(2, image.getWidth());
 		Assert.assertEquals(1, image.getHeight());
 		Assert.assertEquals(firstPixel, image.getRGB(0, 0));
@@ -1933,9 +1922,9 @@ public class SvgGdiTest {
 		for (int x = 0; x < width; x++) {
 			int rgb = pixels[x];
 			int pos = 40 + x * 3;
-			dib[pos] = (byte)(rgb & 0xFF);
-			dib[pos + 1] = (byte)((rgb >>> 8) & 0xFF);
-			dib[pos + 2] = (byte)((rgb >>> 16) & 0xFF);
+			dib[pos] = (byte) (rgb & 0xFF);
+			dib[pos + 1] = (byte) ((rgb >>> 8) & 0xFF);
+			dib[pos + 2] = (byte) ((rgb >>> 16) & 0xFF);
 		}
 		return dib;
 	}
@@ -1952,11 +1941,11 @@ public class SvgGdiTest {
 		dib[40] = 0;
 		dib[41] = 0;
 		dib[42] = 0;
-		dib[44] = (byte)0xFF;
-		dib[45] = (byte)0xFF;
-		dib[46] = (byte)0xFF;
+		dib[44] = (byte) 0xFF;
+		dib[45] = (byte) 0xFF;
+		dib[46] = (byte) 0xFF;
 		for (int y = 0; y < height; y++) {
-			dib[48 + y * stride] = (byte)rows[y];
+			dib[48 + y * stride] = (byte) rows[y];
 		}
 		return dib;
 	}
@@ -3188,8 +3177,7 @@ public class SvgGdiTest {
 		return comment.toByteArray();
 	}
 
-	private byte[] createEmfPlusRawBitmapDrawImageComment(int objectId,
-			int pixelFormat, int stride, byte[] pixels) {
+	private byte[] createEmfPlusRawBitmapDrawImageComment(int objectId, int pixelFormat, int stride, byte[] pixels) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
@@ -3795,8 +3783,8 @@ public class SvgGdiTest {
 		return createEmfPlusFormattedDrawStringComment(formatFlags, hotkeyPrefix, 1.0f, text);
 	}
 
-	private byte[] createEmfPlusFormattedDrawStringComment(int formatFlags, int hotkeyPrefix,
-			float tracking, String text) {
+	private byte[] createEmfPlusFormattedDrawStringComment(int formatFlags, int hotkeyPrefix, float tracking,
+			String text) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
@@ -4391,8 +4379,8 @@ public class SvgGdiTest {
 		out.write(data, 0, data.length);
 	}
 
-	private void writeEmfPlusContinuedObjectRecord(ByteArrayOutputStream out, int flags,
-			int totalObjectSize, byte[] data) {
+	private void writeEmfPlusContinuedObjectRecord(ByteArrayOutputStream out, int flags, int totalObjectSize,
+			byte[] data) {
 		writeShort(out, 0x4008);
 		writeShort(out, flags | 0x8000);
 		writeInt(out, data.length + 16);
@@ -4440,14 +4428,14 @@ public class SvgGdiTest {
 	}
 
 	private void setUInt16(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
 	}
 
 	private void setInt32(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
-		data[pos + 2] = (byte)((value >>> 16) & 0xFF);
-		data[pos + 3] = (byte)((value >>> 24) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
+		data[pos + 2] = (byte) ((value >>> 16) & 0xFF);
+		data[pos + 3] = (byte) ((value >>> 24) & 0xFF);
 	}
 }

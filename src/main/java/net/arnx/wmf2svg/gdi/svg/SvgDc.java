@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
@@ -34,37 +34,37 @@ public class SvgDc implements Cloneable {
 	private int wy = 0;
 	private int ww = 0;
 	private int wh = 0;
-	
+
 	// window offset
 	private int wox = 0;
 	private int woy = 0;
-	
+
 	// window scale
 	private double wsx = 1.0;
 	private double wsy = 1.0;
-	
+
 	// mapping scale
 	private double mx = 1.0;
 	private double my = 1.0;
-	
+
 	// viewport
 	private int vx = 0;
 	private int vy = 0;
 	private int vw = 0;
 	private int vh = 0;
-	
+
 	// viewport offset
 	private int vox = 0;
 	private int voy = 0;
-	
+
 	// viewport scale
 	private double vsx = 1.0;
 	private double vsy = 1.0;
-	
+
 	// current location
 	private int cx = 0;
 	private int cy = 0;
-	
+
 	// clip offset
 	private int cox = 0;
 	private int coy = 0;
@@ -72,7 +72,7 @@ public class SvgDc implements Cloneable {
 	// brush origin
 	private int box = 0;
 	private int boy = 0;
-	
+
 	private int mapMode = Gdi.MM_TEXT;
 	private int bkColor = 0x00FFFFFF;
 	private int bkMode = Gdi.OPAQUE;
@@ -96,9 +96,9 @@ public class SvgDc implements Cloneable {
 	private SvgFont font = null;
 	private SvgPen pen = null;
 	private SvgColorSpace colorSpace = null;
-	
+
 	private Element mask = null;
-	
+
 	public SvgDc(SvgGdi gdi) {
 		this.gdi = gdi;
 	}
@@ -106,7 +106,7 @@ public class SvgDc implements Cloneable {
 	public int getDpi() {
 		return dpi;
 	}
-	
+
 	public void setWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = wx;
@@ -115,7 +115,7 @@ public class SvgDc implements Cloneable {
 		wx = x;
 		wy = y;
 	}
-	
+
 	public void setWindowExtEx(int width, int height, Size old) {
 		if (old != null) {
 			old.width = ww;
@@ -124,7 +124,7 @@ public class SvgDc implements Cloneable {
 		ww = width;
 		wh = height;
 	}
-	
+
 	public void offsetWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = wox;
@@ -133,29 +133,29 @@ public class SvgDc implements Cloneable {
 		wox += x;
 		woy += y;
 	}
-	
+
 	public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old) {
 		// TODO
-		wsx = (wsx * x)/xd;
-		wsy = (wsy * y)/yd;
+		wsx = (wsx * x) / xd;
+		wsy = (wsy * y) / yd;
 	}
-	
+
 	public int getWindowX() {
 		return wx;
 	}
-	
+
 	public int getWindowY() {
 		return wy;
 	}
-	
+
 	public int getWindowWidth() {
 		return ww;
 	}
-	
+
 	public int getWindowHeight() {
 		return wh;
 	}
-	
+
 	public void setViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = vx;
@@ -164,7 +164,7 @@ public class SvgDc implements Cloneable {
 		vx = x;
 		vy = y;
 	}
-	
+
 	public void setViewportExtEx(int width, int height, Size old) {
 		if (old != null) {
 			old.width = vw;
@@ -189,7 +189,7 @@ public class SvgDc implements Cloneable {
 	public int getViewportHeight() {
 		return vh;
 	}
-	
+
 	public void offsetViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
 			old.x = vox;
@@ -198,22 +198,22 @@ public class SvgDc implements Cloneable {
 		vox += x;
 		voy += y;
 	}
-	
+
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
 		// TODO
-		vsx = (vsx * x)/xd;
-		vsy = (vsy * y)/yd;
+		vsx = (vsx * x) / xd;
+		vsy = (vsy * y) / yd;
 	}
-	
+
 	public void offsetClipRgn(int x, int y) {
 		cox = x;
 		coy = y;
 	}
-	
+
 	public int getMapMode() {
 		return mapMode;
 	}
-	
+
 	public void setMapMode(int mode) {
 		mapMode = mode;
 		switch (mode) {
@@ -242,19 +242,19 @@ public class SvgDc implements Cloneable {
 				my = 1.0;
 		}
 	}
-	
+
 	public int getCurrentX() {
 		return cx;
 	}
-	
+
 	public int getCurrentY() {
 		return cy;
 	}
-	
+
 	public int getOffsetClipX() {
 		return cox;
 	}
-	
+
 	public int getOffsetClipY() {
 		return coy;
 	}
@@ -284,19 +284,19 @@ public class SvgDc implements Cloneable {
 		cx = x;
 		cy = y;
 	}
-	
+
 	public double toAbsoluteX(double x) {
 		return toViewportOriginX(vx + vox) + ((mx * x - (wx + wox)) / wsx) * viewportScaleX();
 	}
-	
+
 	public double toAbsoluteY(double y) {
 		return toViewportOriginY(vy + voy) + ((my * y - (wy + woy)) / wsy) * viewportScaleY();
 	}
-	
+
 	public double toRelativeX(double x) {
 		return (mx * x / wsx) * viewportScaleX();
 	}
-	
+
 	public double toRelativeY(double y) {
 		return (my * y / wsy) * viewportScaleY();
 	}
@@ -328,11 +328,11 @@ public class SvgDc implements Cloneable {
 	private double toViewportOriginY(int y) {
 		return y * dpi / CSS_DPI;
 	}
-	
+
 	public void setDpi(int dpi) {
 		this.dpi = (dpi > 0) ? dpi : 1440;
 	}
-	
+
 	public int getBkColor() {
 		return bkColor;
 	}
@@ -340,7 +340,7 @@ public class SvgDc implements Cloneable {
 	public void setBkColor(int color) {
 		bkColor = color;
 	}
-	
+
 	public int getBkMode() {
 		return bkMode;
 	}
@@ -348,39 +348,39 @@ public class SvgDc implements Cloneable {
 	public void setBkMode(int mode) {
 		bkMode = mode;
 	}
-	
+
 	public int getTextColor() {
 		return textColor;
 	}
-	
+
 	public void setTextColor(int color) {
 		textColor = color;
 	}
-	
+
 	public int getPolyFillMode() {
 		return polyFillMode;
 	}
-	
+
 	public void setPolyFillMode(int mode) {
 		polyFillMode = mode;
 	}
-	
+
 	public int getRelAbs() {
 		return relAbsMode;
 	}
-	
+
 	public void setRelAbs(int mode) {
 		relAbsMode = mode;
 	}
-	
+
 	public int getROP2() {
 		return rop2Mode;
 	}
-	
+
 	public void setROP2(int mode) {
 		rop2Mode = mode;
 	}
-	
+
 	public int getStretchBltMode() {
 		return stretchBltMode;
 	}
@@ -408,39 +408,39 @@ public class SvgDc implements Cloneable {
 	public int getTextSpace() {
 		return textSpace;
 	}
-	
+
 	public void setTextSpace(int space) {
 		textSpace = space;
 	}
-	
+
 	public int getTextAlign() {
 		return textAlign;
 	}
-	
+
 	public void setTextAlign(int align) {
 		textAlign = align;
 	}
-	
+
 	public int getTextCharacterExtra() {
 		return textDx;
 	}
-	
+
 	public void setTextCharacterExtra(int extra) {
 		textDx = extra;
 	}
-	
+
 	public long getLayout() {
 		return layout;
 	}
-	
+
 	public void setLayout(long layout) {
 		this.layout = layout;
 	}
-	
+
 	public long getMapperFlags() {
 		return mapperFlags;
 	}
-	
+
 	public void setMapperFlags(long flags) {
 		mapperFlags = flags;
 	}
@@ -512,7 +512,7 @@ public class SvgDc implements Cloneable {
 	public SvgFont getFont() {
 		return font;
 	}
-	
+
 	public void setFont(SvgFont font) {
 		this.font = font;
 	}
@@ -520,15 +520,15 @@ public class SvgDc implements Cloneable {
 	public SvgPen getPen() {
 		return pen;
 	}
-	
+
 	public void setPen(SvgPen pen) {
 		this.pen = pen;
 	}
-	
+
 	public void setMask(Element mask) {
 		this.mask = mask;
 	}
-	
+
 	public Element getMask() {
 		return mask;
 	}
@@ -544,23 +544,23 @@ public class SvgDc implements Cloneable {
 		filter.setAttribute("color-interpolation-filters", "sRGB");
 		return filter;
 	}
-	
+
 	public String getRopFilter(long rop) {
 		String name = null;
 		Document doc = gdi.getDocument();
-		
+
 		if (rop == Gdi.BLACKNESS) {
 			name = "BLACKNESS_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
 				feColorMatrix.setAttribute("in", "SourceGraphic");
 				feColorMatrix.setAttribute("values", "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0");
 				filter.appendChild(feColorMatrix);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.NOTSRCERASE) {
@@ -568,7 +568,7 @@ public class SvgDc implements Cloneable {
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
 				feComposite.setAttribute("in2", "BackgroundImage");
@@ -581,21 +581,21 @@ public class SvgDc implements Cloneable {
 				feColorMatrix.setAttribute("in", "result0");
 				feColorMatrix.setAttribute("values", "-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0");
 				filter.appendChild(feColorMatrix);
-				
+
 				gdi.getDefsElement().appendChild(filter);
-			}			
+			}
 		} else if (rop == Gdi.NOTSRCCOPY) {
 			name = "NOTSRCCOPY_FILTER";
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
 				feColorMatrix.setAttribute("in", "SourceGraphic");
 				feColorMatrix.setAttribute("values", "-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0");
 				filter.appendChild(feColorMatrix);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.SRCERASE) {
@@ -610,7 +610,7 @@ public class SvgDc implements Cloneable {
 				feColorMatrix.setAttribute("values", "-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0");
 				feColorMatrix.setAttribute("result", "result0");
 				filter.appendChild(feColorMatrix);
-				
+
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
 				feComposite.setAttribute("in2", "result0");
@@ -618,7 +618,7 @@ public class SvgDc implements Cloneable {
 				feComposite.setAttribute("k2", "1");
 				feComposite.setAttribute("k3", "1");
 				filter.appendChild(feComposite);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.PATINVERT) {
@@ -630,13 +630,13 @@ public class SvgDc implements Cloneable {
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
 				feColorMatrix.setAttribute("in", "BackgroundImage");
 				feColorMatrix.setAttribute("values", "-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0");
 				filter.appendChild(feColorMatrix);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.SRCAND) {
@@ -644,14 +644,14 @@ public class SvgDc implements Cloneable {
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
 				feComposite.setAttribute("in2", "BackgroundImage");
 				feComposite.setAttribute("operator", "arithmetic");
 				feComposite.setAttribute("k1", "1");
 				filter.appendChild(feComposite);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.MERGEPAINT) {
@@ -666,14 +666,14 @@ public class SvgDc implements Cloneable {
 				feColorMatrix.setAttribute("values", "-1 0 0 0 1 0 -1 0 0 1 0 0 -1 0 1 0 0 0 1 0");
 				feColorMatrix.setAttribute("result", "result0");
 				filter.appendChild(feColorMatrix);
-				
+
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "result0");
 				feComposite.setAttribute("in2", "BackgroundImage");
 				feComposite.setAttribute("operator", "arithmetic");
 				feComposite.setAttribute("k1", "1");
 				filter.appendChild(feComposite);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.MERGECOPY) {
@@ -683,7 +683,7 @@ public class SvgDc implements Cloneable {
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feComposite = doc.createElement("feComposite");
 				feComposite.setAttribute("in", "SourceGraphic");
 				feComposite.setAttribute("in2", "BackgroundImage");
@@ -691,7 +691,7 @@ public class SvgDc implements Cloneable {
 				feComposite.setAttribute("k2", "1");
 				feComposite.setAttribute("k3", "1");
 				filter.appendChild(feComposite);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.PATCOPY) {
@@ -703,17 +703,17 @@ public class SvgDc implements Cloneable {
 			Element filter = doc.getElementById(name);
 			if (filter == null) {
 				filter = createRopFilter(doc, name);
-				
+
 				Element feColorMatrix = doc.createElement("feColorMatrix");
 				feColorMatrix.setAttribute("type", "matrix");
 				feColorMatrix.setAttribute("in", "SourceGraphic");
 				feColorMatrix.setAttribute("values", "1 0 0 0 1 0 1 0 0 1 0 0 1 0 1 0 0 0 1 0");
 				filter.appendChild(feColorMatrix);
-				
+
 				gdi.getDefsElement().appendChild(filter);
 			}
 		}
-		
+
 		if (name != null) {
 			if (!doc.getDocumentElement().hasAttribute("enable-background")) {
 				doc.getDocumentElement().setAttribute("enable-background", "new");
@@ -730,20 +730,15 @@ public class SvgDc implements Cloneable {
 			throw (new InternalError(e.getMessage()));
 		}
 	}
-	
+
 	public String toString() {
-		return "SvgDc [gdi=" + gdi + ", dpi=" + dpi + ", wx=" + wx + ", wy="
-				+ wy + ", ww=" + ww + ", wh=" + wh + ", wox=" + wox + ", woy="
-				+ woy + ", wsx=" + wsx + ", wsy=" + wsy + ", mx=" + mx
-				+ ", my=" + my + ", vx=" + vx + ", vy=" + vy + ", vw=" + vw
-				+ ", vh=" + vh + ", vox=" + vox + ", voy=" + voy + ", vsx="
-				+ vsx + ", vsy=" + vsy + ", cx=" + cx + ", cy=" + cy
-				+ ", mapMode=" + mapMode + ", bkColor=" + bkColor + ", bkMode="
-				+ bkMode + ", textColor=" + textColor + ", textSpace="
-				+ textSpace + ", textAlign=" + textAlign + ", textDx=" + textDx
-				+ ", polyFillMode=" + polyFillMode + ", relAbsMode="
-				+ relAbsMode + ", rop2Mode=" + rop2Mode + ", stretchBltMode="
-				+ stretchBltMode + ", brush=" + brush + ", font=" + font
-				+ ", pen=" + pen + "]";
+		return "SvgDc [gdi=" + gdi + ", dpi=" + dpi + ", wx=" + wx + ", wy=" + wy + ", ww=" + ww + ", wh=" + wh
+				+ ", wox=" + wox + ", woy=" + woy + ", wsx=" + wsx + ", wsy=" + wsy + ", mx=" + mx + ", my=" + my
+				+ ", vx=" + vx + ", vy=" + vy + ", vw=" + vw + ", vh=" + vh + ", vox=" + vox + ", voy=" + voy + ", vsx="
+				+ vsx + ", vsy=" + vsy + ", cx=" + cx + ", cy=" + cy + ", mapMode=" + mapMode + ", bkColor=" + bkColor
+				+ ", bkMode=" + bkMode + ", textColor=" + textColor + ", textSpace=" + textSpace + ", textAlign="
+				+ textAlign + ", textDx=" + textDx + ", polyFillMode=" + polyFillMode + ", relAbsMode=" + relAbsMode
+				+ ", rop2Mode=" + rop2Mode + ", stretchBltMode=" + stretchBltMode + ", brush=" + brush + ", font="
+				+ font + ", pen=" + pen + "]";
 	}
 }

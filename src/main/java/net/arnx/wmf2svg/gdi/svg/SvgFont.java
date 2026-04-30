@@ -46,22 +46,9 @@ class SvgFont extends SvgObject implements GdiFont {
 	private double heightMultiply = 1.0;
 	private String lang;
 
-	public SvgFont(
-		SvgGdi gdi,
-		int height,
-		int width,
-		int escapement,
-		int orientation,
-		int weight,
-		boolean italic,
-		boolean underline,
-		boolean strikeout,
-		int charset,
-		int outPrecision,
-		int clipPrecision,
-		int quality,
-		int pitchAndFamily,
-		byte[] faceName) {
+	public SvgFont(SvgGdi gdi, int height, int width, int escapement, int orientation, int weight, boolean italic,
+			boolean underline, boolean strikeout, int charset, int outPrecision, int clipPrecision, int quality,
+			int pitchAndFamily, byte[] faceName) {
 
 		super(gdi);
 		this.height = height;
@@ -162,7 +149,7 @@ class SvgFont extends SvgObject implements GdiFont {
 	}
 
 	public int getFontSize() {
-		return Math.abs((int)getGDI().getDC().toRelativeY(height * heightMultiply));
+		return Math.abs((int) getGDI().getDC().toRelativeY(height * heightMultiply));
 	}
 
 	public int hashCode() {
@@ -257,13 +244,15 @@ class SvgFont extends SvgObject implements GdiFont {
 		}
 
 		int fontSize = getFontSize();
-		if (fontSize != 0) buffer.append("font-size: ").append(fontSize).append("px; ");
+		if (fontSize != 0)
+			buffer.append("font-size: ").append(fontSize).append("px; ");
 
 		// font-family
 		List<String> fontList = new ArrayList<String>();
 		if (faceName.length() != 0) {
 			String fontFamily = faceName;
-			if (faceName.charAt(0) == '@') fontFamily = faceName.substring(1);
+			if (faceName.charAt(0) == '@')
+				fontFamily = faceName.substring(1);
 			fontList.add(fontFamily);
 
 			String altfont = getGDI().getProperty("alternative-font." + fontFamily);
@@ -295,7 +284,7 @@ class SvgFont extends SvgObject implements GdiFont {
 		if (!fontList.isEmpty()) {
 			buffer.append("font-family:");
 			for (Iterator<?> i = fontList.iterator(); i.hasNext();) {
-				String font = (String)i.next();
+				String font = (String) i.next();
 				if (font.indexOf(" ") != -1) {
 					buffer.append(" \"" + font + "\"");
 				} else {
@@ -321,7 +310,8 @@ class SvgFont extends SvgObject implements GdiFont {
 			buffer.append("; ");
 		}
 
-		if (buffer.length() > 0) buffer.setLength(buffer.length()-1);
+		if (buffer.length() > 0)
+			buffer.setLength(buffer.length() - 1);
 		return buffer.toString();
 	}
 }

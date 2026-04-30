@@ -91,521 +91,515 @@ public class EmfParser implements Parser, EmfConstants {
 		int textCharset = GdiFont.ANSI_CHARSET;
 
 		while (true) {
-			int type = (int)in.readUint32();
-			int size = (int)in.readUint32();
+			int type = (int) in.readUint32();
+			int size = (int) in.readUint32();
 			if (size < 8) {
 				throw new EmfParseException("invalid EMF record size: " + size);
 			}
 
 			byte[] data = in.readBytes(size - 8);
 			switch (type) {
-			case EMR_HEADER:
-				if (manageLifecycle) {
-					gdi.header();
-					readHeader(data, gdi);
-				}
-				break;
-			case EMR_POLYBEZIER: {
-				Point[] points = readPoints32(data, transform);
-				gdi.polyBezier(points);
-				break;
-			}
-			case EMR_POLYBEZIERTO: {
-				Point[] points = readPoints32(data, transform);
-				gdi.polyBezierTo(points);
-				break;
-			}
-			case EMR_POLYGON: {
-				Point[] points = readPoints32(data, transform);
-				gdi.polygon(points);
-				break;
-			}
-			case EMR_POLYLINE:
-			case EMR_POLYLINETO: {
-				Point[] points = readPoints32(data, transform);
-				gdi.polyline(points);
-				break;
-			}
-			case EMR_POLYPOLYLINE:
-				for (Point[] points : readPolyPoints32(data, transform)) {
-					gdi.polyline(points);
-				}
-				break;
-			case EMR_POLYPOLYGON:
-				gdi.polyPolygon(readPolyPoints32(data, transform));
-				break;
-			case EMR_SETWINDOWEXTEX:
-				gdi.setWindowExtEx(readInt32(data, 0), readInt32(data, 4), null);
-				break;
-			case EMR_SETWINDOWORGEX:
-				gdi.setWindowOrgEx(readInt32(data, 0), readInt32(data, 4), null);
-				break;
-			case EMR_SETVIEWPORTEXTEX:
-				gdi.setViewportExtEx(readInt32(data, 0), readInt32(data, 4), null);
-				break;
-			case EMR_SETVIEWPORTORGEX:
-				gdi.setViewportOrgEx(readInt32(data, 0), readInt32(data, 4), null);
-				break;
-			case EMR_SETBRUSHORGEX:
-				gdi.setBrushOrgEx(readInt32(data, 0), readInt32(data, 4), null);
-				break;
-			case EMR_SETPIXELV: {
-				Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
-				gdi.setPixel(point.x, point.y, readInt32(data, 8));
-				break;
-			}
-			case EMR_SETMAPPERFLAGS:
-				gdi.setMapperFlags(readUInt32(data, 0));
-				break;
-			case EMR_SETMAPMODE:
-				gdi.setMapMode(readInt32(data, 0));
-				break;
-			case EMR_SETBKMODE:
-				gdi.setBkMode(readInt32(data, 0));
-				break;
-			case EMR_SETPOLYFILLMODE:
-				gdi.setPolyFillMode(readInt32(data, 0));
-				break;
-			case EMR_SETROP2:
-				gdi.setROP2(readInt32(data, 0));
-				break;
-			case EMR_SETSTRETCHBLTMODE:
-				gdi.setStretchBltMode(readInt32(data, 0));
-				break;
-			case EMR_SETTEXTALIGN:
-				gdi.setTextAlign(readInt32(data, 0));
-				break;
-			case EMR_SETCOLORADJUSTMENT:
-				gdi.setColorAdjustment(copyRange(data, 0, data.length));
-				break;
-			case EMR_SETTEXTCOLOR:
-				gdi.setTextColor(readInt32(data, 0));
-				break;
-			case EMR_SETBKCOLOR:
-				gdi.setBkColor(readInt32(data, 0));
-				break;
-			case EMR_OFFSETCLIPRGN:
-				gdi.offsetClipRgn(readInt32(data, 0), readInt32(data, 4));
-				break;
-			case EMR_MOVETOEX: {
-				Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
-				gdi.moveToEx(point.x, point.y, null);
-				break;
-			}
-			case EMR_SETMETARGN:
-				gdi.setMetaRgn();
-				break;
-			case EMR_EXCLUDECLIPRECT: {
-				int[] rect = transformRect(transform, data, 0);
-				gdi.excludeClipRect(rect[0], rect[1], rect[2], rect[3]);
-				break;
-			}
-			case EMR_INTERSECTCLIPRECT: {
-				int[] rect = transformRect(transform, data, 0);
-				gdi.intersectClipRect(rect[0], rect[1], rect[2], rect[3]);
-				break;
-			}
-			case EMR_SCALEVIEWPORTEXTEX:
-				gdi.scaleViewportExtEx(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8), readInt32(data, 12), null);
-				break;
-			case EMR_SCALEWINDOWEXTEX:
-				gdi.scaleWindowExtEx(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8), readInt32(data, 12), null);
-				break;
-			case EMR_SAVEDC:
-				transforms.push(copy(transform));
-				gdi.seveDC();
-				break;
-			case EMR_RESTOREDC: {
-				int saved = readInt32(data, 0);
-				if (saved == -1 && !transforms.isEmpty()) {
-					transform = transforms.pop();
-				} else if (saved < -1 && transforms.size() >= -saved) {
-					for (int i = -1; i >= saved; i--) {
-						transform = transforms.pop();
+				case EMR_HEADER :
+					if (manageLifecycle) {
+						gdi.header();
+						readHeader(data, gdi);
 					}
-				} else if (saved == 0) {
-					transform = identity();
-					transforms.clear();
+					break;
+				case EMR_POLYBEZIER : {
+					Point[] points = readPoints32(data, transform);
+					gdi.polyBezier(points);
+					break;
 				}
-				gdi.restoreDC(saved);
-				break;
-			}
-			case EMR_SETWORLDTRANSFORM:
-				transform = readTransform(data, 0);
-				break;
-			case EMR_MODIFYWORLDTRANSFORM:
-				transform = modifyWorldTransform(transform, readTransform(data, 0), readInt32(data, 24));
-				break;
-			case EMR_SELECTOBJECT: {
-				int id = readInt32(data, 0);
-				selectObject(gdi, objects, stockObjects, id);
-				Integer charset = fontCharsets.get(id);
-				if (charset != null) {
-					textCharset = charset.intValue();
+				case EMR_POLYBEZIERTO : {
+					Point[] points = readPoints32(data, transform);
+					gdi.polyBezierTo(points);
+					break;
 				}
-				break;
-			}
-			case EMR_CREATEPEN:
-				objects.put(readInt32(data, 0), createEmfPen(gdi, readInt32(data, 4), readInt32(data, 8),
-						readInt32(data, 16), transform));
-				break;
-			case EMR_CREATEBRUSHINDIRECT:
-				objects.put(readInt32(data, 0), gdi.createBrushIndirect(readInt32(data, 4), readInt32(data, 8), readInt32(data, 12)));
-				break;
-			case EMR_DELETEOBJECT: {
-				int id = readInt32(data, 0);
-				GdiObject obj = objects.remove(id);
-				fontCharsets.remove(id);
-				if (obj != null) {
-					gdi.deleteObject(obj);
+				case EMR_POLYGON : {
+					Point[] points = readPoints32(data, transform);
+					gdi.polygon(points);
+					break;
 				}
-				break;
-			}
-			case EMR_ANGLEARC:
-				gdi.angleArc(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8),
-						readFloat32(data, 12), readFloat32(data, 16));
-				break;
-			case EMR_ELLIPSE: {
-				int[] rect = transformRect(transform, data, 0);
-				gdi.ellipse(rect[0], rect[1], rect[2], rect[3]);
-				break;
-			}
-			case EMR_RECTANGLE: {
-				int[] rect = transformRect(transform, data, 0);
-				gdi.rectangle(rect[0], rect[1], rect[2], rect[3]);
-				break;
-			}
-			case EMR_ROUNDRECT: {
-				int[] rect = transformRect(transform, data, 0);
-				gdi.roundRect(rect[0], rect[1], rect[2], rect[3], readInt32(data, 16), readInt32(data, 20));
-				break;
-			}
-			case EMR_ARC: {
-				int[] rect = transformRect(transform, data, 0);
-				Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
-				Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
-				gdi.arc(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
-				break;
-			}
-			case EMR_ARCTO: {
-				int[] rect = transformRect(transform, data, 0);
-				Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
-				Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
-				gdi.arcTo(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
-				break;
-			}
-			case EMR_CHORD: {
-				int[] rect = transformRect(transform, data, 0);
-				Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
-				Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
-				gdi.chord(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
-				break;
-			}
-			case EMR_PIE: {
-				int[] rect = transformRect(transform, data, 0);
-				Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
-				Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
-				gdi.pie(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
-				break;
-			}
-			case EMR_SELECTPALETTE: {
-				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
-				if (obj instanceof GdiPalette) {
-					gdi.selectPalette((GdiPalette)obj, false);
-				}
-				break;
-			}
-			case EMR_CREATEPALETTE:
-				objects.put(readInt32(data, 0), readPalette(data, 4, gdi));
-				break;
-			case EMR_SETPALETTEENTRIES: {
-				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
-				if (obj instanceof GdiPalette) {
-					int startIndex = readInt32(data, 4);
-					int count = readInt32(data, 8);
-					gdi.setPaletteEntries((GdiPalette)obj, startIndex, readPaletteEntries(data, 12, count));
-				}
-				break;
-			}
-			case EMR_RESIZEPALETTE: {
-				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
-				if (obj instanceof GdiPalette) {
-					gdi.resizePalette((GdiPalette)obj, readInt32(data, 4));
-				}
-				break;
-			}
-			case EMR_REALIZEPALETTE:
-				gdi.realizePalette();
-				break;
-			case EMR_EXTFLOODFILL: {
-				Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
-				gdi.extFloodFill(point.x, point.y, readInt32(data, 8), readInt32(data, 12));
-				break;
-			}
-			case EMR_LINETO: {
-				Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
-				gdi.lineTo(point.x, point.y);
-				break;
-			}
-			case EMR_POLYDRAW:
-				readPolyDraw(data, transform, gdi, false);
-				break;
-			case EMR_SETARCDIRECTION:
-				gdi.setArcDirection(readInt32(data, 0));
-				break;
-			case EMR_SETMITERLIMIT:
-				gdi.setMiterLimit(readFloat32(data, 0));
-				break;
-			case EMR_POLYGON16:
-				gdi.polygon(readPoints16(data, transform));
-				break;
-			case EMR_POLYLINE16:
-			case EMR_POLYLINETO16:
-				gdi.polyline(readPoints16(data, transform));
-				break;
-			case EMR_POLYBEZIER16:
-				gdi.polyBezier(readPoints16(data, transform));
-				break;
-			case EMR_POLYBEZIERTO16:
-				gdi.polyBezierTo(readPoints16(data, transform));
-				break;
-			case EMR_POLYPOLYLINE16:
-				for (Point[] points : readPolyPoints16(data, transform)) {
+				case EMR_POLYLINE :
+				case EMR_POLYLINETO : {
+					Point[] points = readPoints32(data, transform);
 					gdi.polyline(points);
+					break;
 				}
-				break;
-			case EMR_POLYPOLYGON16:
-				gdi.polyPolygon(readPolyPoints16(data, transform));
-				break;
-			case EMR_POLYDRAW16:
-				readPolyDraw(data, transform, gdi, true);
-				break;
-			case EMR_CREATEMONOBRUSH:
-			case EMR_CREATEDIBPATTERNBRUSHPT: {
-				byte[] image = readBitmap(data, 8, 12, 16, 20);
-				if (image != null) {
-					objects.put(readInt32(data, 0), gdi.dibCreatePatternBrush(image, readInt32(data, 4)));
+				case EMR_POLYPOLYLINE :
+					for (Point[] points : readPolyPoints32(data, transform)) {
+						gdi.polyline(points);
+					}
+					break;
+				case EMR_POLYPOLYGON :
+					gdi.polyPolygon(readPolyPoints32(data, transform));
+					break;
+				case EMR_SETWINDOWEXTEX :
+					gdi.setWindowExtEx(readInt32(data, 0), readInt32(data, 4), null);
+					break;
+				case EMR_SETWINDOWORGEX :
+					gdi.setWindowOrgEx(readInt32(data, 0), readInt32(data, 4), null);
+					break;
+				case EMR_SETVIEWPORTEXTEX :
+					gdi.setViewportExtEx(readInt32(data, 0), readInt32(data, 4), null);
+					break;
+				case EMR_SETVIEWPORTORGEX :
+					gdi.setViewportOrgEx(readInt32(data, 0), readInt32(data, 4), null);
+					break;
+				case EMR_SETBRUSHORGEX :
+					gdi.setBrushOrgEx(readInt32(data, 0), readInt32(data, 4), null);
+					break;
+				case EMR_SETPIXELV : {
+					Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
+					gdi.setPixel(point.x, point.y, readInt32(data, 8));
+					break;
 				}
-				break;
-			}
-			case EMR_EXTCREATEPEN:
-				objects.put(readInt32(data, 0), createEmfPen(gdi, readInt32(data, 20), readInt32(data, 24),
-						readInt32(data, 32), transform));
-				break;
-			case EMR_SETICMMODE:
-				gdi.setICMMode(readInt32(data, 0));
-				break;
-			case EMR_CREATECOLORSPACE:
-				objects.put(readInt32(data, 0), gdi.createColorSpace(copyRange(data, 4, data.length - 4)));
-				break;
-			case EMR_SETCOLORSPACE: {
-				GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
-				if (obj instanceof GdiColorSpace) {
-					gdi.setColorSpace((GdiColorSpace)obj);
+				case EMR_SETMAPPERFLAGS :
+					gdi.setMapperFlags(readUInt32(data, 0));
+					break;
+				case EMR_SETMAPMODE :
+					gdi.setMapMode(readInt32(data, 0));
+					break;
+				case EMR_SETBKMODE :
+					gdi.setBkMode(readInt32(data, 0));
+					break;
+				case EMR_SETPOLYFILLMODE :
+					gdi.setPolyFillMode(readInt32(data, 0));
+					break;
+				case EMR_SETROP2 :
+					gdi.setROP2(readInt32(data, 0));
+					break;
+				case EMR_SETSTRETCHBLTMODE :
+					gdi.setStretchBltMode(readInt32(data, 0));
+					break;
+				case EMR_SETTEXTALIGN :
+					gdi.setTextAlign(readInt32(data, 0));
+					break;
+				case EMR_SETCOLORADJUSTMENT :
+					gdi.setColorAdjustment(copyRange(data, 0, data.length));
+					break;
+				case EMR_SETTEXTCOLOR :
+					gdi.setTextColor(readInt32(data, 0));
+					break;
+				case EMR_SETBKCOLOR :
+					gdi.setBkColor(readInt32(data, 0));
+					break;
+				case EMR_OFFSETCLIPRGN :
+					gdi.offsetClipRgn(readInt32(data, 0), readInt32(data, 4));
+					break;
+				case EMR_MOVETOEX : {
+					Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
+					gdi.moveToEx(point.x, point.y, null);
+					break;
 				}
-				break;
-			}
-			case EMR_DELETECOLORSPACE: {
-				GdiObject obj = objects.remove(readInt32(data, 0));
-				if (obj instanceof GdiColorSpace) {
-					gdi.deleteColorSpace((GdiColorSpace)obj);
+				case EMR_SETMETARGN :
+					gdi.setMetaRgn();
+					break;
+				case EMR_EXCLUDECLIPRECT : {
+					int[] rect = transformRect(transform, data, 0);
+					gdi.excludeClipRect(rect[0], rect[1], rect[2], rect[3]);
+					break;
 				}
-				break;
-			}
-			case EMR_GLSRECORD:
-			case EMR_GLSBOUNDEDRECORD:
-			case EMR_PIXELFORMAT:
-			case EMR_STARTDOC:
-			case EMR_FORCEUFIMAPPING:
-			case EMR_RESERVED_117:
-			case EMR_SETLINKEDUFIS:
-				break;
-			case EMR_COLORMATCHTOTARGETW:
-				readColorMatchToTarget(data, gdi);
-				break;
-			case EMR_DRAWESCAPE:
-			case EMR_EXTESCAPE:
-				readEscape(data, gdi);
-				break;
-			case EMR_NAMEDESCAPE:
-				readNamedEscape(data, gdi);
-				break;
-			case EMR_COLORCORRECTPALETTE: {
-				if (data.length >= 12) {
+				case EMR_INTERSECTCLIPRECT : {
+					int[] rect = transformRect(transform, data, 0);
+					gdi.intersectClipRect(rect[0], rect[1], rect[2], rect[3]);
+					break;
+				}
+				case EMR_SCALEVIEWPORTEXTEX :
+					gdi.scaleViewportExtEx(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8),
+							readInt32(data, 12), null);
+					break;
+				case EMR_SCALEWINDOWEXTEX :
+					gdi.scaleWindowExtEx(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8),
+							readInt32(data, 12), null);
+					break;
+				case EMR_SAVEDC :
+					transforms.push(copy(transform));
+					gdi.seveDC();
+					break;
+				case EMR_RESTOREDC : {
+					int saved = readInt32(data, 0);
+					if (saved == -1 && !transforms.isEmpty()) {
+						transform = transforms.pop();
+					} else if (saved < -1 && transforms.size() >= -saved) {
+						for (int i = -1; i >= saved; i--) {
+							transform = transforms.pop();
+						}
+					} else if (saved == 0) {
+						transform = identity();
+						transforms.clear();
+					}
+					gdi.restoreDC(saved);
+					break;
+				}
+				case EMR_SETWORLDTRANSFORM :
+					transform = readTransform(data, 0);
+					break;
+				case EMR_MODIFYWORLDTRANSFORM :
+					transform = modifyWorldTransform(transform, readTransform(data, 0), readInt32(data, 24));
+					break;
+				case EMR_SELECTOBJECT : {
+					int id = readInt32(data, 0);
+					selectObject(gdi, objects, stockObjects, id);
+					Integer charset = fontCharsets.get(id);
+					if (charset != null) {
+						textCharset = charset.intValue();
+					}
+					break;
+				}
+				case EMR_CREATEPEN :
+					objects.put(readInt32(data, 0),
+							createEmfPen(gdi, readInt32(data, 4), readInt32(data, 8), readInt32(data, 16), transform));
+					break;
+				case EMR_CREATEBRUSHINDIRECT :
+					objects.put(readInt32(data, 0),
+							gdi.createBrushIndirect(readInt32(data, 4), readInt32(data, 8), readInt32(data, 12)));
+					break;
+				case EMR_DELETEOBJECT : {
+					int id = readInt32(data, 0);
+					GdiObject obj = objects.remove(id);
+					fontCharsets.remove(id);
+					if (obj != null) {
+						gdi.deleteObject(obj);
+					}
+					break;
+				}
+				case EMR_ANGLEARC :
+					gdi.angleArc(readInt32(data, 0), readInt32(data, 4), readInt32(data, 8), readFloat32(data, 12),
+							readFloat32(data, 16));
+					break;
+				case EMR_ELLIPSE : {
+					int[] rect = transformRect(transform, data, 0);
+					gdi.ellipse(rect[0], rect[1], rect[2], rect[3]);
+					break;
+				}
+				case EMR_RECTANGLE : {
+					int[] rect = transformRect(transform, data, 0);
+					gdi.rectangle(rect[0], rect[1], rect[2], rect[3]);
+					break;
+				}
+				case EMR_ROUNDRECT : {
+					int[] rect = transformRect(transform, data, 0);
+					gdi.roundRect(rect[0], rect[1], rect[2], rect[3], readInt32(data, 16), readInt32(data, 20));
+					break;
+				}
+				case EMR_ARC : {
+					int[] rect = transformRect(transform, data, 0);
+					Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
+					Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
+					gdi.arc(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
+					break;
+				}
+				case EMR_ARCTO : {
+					int[] rect = transformRect(transform, data, 0);
+					Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
+					Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
+					gdi.arcTo(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
+					break;
+				}
+				case EMR_CHORD : {
+					int[] rect = transformRect(transform, data, 0);
+					Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
+					Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
+					gdi.chord(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
+					break;
+				}
+				case EMR_PIE : {
+					int[] rect = transformRect(transform, data, 0);
+					Point start = transformPoint(transform, readInt32(data, 16), readInt32(data, 20));
+					Point end = transformPoint(transform, readInt32(data, 24), readInt32(data, 28));
+					gdi.pie(rect[0], rect[1], rect[2], rect[3], start.x, start.y, end.x, end.y);
+					break;
+				}
+				case EMR_SELECTPALETTE : {
 					GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
 					if (obj instanceof GdiPalette) {
-						gdi.colorCorrectPalette((GdiPalette)obj, readInt32(data, 4), readInt32(data, 8));
+						gdi.selectPalette((GdiPalette) obj, false);
 					}
+					break;
 				}
-				break;
-			}
-			case EMR_SETICMPROFILEA:
-			case EMR_SETICMPROFILEW:
-				readSetICMProfile(data, gdi);
-				break;
-			case EMR_GDICOMMENT: {
-				if (data.length >= 4) {
-					int commentSize = readInt32(data, 0);
-					if (commentSize > 0 && commentSize <= data.length - 4) {
-						byte[] comment = new byte[commentSize];
-						System.arraycopy(data, 4, comment, 0, commentSize);
-						gdi.comment(comment);
+				case EMR_CREATEPALETTE :
+					objects.put(readInt32(data, 0), readPalette(data, 4, gdi));
+					break;
+				case EMR_SETPALETTEENTRIES : {
+					GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+					if (obj instanceof GdiPalette) {
+						int startIndex = readInt32(data, 4);
+						int count = readInt32(data, 8);
+						gdi.setPaletteEntries((GdiPalette) obj, startIndex, readPaletteEntries(data, 12, count));
 					}
+					break;
 				}
-				break;
-			}
-			case EMR_FILLRGN: {
-				GdiRegion region = readRegion(data, 24, readInt32(data, 16), transform, gdi);
-				GdiObject obj = getObject(gdi, objects, stockObjects, readInt32(data, 20));
-				if (region != null && obj instanceof GdiBrush) {
-					gdi.fillRgn(region, (GdiBrush)obj);
+				case EMR_RESIZEPALETTE : {
+					GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+					if (obj instanceof GdiPalette) {
+						gdi.resizePalette((GdiPalette) obj, readInt32(data, 4));
+					}
+					break;
 				}
-				break;
-			}
-			case EMR_FRAMERGN: {
-				GdiRegion region = readRegion(data, 32, readInt32(data, 16), transform, gdi);
-				GdiObject obj = getObject(gdi, objects, stockObjects, readInt32(data, 20));
-				if (region != null && obj instanceof GdiBrush) {
-					gdi.frameRgn(region, (GdiBrush)obj, readInt32(data, 24), readInt32(data, 28));
+				case EMR_REALIZEPALETTE :
+					gdi.realizePalette();
+					break;
+				case EMR_EXTFLOODFILL : {
+					Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
+					gdi.extFloodFill(point.x, point.y, readInt32(data, 8), readInt32(data, 12));
+					break;
 				}
-				break;
-			}
-			case EMR_INVERTRGN: {
-				GdiRegion region = readRegion(data, 20, readInt32(data, 16), transform, gdi);
-				if (region != null) {
-					gdi.invertRgn(region);
+				case EMR_LINETO : {
+					Point point = transformPoint(transform, readInt32(data, 0), readInt32(data, 4));
+					gdi.lineTo(point.x, point.y);
+					break;
 				}
-				break;
-			}
-			case EMR_PAINTRGN: {
-				GdiRegion region = readRegion(data, 20, readInt32(data, 16), transform, gdi);
-				if (region != null) {
-					gdi.paintRgn(region);
+				case EMR_POLYDRAW :
+					readPolyDraw(data, transform, gdi, false);
+					break;
+				case EMR_SETARCDIRECTION :
+					gdi.setArcDirection(readInt32(data, 0));
+					break;
+				case EMR_SETMITERLIMIT :
+					gdi.setMiterLimit(readFloat32(data, 0));
+					break;
+				case EMR_POLYGON16 :
+					gdi.polygon(readPoints16(data, transform));
+					break;
+				case EMR_POLYLINE16 :
+				case EMR_POLYLINETO16 :
+					gdi.polyline(readPoints16(data, transform));
+					break;
+				case EMR_POLYBEZIER16 :
+					gdi.polyBezier(readPoints16(data, transform));
+					break;
+				case EMR_POLYBEZIERTO16 :
+					gdi.polyBezierTo(readPoints16(data, transform));
+					break;
+				case EMR_POLYPOLYLINE16 :
+					for (Point[] points : readPolyPoints16(data, transform)) {
+						gdi.polyline(points);
+					}
+					break;
+				case EMR_POLYPOLYGON16 :
+					gdi.polyPolygon(readPolyPoints16(data, transform));
+					break;
+				case EMR_POLYDRAW16 :
+					readPolyDraw(data, transform, gdi, true);
+					break;
+				case EMR_CREATEMONOBRUSH :
+				case EMR_CREATEDIBPATTERNBRUSHPT : {
+					byte[] image = readBitmap(data, 8, 12, 16, 20);
+					if (image != null) {
+						objects.put(readInt32(data, 0), gdi.dibCreatePatternBrush(image, readInt32(data, 4)));
+					}
+					break;
 				}
-				break;
-			}
-			case EMR_EXTSELECTCLIPRGN: {
-				int regionSize = readInt32(data, 0);
-				int mode = readInt32(data, 4);
-				if (regionSize == 0) {
-					gdi.extSelectClipRgn(null, mode);
-				} else {
-					GdiRegion region = readRegion(data, 8, regionSize, null, gdi);
+				case EMR_EXTCREATEPEN :
+					objects.put(readInt32(data, 0), createEmfPen(gdi, readInt32(data, 20), readInt32(data, 24),
+							readInt32(data, 32), transform));
+					break;
+				case EMR_SETICMMODE :
+					gdi.setICMMode(readInt32(data, 0));
+					break;
+				case EMR_CREATECOLORSPACE :
+					objects.put(readInt32(data, 0), gdi.createColorSpace(copyRange(data, 4, data.length - 4)));
+					break;
+				case EMR_SETCOLORSPACE : {
+					GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+					if (obj instanceof GdiColorSpace) {
+						gdi.setColorSpace((GdiColorSpace) obj);
+					}
+					break;
+				}
+				case EMR_DELETECOLORSPACE : {
+					GdiObject obj = objects.remove(readInt32(data, 0));
+					if (obj instanceof GdiColorSpace) {
+						gdi.deleteColorSpace((GdiColorSpace) obj);
+					}
+					break;
+				}
+				case EMR_GLSRECORD :
+				case EMR_GLSBOUNDEDRECORD :
+				case EMR_PIXELFORMAT :
+				case EMR_STARTDOC :
+				case EMR_FORCEUFIMAPPING :
+				case EMR_RESERVED_117 :
+				case EMR_SETLINKEDUFIS :
+					break;
+				case EMR_COLORMATCHTOTARGETW :
+					readColorMatchToTarget(data, gdi);
+					break;
+				case EMR_DRAWESCAPE :
+				case EMR_EXTESCAPE :
+					readEscape(data, gdi);
+					break;
+				case EMR_NAMEDESCAPE :
+					readNamedEscape(data, gdi);
+					break;
+				case EMR_COLORCORRECTPALETTE : {
+					if (data.length >= 12) {
+						GdiObject obj = getObject(objects, stockObjects, readInt32(data, 0));
+						if (obj instanceof GdiPalette) {
+							gdi.colorCorrectPalette((GdiPalette) obj, readInt32(data, 4), readInt32(data, 8));
+						}
+					}
+					break;
+				}
+				case EMR_SETICMPROFILEA :
+				case EMR_SETICMPROFILEW :
+					readSetICMProfile(data, gdi);
+					break;
+				case EMR_GDICOMMENT : {
+					if (data.length >= 4) {
+						int commentSize = readInt32(data, 0);
+						if (commentSize > 0 && commentSize <= data.length - 4) {
+							byte[] comment = new byte[commentSize];
+							System.arraycopy(data, 4, comment, 0, commentSize);
+							gdi.comment(comment);
+						}
+					}
+					break;
+				}
+				case EMR_FILLRGN : {
+					GdiRegion region = readRegion(data, 24, readInt32(data, 16), transform, gdi);
+					GdiObject obj = getObject(gdi, objects, stockObjects, readInt32(data, 20));
+					if (region != null && obj instanceof GdiBrush) {
+						gdi.fillRgn(region, (GdiBrush) obj);
+					}
+					break;
+				}
+				case EMR_FRAMERGN : {
+					GdiRegion region = readRegion(data, 32, readInt32(data, 16), transform, gdi);
+					GdiObject obj = getObject(gdi, objects, stockObjects, readInt32(data, 20));
+					if (region != null && obj instanceof GdiBrush) {
+						gdi.frameRgn(region, (GdiBrush) obj, readInt32(data, 24), readInt32(data, 28));
+					}
+					break;
+				}
+				case EMR_INVERTRGN : {
+					GdiRegion region = readRegion(data, 20, readInt32(data, 16), transform, gdi);
 					if (region != null) {
-						gdi.extSelectClipRgn(region, mode);
+						gdi.invertRgn(region);
 					}
+					break;
 				}
-				break;
-			}
-			case EMR_BITBLT:
-				readBitBlt(data, transform, gdi);
-				break;
-			case EMR_STRETCHBLT:
-				readStretchBlt(data, transform, gdi);
-				break;
-			case EMR_MASKBLT:
-				readMaskBlt(data, transform, gdi);
-				break;
-			case EMR_PLGBLT:
-				readPlgBlt(data, transform, gdi);
-				break;
-			case EMR_SETDIBITSTODEVICE:
-				readSetDIBitsToDevice(data, transform, gdi);
-				break;
-			case EMR_STRETCHDIBITS:
-				readStretchDIBits(data, transform, gdi);
-				break;
-			case EMR_EXTCREATEFONTINDIRECTW: {
-				int id = readInt32(data, 0);
-				int charset = readUInt8(data, 27);
-				fontCharsets.put(id, Integer.valueOf(charset));
-				objects.put(id, gdi.createFontIndirect(
-						readInt32(data, 4),
-						readInt32(data, 8),
-						readInt32(data, 12),
-						readInt32(data, 16),
-						readInt32(data, 20),
-						readUInt8(data, 24) != 0,
-						readUInt8(data, 25) != 0,
-						readUInt8(data, 26) != 0,
-						charset,
-						readUInt8(data, 28),
-						readUInt8(data, 29),
-						readUInt8(data, 30),
-						readUInt8(data, 31),
-						readUtf16StringBytes(data, 32, 32, charset)));
-				break;
-			}
-			case EMR_EXTTEXTOUTA:
-				readExtTextOut(data, transform, gdi, false, textCharset);
-				break;
-			case EMR_EXTTEXTOUTW:
-				readExtTextOut(data, transform, gdi, true, textCharset);
-				break;
-			case EMR_POLYTEXTOUTA:
-				readPolyTextOut(data, transform, gdi, false, textCharset);
-				break;
-			case EMR_POLYTEXTOUTW:
-				readPolyTextOut(data, transform, gdi, true, textCharset);
-				break;
-			case EMR_ALPHABLEND:
-				readAlphaBlend(data, transform, gdi);
-				break;
-			case EMR_SETLAYOUT:
-				gdi.setLayout(readUInt32(data, 0));
-				break;
-			case EMR_TRANSPARENTBLT:
-				readTransparentBlt(data, transform, gdi);
-				break;
-			case EMR_GRADIENTFILL:
-				readGradientFill(data, transform, gdi);
-				break;
-			case EMR_SMALLTEXTOUT:
-				readSmallTextOut(data, transform, gdi, textCharset);
-				break;
-			case EMR_SETTEXTJUSTIFICATION:
-				gdi.setTextJustification(readInt32(data, 0), readInt32(data, 4));
-				break;
-			case EMR_CREATECOLORSPACEW:
-				objects.put(readInt32(data, 0), gdi.createColorSpaceW(copyRange(data, 4, data.length - 4)));
-				break;
-			case EMR_BEGINPATH:
-				gdi.beginPath();
-				break;
-			case EMR_ENDPATH:
-				gdi.endPath();
-				break;
-			case EMR_CLOSEFIGURE:
-				gdi.closeFigure();
-				break;
-			case EMR_FILLPATH:
-				gdi.fillPath();
-				break;
-			case EMR_STROKEANDFILLPATH:
-				gdi.strokeAndFillPath();
-				break;
-			case EMR_STROKEPATH:
-				gdi.strokePath();
-				break;
-			case EMR_FLATTENPATH:
-				gdi.flattenPath();
-				break;
-			case EMR_WIDENPATH:
-				gdi.widenPath();
-				break;
-			case EMR_SELECTCLIPPATH:
-				gdi.selectClipPath(readInt32(data, 0));
-				break;
-			case EMR_ABORTPATH:
-				gdi.abortPath();
-				break;
-			case EMR_EOF:
-				if (manageLifecycle) {
-					gdi.footer();
+				case EMR_PAINTRGN : {
+					GdiRegion region = readRegion(data, 20, readInt32(data, 16), transform, gdi);
+					if (region != null) {
+						gdi.paintRgn(region);
+					}
+					break;
 				}
-				return;
-			default:
-				break;
+				case EMR_EXTSELECTCLIPRGN : {
+					int regionSize = readInt32(data, 0);
+					int mode = readInt32(data, 4);
+					if (regionSize == 0) {
+						gdi.extSelectClipRgn(null, mode);
+					} else {
+						GdiRegion region = readRegion(data, 8, regionSize, null, gdi);
+						if (region != null) {
+							gdi.extSelectClipRgn(region, mode);
+						}
+					}
+					break;
+				}
+				case EMR_BITBLT :
+					readBitBlt(data, transform, gdi);
+					break;
+				case EMR_STRETCHBLT :
+					readStretchBlt(data, transform, gdi);
+					break;
+				case EMR_MASKBLT :
+					readMaskBlt(data, transform, gdi);
+					break;
+				case EMR_PLGBLT :
+					readPlgBlt(data, transform, gdi);
+					break;
+				case EMR_SETDIBITSTODEVICE :
+					readSetDIBitsToDevice(data, transform, gdi);
+					break;
+				case EMR_STRETCHDIBITS :
+					readStretchDIBits(data, transform, gdi);
+					break;
+				case EMR_EXTCREATEFONTINDIRECTW : {
+					int id = readInt32(data, 0);
+					int charset = readUInt8(data, 27);
+					fontCharsets.put(id, Integer.valueOf(charset));
+					objects.put(id,
+							gdi.createFontIndirect(readInt32(data, 4), readInt32(data, 8), readInt32(data, 12),
+									readInt32(data, 16), readInt32(data, 20), readUInt8(data, 24) != 0,
+									readUInt8(data, 25) != 0, readUInt8(data, 26) != 0, charset, readUInt8(data, 28),
+									readUInt8(data, 29), readUInt8(data, 30), readUInt8(data, 31),
+									readUtf16StringBytes(data, 32, 32, charset)));
+					break;
+				}
+				case EMR_EXTTEXTOUTA :
+					readExtTextOut(data, transform, gdi, false, textCharset);
+					break;
+				case EMR_EXTTEXTOUTW :
+					readExtTextOut(data, transform, gdi, true, textCharset);
+					break;
+				case EMR_POLYTEXTOUTA :
+					readPolyTextOut(data, transform, gdi, false, textCharset);
+					break;
+				case EMR_POLYTEXTOUTW :
+					readPolyTextOut(data, transform, gdi, true, textCharset);
+					break;
+				case EMR_ALPHABLEND :
+					readAlphaBlend(data, transform, gdi);
+					break;
+				case EMR_SETLAYOUT :
+					gdi.setLayout(readUInt32(data, 0));
+					break;
+				case EMR_TRANSPARENTBLT :
+					readTransparentBlt(data, transform, gdi);
+					break;
+				case EMR_GRADIENTFILL :
+					readGradientFill(data, transform, gdi);
+					break;
+				case EMR_SMALLTEXTOUT :
+					readSmallTextOut(data, transform, gdi, textCharset);
+					break;
+				case EMR_SETTEXTJUSTIFICATION :
+					gdi.setTextJustification(readInt32(data, 0), readInt32(data, 4));
+					break;
+				case EMR_CREATECOLORSPACEW :
+					objects.put(readInt32(data, 0), gdi.createColorSpaceW(copyRange(data, 4, data.length - 4)));
+					break;
+				case EMR_BEGINPATH :
+					gdi.beginPath();
+					break;
+				case EMR_ENDPATH :
+					gdi.endPath();
+					break;
+				case EMR_CLOSEFIGURE :
+					gdi.closeFigure();
+					break;
+				case EMR_FILLPATH :
+					gdi.fillPath();
+					break;
+				case EMR_STROKEANDFILLPATH :
+					gdi.strokeAndFillPath();
+					break;
+				case EMR_STROKEPATH :
+					gdi.strokePath();
+					break;
+				case EMR_FLATTENPATH :
+					gdi.flattenPath();
+					break;
+				case EMR_WIDENPATH :
+					gdi.widenPath();
+					break;
+				case EMR_SELECTCLIPPATH :
+					gdi.selectClipPath(readInt32(data, 0));
+					break;
+				case EMR_ABORTPATH :
+					gdi.abortPath();
+					break;
+				case EMR_EOF :
+					if (manageLifecycle) {
+						gdi.footer();
+					}
+					return;
+				default :
+					break;
 			}
 		}
 	}
@@ -622,8 +616,7 @@ public class EmfParser implements Parser, EmfConstants {
 		if (data == null || data.length < 38) {
 			return false;
 		}
-		return readInt16(data, 0) == META_ESCAPE_ENHANCED_METAFILE
-				&& readUInt32(data, 4) == WMF_COMMENT_IDENTIFIER
+		return readInt16(data, 0) == META_ESCAPE_ENHANCED_METAFILE && readUInt32(data, 4) == WMF_COMMENT_IDENTIFIER
 				&& readUInt32(data, 8) == ENHANCED_METAFILE_COMMENT;
 	}
 
@@ -663,7 +656,8 @@ public class EmfParser implements Parser, EmfConstants {
 		return obj;
 	}
 
-	private GdiObject getObject(Gdi gdi, Map<Integer, GdiObject> objects, Map<Integer, GdiObject> stockObjects, int id) {
+	private GdiObject getObject(Gdi gdi, Map<Integer, GdiObject> objects, Map<Integer, GdiObject> stockObjects,
+			int id) {
 		GdiObject obj = getObject(objects, stockObjects, id);
 		if (obj == null) {
 			obj = createStockObject(gdi, id);
@@ -683,26 +677,26 @@ public class EmfParser implements Parser, EmfConstants {
 
 	private GdiObject createStockObject(Gdi gdi, int id) {
 		switch (id) {
-		case STOCK_WHITE_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FFFFFF, 0);
-		case STOCK_LTGRAY_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00C0C0C0, 0);
-		case STOCK_GRAY_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00808080, 0);
-		case STOCK_DKGRAY_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00404040, 0);
-		case STOCK_BLACK_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00000000, 0);
-		case STOCK_NULL_BRUSH:
-			return gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x00000000, 0);
-		case STOCK_WHITE_PEN:
-			return gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x00FFFFFF);
-		case STOCK_BLACK_PEN:
-			return gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x00000000);
-		case STOCK_NULL_PEN:
-			return gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0x00000000);
-		default:
-			return null;
+			case STOCK_WHITE_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FFFFFF, 0);
+			case STOCK_LTGRAY_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00C0C0C0, 0);
+			case STOCK_GRAY_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00808080, 0);
+			case STOCK_DKGRAY_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00404040, 0);
+			case STOCK_BLACK_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00000000, 0);
+			case STOCK_NULL_BRUSH :
+				return gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x00000000, 0);
+			case STOCK_WHITE_PEN :
+				return gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x00FFFFFF);
+			case STOCK_BLACK_PEN :
+				return gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x00000000);
+			case STOCK_NULL_PEN :
+				return gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0x00000000);
+			default :
+				return null;
 		}
 	}
 
@@ -731,10 +725,10 @@ public class EmfParser implements Parser, EmfConstants {
 		int count = data.length - 4;
 
 		byte[] escape = new byte[4 + count];
-		escape[0] = (byte)escapeFunction;
-		escape[1] = (byte)(escapeFunction >>> 8);
-		escape[2] = (byte)count;
-		escape[3] = (byte)(count >>> 8);
+		escape[0] = (byte) escapeFunction;
+		escape[1] = (byte) (escapeFunction >>> 8);
+		escape[2] = (byte) count;
+		escape[3] = (byte) (count >>> 8);
 		System.arraycopy(data, 4, escape, 4, count);
 		if (!parseEscape(escape, gdi)) {
 			gdi.escape(escape);
@@ -755,10 +749,10 @@ public class EmfParser implements Parser, EmfConstants {
 		}
 
 		byte[] escape = new byte[4 + count];
-		escape[0] = (byte)escapeFunction;
-		escape[1] = (byte)(escapeFunction >>> 8);
-		escape[2] = (byte)count;
-		escape[3] = (byte)(count >>> 8);
+		escape[0] = (byte) escapeFunction;
+		escape[1] = (byte) (escapeFunction >>> 8);
+		escape[2] = (byte) count;
+		escape[3] = (byte) (count >>> 8);
 		System.arraycopy(data, dataOffset, escape, 4, count);
 		if (!parseEscape(escape, gdi)) {
 			gdi.escape(escape);
@@ -805,36 +799,40 @@ public class EmfParser implements Parser, EmfConstants {
 			int operation = type & ~PT_CLOSEFIGURE;
 
 			switch (operation) {
-			case PT_MOVETO:
-				gdi.moveToEx(point.x, point.y, null);
-				figureStart = point;
-				break;
-			case PT_LINETO:
-				gdi.lineTo(point.x, point.y);
-				break;
-			case PT_BEZIERTO:
-				Point[] bezier = null;
-				if (i + 2 < count) {
-					Point control1 = point;
-					Point control2 = shortPoints
-							? transformPoint(transform, readInt16(data, pointOffset + 4), readInt16(data, pointOffset + 6))
-							: transformPoint(transform, readInt32(data, pointOffset + 8), readInt32(data, pointOffset + 12));
-					i += 2;
-					pointOffset += (shortPoints ? 8 : 16);
-					closeType = readUInt8(data, typeOffset + i);
-					point = shortPoints
-							? transformPoint(transform, readInt16(data, pointOffset), readInt16(data, pointOffset + 2))
-							: transformPoint(transform, readInt32(data, pointOffset), readInt32(data, pointOffset + 4));
-					bezier = new Point[] { control1, control2, point };
-				}
-				if (bezier != null) {
-					gdi.polyBezierTo(bezier);
-				} else {
+				case PT_MOVETO :
+					gdi.moveToEx(point.x, point.y, null);
+					figureStart = point;
+					break;
+				case PT_LINETO :
 					gdi.lineTo(point.x, point.y);
-				}
-				break;
-			default:
-				break;
+					break;
+				case PT_BEZIERTO :
+					Point[] bezier = null;
+					if (i + 2 < count) {
+						Point control1 = point;
+						Point control2 = shortPoints
+								? transformPoint(transform, readInt16(data, pointOffset + 4),
+										readInt16(data, pointOffset + 6))
+								: transformPoint(transform, readInt32(data, pointOffset + 8),
+										readInt32(data, pointOffset + 12));
+						i += 2;
+						pointOffset += (shortPoints ? 8 : 16);
+						closeType = readUInt8(data, typeOffset + i);
+						point = shortPoints
+								? transformPoint(transform, readInt16(data, pointOffset),
+										readInt16(data, pointOffset + 2))
+								: transformPoint(transform, readInt32(data, pointOffset),
+										readInt32(data, pointOffset + 4));
+						bezier = new Point[]{control1, control2, point};
+					}
+					if (bezier != null) {
+						gdi.polyBezierTo(bezier);
+					} else {
+						gdi.lineTo(point.x, point.y);
+					}
+					break;
+				default :
+					break;
 			}
 
 			if ((closeType & PT_CLOSEFIGURE) != 0) {
@@ -856,8 +854,8 @@ public class EmfParser implements Parser, EmfConstants {
 			}
 			return;
 		}
-		gdi.bitBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 36), readInt32(data, 40), rop);
+		gdi.bitBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
+				readInt32(data, 40), rop);
 	}
 
 	private static void readStretchBlt(byte[] data, double[] transform, Gdi gdi) {
@@ -870,9 +868,8 @@ public class EmfParser implements Parser, EmfConstants {
 			}
 			return;
 		}
-		gdi.stretchBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 36), readInt32(data, 40), readInt32(data, 92), readInt32(data, 96),
-				rop);
+		gdi.stretchBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
+				readInt32(data, 40), readInt32(data, 92), readInt32(data, 96), rop);
 	}
 
 	private static void readMaskBlt(byte[] data, double[] transform, Gdi gdi) {
@@ -890,10 +887,9 @@ public class EmfParser implements Parser, EmfConstants {
 			return;
 		}
 
-		gdi.maskBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 36), readInt32(data, 40),
-				readBitmap(data, 104, 108, 112, 116),
-				readInt32(data, 92), readInt32(data, 96), rop);
+		gdi.maskBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
+				readInt32(data, 40), readBitmap(data, 104, 108, 112, 116), readInt32(data, 92), readInt32(data, 96),
+				rop);
 	}
 
 	private static void readPlgBlt(byte[] data, double[] transform, Gdi gdi) {
@@ -912,17 +908,12 @@ public class EmfParser implements Parser, EmfConstants {
 			points[i] = transformPoint(transform, readInt32(data, offset), readInt32(data, offset + 4));
 			offset += 8;
 		}
-		gdi.plgBlt(image, points,
-				readInt32(data, 40), readInt32(data, 44), readInt32(data, 48), readInt32(data, 52),
-				readBitmap(data, 116, 120, 124, 128),
-				readInt32(data, 104), readInt32(data, 108));
+		gdi.plgBlt(image, points, readInt32(data, 40), readInt32(data, 44), readInt32(data, 48), readInt32(data, 52),
+				readBitmap(data, 116, 120, 124, 128), readInt32(data, 104), readInt32(data, 108));
 	}
 
 	private static boolean canPatBltWithoutSource(long rop) {
-		return rop == Gdi.BLACKNESS
-				|| rop == Gdi.DSTINVERT
-				|| rop == Gdi.PATCOPY
-				|| rop == Gdi.PATINVERT
+		return rop == Gdi.BLACKNESS || rop == Gdi.DSTINVERT || rop == Gdi.PATCOPY || rop == Gdi.PATINVERT
 				|| rop == Gdi.WHITENESS;
 	}
 
@@ -932,9 +923,8 @@ public class EmfParser implements Parser, EmfConstants {
 		if (image == null) {
 			return;
 		}
-		gdi.setDIBitsToDevice(point.x, point.y, readInt32(data, 32), readInt32(data, 36),
-				readInt32(data, 24), readInt32(data, 28), readInt32(data, 60), readInt32(data, 64),
-				image, readInt32(data, 56));
+		gdi.setDIBitsToDevice(point.x, point.y, readInt32(data, 32), readInt32(data, 36), readInt32(data, 24),
+				readInt32(data, 28), readInt32(data, 60), readInt32(data, 64), image, readInt32(data, 56));
 	}
 
 	private static void readStretchDIBits(byte[] data, double[] transform, Gdi gdi) {
@@ -943,9 +933,9 @@ public class EmfParser implements Parser, EmfConstants {
 		if (image == null) {
 			return;
 		}
-		gdi.stretchDIBits(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 24), readInt32(data, 28), readInt32(data, 32), readInt32(data, 36),
-				image, readInt32(data, 56), readUInt32(data, 60));
+		gdi.stretchDIBits(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 24),
+				readInt32(data, 28), readInt32(data, 32), readInt32(data, 36), image, readInt32(data, 56),
+				readUInt32(data, 60));
 	}
 
 	private static void readAlphaBlend(byte[] data, double[] transform, Gdi gdi) {
@@ -954,9 +944,8 @@ public class EmfParser implements Parser, EmfConstants {
 		if (image == null) {
 			return;
 		}
-		gdi.alphaBlend(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 36), readInt32(data, 40), readInt32(data, 92), readInt32(data, 96),
-				readInt32(data, 32));
+		gdi.alphaBlend(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
+				readInt32(data, 40), readInt32(data, 92), readInt32(data, 96), readInt32(data, 32));
 	}
 
 	private static void readTransparentBlt(byte[] data, double[] transform, Gdi gdi) {
@@ -965,9 +954,8 @@ public class EmfParser implements Parser, EmfConstants {
 		if (image == null) {
 			return;
 		}
-		gdi.transparentBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1],
-				readInt32(data, 36), readInt32(data, 40), readInt32(data, 92), readInt32(data, 96),
-				readInt32(data, 32));
+		gdi.transparentBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
+				readInt32(data, 40), readInt32(data, 92), readInt32(data, 96), readInt32(data, 32));
 	}
 
 	private static void readGradientFill(byte[] data, double[] transform, Gdi gdi) {
@@ -986,16 +974,12 @@ public class EmfParser implements Parser, EmfConstants {
 		for (int i = 0; i < vertex.length; i++) {
 			int offset = vertexOffset + i * 16;
 			Point point = transformPoint(transform, readInt32(data, offset), readInt32(data, offset + 4));
-			vertex[i] = new Trivertex(point.x, point.y,
-					readUInt16(data, offset + 8),
-					readUInt16(data, offset + 10),
-					readUInt16(data, offset + 12),
-					readUInt16(data, offset + 14));
+			vertex[i] = new Trivertex(point.x, point.y, readUInt16(data, offset + 8), readUInt16(data, offset + 10),
+					readUInt16(data, offset + 12), readUInt16(data, offset + 14));
 		}
 
 		int meshOffset = vertexOffset + vertexCount * 16;
-		int meshStep = mode == Gdi.GRADIENT_FILL_TRIANGLE ? 12
-				: (meshOffset + meshCount * 12 <= data.length ? 12 : 8);
+		int meshStep = mode == Gdi.GRADIENT_FILL_TRIANGLE ? 12 : (meshOffset + meshCount * 12 <= data.length ? 12 : 8);
 		if (meshOffset + meshCount * meshStep > data.length) {
 			return;
 		}
@@ -1067,7 +1051,8 @@ public class EmfParser implements Parser, EmfConstants {
 		}
 	}
 
-	private static void readEmrText(byte[] data, int textOffset, double[] transform, Gdi gdi, boolean unicode, int charset) {
+	private static void readEmrText(byte[] data, int textOffset, double[] transform, Gdi gdi, boolean unicode,
+			int charset) {
 		if (textOffset < 0 || textOffset + 40 > data.length) {
 			return;
 		}
@@ -1101,7 +1086,8 @@ public class EmfParser implements Parser, EmfConstants {
 		gdi.extTextOut(point.x, point.y, options, rect, text, dx);
 	}
 
-	private static int[] transformDestRect(double[] transform, byte[] data, int xOffset, int yOffset, int widthOffset, int heightOffset) {
+	private static int[] transformDestRect(double[] transform, byte[] data, int xOffset, int yOffset, int widthOffset,
+			int heightOffset) {
 		int x = readInt32(data, xOffset);
 		int y = readInt32(data, yOffset);
 		int width = readInt32(data, widthOffset);
@@ -1109,13 +1095,14 @@ public class EmfParser implements Parser, EmfConstants {
 		return transformRect(transform, x, y, x + width, y + height);
 	}
 
-	private static byte[] readBitmap(byte[] data, int bmiOffsetOffset, int bmiSizeOffset, int bitsOffsetOffset, int bitsSizeOffset) {
+	private static byte[] readBitmap(byte[] data, int bmiOffsetOffset, int bmiSizeOffset, int bitsOffsetOffset,
+			int bitsSizeOffset) {
 		int bmiOffset = readInt32(data, bmiOffsetOffset) - 8;
 		int bmiSize = readInt32(data, bmiSizeOffset);
 		int bitsOffset = readInt32(data, bitsOffsetOffset) - 8;
 		int bitsSize = readInt32(data, bitsSizeOffset);
-		if (bmiOffset < 0 || bmiSize <= 0 || bmiOffset + bmiSize > data.length
-				|| bitsOffset < 0 || bitsSize <= 0 || bitsOffset + bitsSize > data.length) {
+		if (bmiOffset < 0 || bmiSize <= 0 || bmiOffset + bmiSize > data.length || bitsOffset < 0 || bitsSize <= 0
+				|| bitsOffset + bitsSize > data.length) {
 			return null;
 		}
 
@@ -1210,15 +1197,14 @@ public class EmfParser implements Parser, EmfConstants {
 		int value = Math.abs(width);
 		if ((style & GdiPen.PS_TYPE_MASK) == GdiPen.PS_GEOMETRIC && !isIdentity(transform)) {
 			double scale = Math.hypot(transform[0], transform[1]);
-			return (int)Math.max(1, Math.round(value * scale));
+			return (int) Math.max(1, Math.round(value * scale));
 		}
 		return value;
 	}
 
 	private static boolean isIdentity(double[] transform) {
-		return transform == null || (transform[0] == 1.0 && transform[1] == 0.0
-				&& transform[2] == 0.0 && transform[3] == 1.0
-				&& transform[4] == 0.0 && transform[5] == 0.0);
+		return transform == null || (transform[0] == 1.0 && transform[1] == 0.0 && transform[2] == 0.0
+				&& transform[3] == 1.0 && transform[4] == 0.0 && transform[5] == 0.0);
 	}
 
 	private static byte[] copyRange(byte[] data, int offset, int length) {
@@ -1295,7 +1281,7 @@ public class EmfParser implements Parser, EmfConstants {
 	private static Point transformPoint(double[] transform, int x, int y) {
 		double tx = transform[0] * x + transform[2] * y + transform[4];
 		double ty = transform[1] * x + transform[3] * y + transform[5];
-		return new Point((int)Math.round(tx), (int)Math.round(ty));
+		return new Point((int) Math.round(tx), (int) Math.round(ty));
 	}
 
 	private static int[] transformRect(double[] transform, byte[] data, int offset) {
@@ -1303,7 +1289,8 @@ public class EmfParser implements Parser, EmfConstants {
 				readInt32(data, offset + 8), readInt32(data, offset + 12));
 	}
 
-	private static int[] transformRect(double[] transform, int leftValue, int topValue, int rightValue, int bottomValue) {
+	private static int[] transformRect(double[] transform, int leftValue, int topValue, int rightValue,
+			int bottomValue) {
 		Point p1 = transformPoint(transform, leftValue, topValue);
 		Point p2 = transformPoint(transform, rightValue, topValue);
 		Point p3 = transformPoint(transform, rightValue, bottomValue);
@@ -1313,36 +1300,24 @@ public class EmfParser implements Parser, EmfConstants {
 		int top = Math.min(Math.min(p1.y, p2.y), Math.min(p3.y, p4.y));
 		int right = Math.max(Math.max(p1.x, p2.x), Math.max(p3.x, p4.x));
 		int bottom = Math.max(Math.max(p1.y, p2.y), Math.max(p3.y, p4.y));
-		return new int[] { left, top, right, bottom };
+		return new int[]{left, top, right, bottom};
 	}
 
 	private static double[] readTransform(byte[] data, int offset) {
-		return new double[] {
-			readFloat32(data, offset),
-			readFloat32(data, offset + 4),
-			readFloat32(data, offset + 8),
-			readFloat32(data, offset + 12),
-			readFloat32(data, offset + 16),
-			readFloat32(data, offset + 20)
-		};
+		return new double[]{readFloat32(data, offset), readFloat32(data, offset + 4), readFloat32(data, offset + 8),
+				readFloat32(data, offset + 12), readFloat32(data, offset + 16), readFloat32(data, offset + 20)};
 	}
 
 	private static float[] toXForm(double[] transform) {
 		if (transform == null) {
 			return null;
 		}
-		return new float[] {
-			(float)transform[0],
-			(float)transform[1],
-			(float)transform[2],
-			(float)transform[3],
-			(float)transform[4],
-			(float)transform[5]
-		};
+		return new float[]{(float) transform[0], (float) transform[1], (float) transform[2], (float) transform[3],
+				(float) transform[4], (float) transform[5]};
 	}
 
 	private static double[] identity() {
-		return new double[] {1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+		return new double[]{1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
 	}
 
 	private static double[] copy(double[] transform) {
@@ -1353,30 +1328,25 @@ public class EmfParser implements Parser, EmfConstants {
 
 	private static double[] modifyWorldTransform(double[] current, double[] next, int mode) {
 		switch (mode) {
-		case MWT_IDENTITY:
-			return identity();
-		case MWT_LEFTMULTIPLY:
-			return multiply(next, current);
-		case MWT_RIGHTMULTIPLY:
-			return multiply(current, next);
-		default:
-			return current;
+			case MWT_IDENTITY :
+				return identity();
+			case MWT_LEFTMULTIPLY :
+				return multiply(next, current);
+			case MWT_RIGHTMULTIPLY :
+				return multiply(current, next);
+			default :
+				return current;
 		}
 	}
 
 	private static double[] multiply(double[] left, double[] right) {
-		return new double[] {
-			left[0] * right[0] + left[2] * right[1],
-			left[1] * right[0] + left[3] * right[1],
-			left[0] * right[2] + left[2] * right[3],
-			left[1] * right[2] + left[3] * right[3],
-			left[0] * right[4] + left[2] * right[5] + left[4],
-			left[1] * right[4] + left[3] * right[5] + left[5]
-		};
+		return new double[]{left[0] * right[0] + left[2] * right[1], left[1] * right[0] + left[3] * right[1],
+				left[0] * right[2] + left[2] * right[3], left[1] * right[2] + left[3] * right[3],
+				left[0] * right[4] + left[2] * right[5] + left[4], left[1] * right[4] + left[3] * right[5] + left[5]};
 	}
 
 	private static int readInt16(byte[] data, int offset) {
-		return (short)((data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8));
+		return (short) ((data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8));
 	}
 
 	private static int readUInt16(byte[] data, int offset) {
@@ -1388,9 +1358,7 @@ public class EmfParser implements Parser, EmfConstants {
 	}
 
 	private static int readInt32(byte[] data, int offset) {
-		return (data[offset] & 0xFF)
-				| ((data[offset + 1] & 0xFF) << 8)
-				| ((data[offset + 2] & 0xFF) << 16)
+		return (data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8) | ((data[offset + 2] & 0xFF) << 16)
 				| ((data[offset + 3] & 0xFF) << 24);
 	}
 

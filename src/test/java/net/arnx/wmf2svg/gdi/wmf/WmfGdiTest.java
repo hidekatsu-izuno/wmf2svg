@@ -115,16 +115,12 @@ public class WmfGdiTest {
 		gdi.moveToEx(10, 10, null);
 		gdi.lineTo(100, 100);
 
-		GdiFont font1 = gdi.createFontIndirect(72, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false, GdiFont.ANSI_CHARSET,
-				GdiFont.OUT_DEFAULT_PRECIS,
-				GdiFont.CLIP_DEFAULT_PRECIS,
-				GdiFont.DEFAULT_QUALITY,
-				GdiFont.DEFAULT_PITCH,
-				"Arial".getBytes(GdiUtils.getCharset(GdiFont.ANSI_CHARSET)));
+		GdiFont font1 = gdi.createFontIndirect(72, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, GdiFont.OUT_DEFAULT_PRECIS, GdiFont.CLIP_DEFAULT_PRECIS, GdiFont.DEFAULT_QUALITY,
+				GdiFont.DEFAULT_PITCH, "Arial".getBytes(GdiUtils.getCharset(GdiFont.ANSI_CHARSET)));
 		gdi.selectObject(font1);
-		gdi.extTextOut(0, 0, 0, null,
-				"ABCdefg".getBytes(GdiUtils.getCharset(font1.getCharset())),
-				new int[] {30, 30, 30, 30, 30, 30, 20});
+		gdi.extTextOut(0, 0, 0, null, "ABCdefg".getBytes(GdiUtils.getCharset(font1.getCharset())),
+				new int[]{30, 30, 30, 30, 30, 30, 20});
 
 		gdi.footer();
 
@@ -145,7 +141,7 @@ public class WmfGdiTest {
 		String name = file.getAbsolutePath();
 		name = name.substring(0, name.length() - 4);
 		System.out.println(name + " transforming...");
-		Main.main(new String[] {"-debug", name + ".wmf", name + ".svg"});
+		Main.main(new String[]{"-debug", name + ".wmf", name + ".svg"});
 	}
 
 	@Test

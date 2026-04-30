@@ -48,7 +48,7 @@ public class ImageUtil {
 		try {
 			BufferedImage source = ImageIO.read(new ByteArrayInputStream(image));
 			if (source != null) {
-				return new int[] { source.getWidth(), source.getHeight() };
+				return new int[]{source.getWidth(), source.getHeight()};
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -72,14 +72,16 @@ public class ImageUtil {
 			try {
 				// convert to 24bit color
 				BufferedImage bufferedImage = ImageIO.read(new ByteArrayInputStream(image));
-				BufferedImage dst = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+				BufferedImage dst = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(),
+						BufferedImage.TYPE_3BYTE_BGR);
 				ColorConvertOp colorConvert = new ColorConvertOp(dst.getColorModel().getColorSpace(), null);
 				colorConvert.filter(bufferedImage, dst);
 				bufferedImage = dst;
 
 				if (reverse) {
 					DataBuffer srcData = bufferedImage.getRaster().getDataBuffer();
-					BufferedImage dstImage = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(), bufferedImage.getType());
+					BufferedImage dstImage = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(),
+							bufferedImage.getType());
 					DataBuffer dstData = dstImage.getRaster().getDataBuffer();
 					int lineSize = bufferedImage.getWidth() * bufferedImage.getColorModel().getPixelSize() / 8;
 					for (int h = 0, k = bufferedImage.getHeight() - 1; h < bufferedImage.getHeight(); h++, k--) {
@@ -121,11 +123,13 @@ public class ImageUtil {
 			ImagesService imagesService = ImagesServiceFactory.getImagesService();
 			Image bmp = ImagesServiceFactory.makeImage(image);
 
-			Transform t = (reverse) ? ImagesServiceFactory.makeVerticalFlip() : ImagesServiceFactory.makeCompositeTransform();
+			Transform t = (reverse)
+					? ImagesServiceFactory.makeVerticalFlip()
+					: ImagesServiceFactory.makeCompositeTransform();
 			return imagesService.applyTransform(t, bmp, encoding).getImageData();
 		}
 	}
-	
+
 	private static class AndroidConverter implements Converter {
 		public byte[] convert(byte[] image, String destType, boolean reverse) {
 			Bitmap bmp = BitmapFactory.decodeByteArray(image, 0, image.length);

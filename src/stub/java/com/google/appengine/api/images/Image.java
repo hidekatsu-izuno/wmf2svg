@@ -26,6 +26,6 @@ public interface Image extends Serializable {
 			return new byte[0];
 		}
 	};
-	
+
 	public byte[] getImageData();
 }

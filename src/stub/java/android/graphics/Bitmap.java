@@ -17,9 +17,7 @@ package android.graphics;
 
 public final class Bitmap {
 	public static enum CompressFormat {
-		JPEG,
-		PNG,
-		WEBP;
+		JPEG, PNG, WEBP;
 	}
 
 	public void recycle() {

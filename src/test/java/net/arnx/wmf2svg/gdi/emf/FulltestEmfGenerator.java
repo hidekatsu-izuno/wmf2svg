@@ -39,10 +39,10 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.setBkMode(Gdi.TRANSPARENT);
 		gdi.setTextColor(rgb(0, 0, 0));
 
-		GdiFont titleFont = gdi.createFontIndirect(-28, 0, 0, 0, 700, false, false, false,
-				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, ascii("Arial"));
-		GdiFont labelFont = gdi.createFontIndirect(-17, 0, 0, 0, 400, false, false, false,
-				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, ascii("Arial"));
+		GdiFont titleFont = gdi.createFontIndirect(-28, 0, 0, 0, 700, false, false, false, GdiFont.ANSI_CHARSET, 0, 0,
+				0, 0, ascii("Arial"));
+		GdiFont labelFont = gdi.createFontIndirect(-17, 0, 0, 0, 400, false, false, false, GdiFont.ANSI_CHARSET, 0, 0,
+				0, 0, ascii("Arial"));
 		GdiPen black = gdi.createPenIndirect(0, 2, rgb(0, 0, 0));
 		GdiPen blue = gdi.createPenIndirect(0, 5, rgb(20, 70, 220));
 		GdiPen red = gdi.createPenIndirect(0, 4, rgb(220, 30, 30));
@@ -58,7 +58,8 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.selectObject(titleFont);
 		gdi.textOut(24, 42, ascii("EMF GDI full command overview"));
 		gdi.selectObject(labelFont);
-		gdi.textOut(24, 72, ascii("A generated checklist image containing base EMR records plus EMF-specific records."));
+		gdi.textOut(24, 72,
+				ascii("A generated checklist image containing base EMR records plus EMF-specific records."));
 
 		panel(gdi, black, white, 20, 100, 370, 295, "1 primitives");
 		gdi.selectObject(paleBlue);
@@ -71,7 +72,7 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.lineTo(170, 285);
 		gdi.setPixel(340, 265, rgb(0, 0, 0));
 		gdi.selectObject(blue);
-		gdi.polyline(new Point[] {p(205, 280), p(250, 220), p(295, 285), p(345, 205)});
+		gdi.polyline(new Point[]{p(205, 280), p(250, 220), p(295, 285), p(345, 205)});
 
 		panel(gdi, black, white, 395, 100, 745, 295, "2 arcs");
 		gdi.selectObject(black);
@@ -84,10 +85,10 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 
 		panel(gdi, black, white, 770, 100, 1120, 295, "3 paths and bezier");
 		gdi.selectObject(blue);
-		gdi.polyBezier(new Point[] {p(800, 230), p(850, 120), p(930, 315), p(990, 180)});
+		gdi.polyBezier(new Point[]{p(800, 230), p(850, 120), p(930, 315), p(990, 180)});
 		gdi.beginPath();
 		gdi.moveToEx(835, 250, null);
-		gdi.polyBezierTo(new Point[] {p(880, 150), p(965, 330), p(1030, 190)});
+		gdi.polyBezierTo(new Point[]{p(880, 150), p(965, 330), p(1030, 190)});
 		gdi.lineTo(1065, 260);
 		gdi.closeFigure();
 		gdi.endPath();
@@ -110,27 +111,23 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		panel(gdi, black, white, 1145, 100, 1575, 295, "4 polygon variants");
 		gdi.selectObject(paleBlue);
 		gdi.setPolyFillMode(Gdi.ALTERNATE);
-		gdi.polygon(new Point[] {p(1175, 250), p(1225, 140), p(1285, 250), p(1230, 215)});
+		gdi.polygon(new Point[]{p(1175, 250), p(1225, 140), p(1285, 250), p(1230, 215)});
 		gdi.selectObject(paleGreen);
 		gdi.setPolyFillMode(Gdi.WINDING);
-		gdi.polyPolygon(new Point[][] {
-				new Point[] {p(1320, 245), p(1370, 140), p(1420, 245)},
-				new Point[] {p(1450, 150), p(1545, 170), p(1500, 255), p(1430, 240)}
-		});
+		gdi.polyPolygon(new Point[][]{new Point[]{p(1320, 245), p(1370, 140), p(1420, 245)},
+				new Point[]{p(1450, 150), p(1545, 170), p(1500, 255), p(1430, 240)}});
 		gdi.selectObject(red);
-		gdi.polyPolyline(new Point[][] {
-				new Point[] {p(1175, 130), p(1260, 120), p(1340, 135)},
-				new Point[] {p(1175, 170), p(1260, 165), p(1340, 180)}
-		});
+		gdi.polyPolyline(new Point[][]{new Point[]{p(1175, 130), p(1260, 120), p(1340, 135)},
+				new Point[]{p(1175, 170), p(1260, 165), p(1340, 180)}});
 		gdi.selectObject(green);
 		gdi.moveToEx(1425, 170, null);
-		gdi.polylineTo(new Point[] {p(1450, 135), p(1490, 120), p(1540, 150)});
+		gdi.polylineTo(new Point[]{p(1450, 135), p(1490, 120), p(1540, 150)});
 
 		panel(gdi, black, white, 20, 320, 370, 530, "5 text records");
 		gdi.selectObject(labelFont);
 		gdi.setTextAlign(Gdi.TA_LEFT | Gdi.TA_TOP);
 		gdi.textOut(45, 365, ascii("ExtTextOutA + TextOut"));
-		gdi.extTextOut(45, 395, Gdi.ETO_OPAQUE, new int[] {40, 388, 235, 420}, ascii("opaque A text"), null);
+		gdi.extTextOut(45, 395, Gdi.ETO_OPAQUE, new int[]{40, 388, 235, 420}, ascii("opaque A text"), null);
 		gdi.extTextOutW(45, 430, 0, null, utf16("ExtTextOutW"), null);
 		gdi.setTextJustification(8, 2);
 		gdi.textOut(45, 465, ascii("justified text"));
@@ -151,15 +148,14 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		panel(gdi, black, white, 770, 320, 1120, 530, "7 mask blit");
 		byte[] mask = mask1(64, 48);
 		gdi.maskBlt(dib, 800, 370, 95, 60, 0, 0, mask, 0, 0, Gdi.SRCCOPY);
-		gdi.plgBlt(dib, new Point[] {p(930, 360), p(1085, 395), p(900, 500)}, 0, 0, 64, 48, mask, 0, 0);
+		gdi.plgBlt(dib, new Point[]{p(930, 360), p(1085, 395), p(900, 500)}, 0, 0, 64, 48, mask, 0, 0);
 
 		panel(gdi, black, white, 1145, 320, 1575, 530, "8 gradients");
-		gdi.gradientFill(new Trivertex[] {
-				tv(1185, 380, 255, 40, 40), tv(1365, 455, 40, 40, 255)
-		}, new GradientRect[] {new GradientRect(0, 1)}, Gdi.GRADIENT_FILL_RECT_H);
-		gdi.gradientFill(new Trivertex[] {
-				tv(1410, 370, 255, 70, 70), tv(1535, 400, 50, 200, 80), tv(1465, 500, 60, 80, 255)
-		}, new GradientTriangle[] {new GradientTriangle(0, 1, 2)}, Gdi.GRADIENT_FILL_TRIANGLE);
+		gdi.gradientFill(new Trivertex[]{tv(1185, 380, 255, 40, 40), tv(1365, 455, 40, 40, 255)},
+				new GradientRect[]{new GradientRect(0, 1)}, Gdi.GRADIENT_FILL_RECT_H);
+		gdi.gradientFill(
+				new Trivertex[]{tv(1410, 370, 255, 70, 70), tv(1535, 400, 50, 200, 80), tv(1465, 500, 60, 80, 255)},
+				new GradientTriangle[]{new GradientTriangle(0, 1, 2)}, Gdi.GRADIENT_FILL_TRIANGLE);
 
 		panel(gdi, black, white, 20, 555, 370, 790, "9 clipping and regions");
 		GdiRegion region = gdi.createRectRgn(55, 620, 250, 745);
@@ -178,21 +174,21 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.restoreDC(-1);
 
 		panel(gdi, black, white, 395, 555, 745, 790, "10 palette and color");
-		int[] paletteEntries = new int[] {rgb(255, 0, 0), rgb(0, 160, 0), rgb(0, 0, 255), rgb(255, 255, 0)};
+		int[] paletteEntries = new int[]{rgb(255, 0, 0), rgb(0, 160, 0), rgb(0, 0, 255), rgb(255, 255, 0)};
 		for (int i = 0; i < 4; i++) {
 			gdi.selectObject(gdi.createBrushIndirect(0, paletteEntries[i], 0));
 			gdi.rectangle(425 + i * 70, 625, 480 + i * 70, 690);
 		}
 		panel(gdi, black, white, 770, 555, 1120, 790, "11 16-bit records");
 		gdi.selectObject(blue);
-		gdi.polyBezier16(new Point[] {p(800, 720), p(850, 580), p(930, 790), p(990, 650)});
-		gdi.polygon16(new Point[] {p(1020, 610), p(1090, 650), p(1050, 735), p(990, 700)});
-		gdi.polyline16(new Point[] {p(800, 610), p(870, 630), p(940, 610)});
+		gdi.polyBezier16(new Point[]{p(800, 720), p(850, 580), p(930, 790), p(990, 650)});
+		gdi.polygon16(new Point[]{p(1020, 610), p(1090, 650), p(1050, 735), p(990, 700)});
+		gdi.polyline16(new Point[]{p(800, 610), p(870, 630), p(940, 610)});
 		gdi.moveToEx(805, 760, null);
-		gdi.polyBezierTo16(new Point[] {p(860, 640), p(935, 800), p(1005, 660)});
-		gdi.polylineTo16(new Point[] {p(1040, 710), p(1100, 680)});
-		gdi.polyPolyline16(new Point[][] {new Point[] {p(795, 665), p(875, 680)}, new Point[] {p(795, 690), p(875, 705)}});
-		gdi.polyPolygon16(new Point[][] {new Point[] {p(930, 590), p(965, 630), p(920, 650)}});
+		gdi.polyBezierTo16(new Point[]{p(860, 640), p(935, 800), p(1005, 660)});
+		gdi.polylineTo16(new Point[]{p(1040, 710), p(1100, 680)});
+		gdi.polyPolyline16(new Point[][]{new Point[]{p(795, 665), p(875, 680)}, new Point[]{p(795, 690), p(875, 705)}});
+		gdi.polyPolygon16(new Point[][]{new Point[]{p(930, 590), p(965, 630), p(920, 650)}});
 
 		panel(gdi, black, white, 1145, 555, 1575, 790, "12 DC and state");
 		gdi.selectObject(blue);
@@ -224,18 +220,17 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.textOut(45, 855, ascii("Records generated by newly exposed EmfGdi APIs."));
 
 		gdi.selectObject(blue);
-		gdi.polyDraw(new Point[] {p(55, 920), p(110, 870), p(170, 945), p(230, 870), p(295, 930)},
-				new byte[] {0x06, 0x02, 0x04, 0x04, 0x04});
+		gdi.polyDraw(new Point[]{p(55, 920), p(110, 870), p(170, 945), p(230, 870), p(295, 930)},
+				new byte[]{0x06, 0x02, 0x04, 0x04, 0x04});
 		gdi.selectObject(green);
-		gdi.polyDraw16(new Point[] {p(55, 995), p(120, 1040), p(190, 990), p(260, 1040)},
-				new byte[] {0x06, 0x02, 0x02, 0x03});
+		gdi.polyDraw16(new Point[]{p(55, 995), p(120, 1040), p(190, 990), p(260, 1040)},
+				new byte[]{0x06, 0x02, 0x02, 0x03});
 
 		gdi.selectObject(labelFont);
-		gdi.polyTextOutA(new Point[] {p(340, 895), p(340, 930)}, null, null,
-				new byte[][] {ascii("PolyTextOutA"), ascii("with dx spacing")},
-				new int[][] {null, new int[] {10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10}});
-		gdi.polyTextOutW(new Point[] {p(340, 970)}, null, null,
-				new byte[][] {utf16("PolyTextOutW")}, null);
+		gdi.polyTextOutA(new Point[]{p(340, 895), p(340, 930)}, null, null,
+				new byte[][]{ascii("PolyTextOutA"), ascii("with dx spacing")},
+				new int[][]{null, new int[]{10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10}});
+		gdi.polyTextOutW(new Point[]{p(340, 970)}, null, null, new byte[][]{utf16("PolyTextOutW")}, null);
 		gdi.smallTextOut(340, 1010, 0x00000300, null, ascii("SmallTextOut"));
 
 		GdiPatternBrush monoBrush = gdi.createMonoBrush(mask1(32, 32), Gdi.DIB_RGB_COLORS);
@@ -246,8 +241,8 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		gdi.setBrushOrgEx(380, 895, null);
 		gdi.textOut(360, 1040, ascii("CreateMonoBrush"));
 
-		gdi.setWorldTransform(new float[] {1, 0, 0, 1, 0, 0});
-		gdi.modifyWorldTransform(new float[] {1, 0, 0, 1, 0, 0}, 2);
+		gdi.setWorldTransform(new float[]{1, 0, 0, 1, 0, 0});
+		gdi.modifyWorldTransform(new float[]{1, 0, 0, 1, 0, 0}, 2);
 
 		panel(gdi, black, white, 545, 815, 1045, 1145, "14 EMF+ records");
 		gdi.selectObject(labelFont);
@@ -311,8 +306,7 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		writeInt(payload, 0);
 		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
 
-		writeEmfPlusRecord(comment, EMF_PLUS_SET_ANTI_ALIAS_MODE, EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X8,
-				new byte[0]);
+		writeEmfPlusRecord(comment, EMF_PLUS_SET_ANTI_ALIAS_MODE, EMF_PLUS_SMOOTHING_MODE_ANTI_ALIAS_8X8, new byte[0]);
 
 		payload.reset();
 		writeInt(payload, 0);
@@ -386,8 +380,7 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 		writeFloat(payload, 140);
 		writeFloat(payload, 40);
 		writeUtf16Le(payload, "EMF+ text");
-		writeEmfPlusRecord(comment, EMF_PLUS_DRAW_STRING, EMF_PLUS_FLAG_SOLID_COLOR | 0x0003,
-				payload.toByteArray());
+		writeEmfPlusRecord(comment, EMF_PLUS_DRAW_STRING, EMF_PLUS_FLAG_SOLID_COLOR | 0x0003, payload.toByteArray());
 
 		return comment.toByteArray();
 	}
@@ -445,10 +438,10 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 				int topY = height - 1 - y;
 				int pos = 40 + y * stride + x * 4;
 				boolean checker = ((x / 8) + (topY / 8)) % 2 == 0;
-				dib[pos] = (byte)(checker ? 220 : 70);
-				dib[pos + 1] = (byte)(x * 255 / Math.max(1, width - 1));
-				dib[pos + 2] = (byte)(topY * 255 / Math.max(1, height - 1));
-				dib[pos + 3] = (byte)255;
+				dib[pos] = (byte) (checker ? 220 : 70);
+				dib[pos + 1] = (byte) (x * 255 / Math.max(1, width - 1));
+				dib[pos + 2] = (byte) (topY * 255 / Math.max(1, height - 1));
+				dib[pos + 3] = (byte) 255;
 			}
 		}
 		return dib;
@@ -470,7 +463,7 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 			for (int x = 0; x < width; x++) {
 				if ((x - width / 2) * (x - width / 2) + (y - height / 2) * (y - height / 2) < 560) {
 					int pos = 48 + y * stride + x / 8;
-					dib[pos] |= (byte)(0x80 >>> (x % 8));
+					dib[pos] |= (byte) (0x80 >>> (x % 8));
 				}
 			}
 		}
@@ -478,14 +471,14 @@ public class FulltestEmfGenerator implements EmfPlusConstants {
 	}
 
 	private static void setShort(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
 	}
 
 	private static void setInt(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
-		data[pos + 2] = (byte)((value >>> 16) & 0xFF);
-		data[pos + 3] = (byte)((value >>> 24) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
+		data[pos + 2] = (byte) ((value >>> 16) & 0xFF);
+		data[pos + 3] = (byte) ((value >>> 24) & 0xFF);
 	}
 }

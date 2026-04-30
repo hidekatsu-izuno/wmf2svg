@@ -7,7 +7,7 @@ class SvgRectRegion extends SvgRegion {
 	private int top;
 	private int right;
 	private int bottom;
-	
+
 	public SvgRectRegion(SvgGdi gdi, int left, int top, int right, int bottom) {
 		super(gdi);
 		this.left = left;
@@ -15,23 +15,23 @@ class SvgRectRegion extends SvgRegion {
 		this.right = right;
 		this.bottom = bottom;
 	}
-	
+
 	public int getLeft() {
 		return left;
 	}
-	
+
 	public int getTop() {
 		return top;
 	}
-	
+
 	public int getRight() {
 		return right;
 	}
-	
+
 	public int getBottom() {
 		return bottom;
 	}
-	
+
 	public Element createElement() {
 		Element elem = getGDI().getDocument().createElement("rect");
 		elem.setAttribute("x", "" + getLeft());

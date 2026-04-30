@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
@@ -23,31 +23,27 @@ import net.arnx.wmf2svg.gdi.*;
  * @author Hidekatsu Izuno
  */
 class SvgPen extends SvgObject implements GdiPen {
-	
+
 	private int style;
 	private int width;
 	private int color;
 
-	public SvgPen(
-		SvgGdi gdi,
-		int style,
-		int width,
-		int color) {
-		
+	public SvgPen(SvgGdi gdi, int style, int width, int color) {
+
 		super(gdi);
 		this.style = style;
 		this.width = (width > 0) ? width : 1;
 		this.color = color;
 	}
-	
+
 	public int getStyle() {
 		return style;
 	}
-	
+
 	public int getWidth() {
 		return width;
 	}
-	
+
 	public int getColor() {
 		return color;
 	}
@@ -77,7 +73,7 @@ class SvgPen extends SvgObject implements GdiPen {
 			return false;
 		return true;
 	}
-	
+
 	public Text createTextNode(String id) {
 		return getGDI().getDocument().createTextNode("." + id + " { " + toString() + " }\n");
 	}
@@ -94,7 +90,7 @@ class SvgPen extends SvgObject implements GdiPen {
 
 			// stroke-width
 			buffer.append("stroke-width: " + toStrokeWidth() + "; ");
-			
+
 			// stroke-linejoin
 			buffer.append("stroke-linecap: round; ");
 			buffer.append("stroke-linejoin: round; ");
@@ -104,44 +100,27 @@ class SvgPen extends SvgObject implements GdiPen {
 				buffer.append("stroke-dasharray: ");
 				switch (penStyle) {
 					case PS_DASH :
-						buffer.append(
-							"" + toStrokePatternSize(18) + "," + toStrokePatternSize(6));
+						buffer.append("" + toStrokePatternSize(18) + "," + toStrokePatternSize(6));
 						break;
 					case PS_DOT :
 						buffer.append("" + toStrokePatternSize(3) + "," + toStrokePatternSize(3));
 						break;
 					case PS_DASHDOT :
-						buffer.append(
-							""
-								+ toStrokePatternSize(9)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3));
+						buffer.append("" + toStrokePatternSize(9) + "," + toStrokePatternSize(3) + ","
+								+ toStrokePatternSize(3) + "," + toStrokePatternSize(3));
 						break;
 					case PS_DASHDOTDOT :
-						buffer.append(
-							""
-								+ toStrokePatternSize(9)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3)
-								+ ","
-								+ toStrokePatternSize(3));
+						buffer.append("" + toStrokePatternSize(9) + "," + toStrokePatternSize(3) + ","
+								+ toStrokePatternSize(3) + "," + toStrokePatternSize(3) + "," + toStrokePatternSize(3)
+								+ "," + toStrokePatternSize(3));
 						break;
 				}
 				buffer.append("; ");
 			}
 		}
 
-		if (buffer.length() > 0) buffer.setLength(buffer.length()-1);
+		if (buffer.length() > 0)
+			buffer.setLength(buffer.length() - 1);
 		return buffer.toString();
 	}
 

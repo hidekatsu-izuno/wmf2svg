@@ -19,9 +19,8 @@ class EmfFont extends EmfObject implements GdiFont {
 	final int pitchAndFamily;
 	final String faceName;
 
-	EmfFont(int id, int height, int width, int escapement, int orientation,
-			int weight, boolean italic, boolean underline, boolean strikeout,
-			int charset, int outPrecision, int clipPrecision, int quality,
+	EmfFont(int id, int height, int width, int escapement, int orientation, int weight, boolean italic,
+			boolean underline, boolean strikeout, int charset, int outPrecision, int clipPrecision, int quality,
 			int pitchAndFamily, byte[] faceName) {
 		super(id);
 		this.height = height;

@@ -15,7 +15,7 @@ public class FulltestEmfGeneratorTest {
 	@Test
 	public void testFulltestEmfRoundTripsNewEmfGdiRecordsToSvg() throws Exception {
 		File emf = new File("target/fulltest-pipeline/fulltest.emf");
-		FulltestEmfGenerator.main(new String[] {emf.getPath()});
+		FulltestEmfGenerator.main(new String[]{emf.getPath()});
 		byte[] data = Files.readAllBytes(emf.toPath());
 
 		assertTrue(hasRecord(data, EmfConstants.EMR_POLYDRAW));
@@ -71,10 +71,8 @@ public class FulltestEmfGeneratorTest {
 			if (recordType == EmfConstants.EMR_GDICOMMENT && size >= 16) {
 				int commentSize = readInt32(data, pos + 8);
 				int commentOffset = pos + 12;
-				if (commentSize >= 4 && commentOffset + commentSize <= pos + size
-						&& data[commentOffset] == 'E'
-						&& data[commentOffset + 1] == 'M'
-						&& data[commentOffset + 2] == 'F'
+				if (commentSize >= 4 && commentOffset + commentSize <= pos + size && data[commentOffset] == 'E'
+						&& data[commentOffset + 1] == 'M' && data[commentOffset + 2] == 'F'
 						&& data[commentOffset + 3] == '+') {
 					return true;
 				}
@@ -85,9 +83,7 @@ public class FulltestEmfGeneratorTest {
 	}
 
 	private static int readInt32(byte[] data, int pos) {
-		return (data[pos] & 0xFF)
-				| ((data[pos + 1] & 0xFF) << 8)
-				| ((data[pos + 2] & 0xFF) << 16)
+		return (data[pos] & 0xFF) | ((data[pos + 1] & 0xFF) << 8) | ((data[pos + 2] & 0xFF) << 16)
 				| (data[pos + 3] << 24);
 	}
 }

@@ -11,13 +11,13 @@ import net.arnx.wmf2svg.util.ImageUtil;
 class SvgPatternBrush extends SvgBrush implements GdiPatternBrush {
 	private byte[] bmp;
 	private int usage;
-	
+
 	public SvgPatternBrush(SvgGdi gdi, byte[] bmp, int usage) {
 		super(gdi, GdiBrush.BS_PATTERN, 0, 0);
 		this.bmp = bmp;
 		this.usage = usage;
 	}
-	
+
 	public byte[] getPattern() {
 		return bmp;
 	}
@@ -30,7 +30,7 @@ class SvgPatternBrush extends SvgBrush implements GdiPatternBrush {
 		if (!super.equals(obj)) {
 			return false;
 		}
-		SvgPatternBrush brush = (SvgPatternBrush)obj;
+		SvgPatternBrush brush = (SvgPatternBrush) obj;
 		return usage == brush.usage && Arrays.equals(bmp, brush.bmp);
 	}
 
@@ -48,8 +48,8 @@ class SvgPatternBrush extends SvgBrush implements GdiPatternBrush {
 		Element pattern = getGDI().getDocument().createElement("pattern");
 		pattern.setAttribute("id", id);
 		pattern.setAttribute("patternUnits", "userSpaceOnUse");
-		pattern.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
-		pattern.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
+		pattern.setAttribute("x", "" + (int) getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
+		pattern.setAttribute("y", "" + (int) getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
 		pattern.setAttribute("width", "" + width);
 		pattern.setAttribute("height", "" + height);
 

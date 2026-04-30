@@ -52,14 +52,10 @@ public class SymbolFontTableWmfGenerator {
 		GdiFont wingdings2 = symbolFont(gdi, "Wingdings 2");
 		GdiFont wingdings3 = symbolFont(gdi, "Wingdings 3");
 
-		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, symbol,
-				600, 500, "Symbol");
-		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings,
-				7900, 500, "Wingdings");
-		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings2,
-				600, 6850, "Wingdings 2");
-		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings3,
-				7900, 6850, "Wingdings 3");
+		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, symbol, 600, 500, "Symbol");
+		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings, 7900, 500, "Wingdings");
+		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings2, 600, 6850, "Wingdings 2");
+		drawTable(gdi, black, grid, white, hollow, titleFont, labelFont, wingdings3, 7900, 6850, "Wingdings 3");
 
 		gdi.footer();
 
@@ -71,9 +67,8 @@ public class SymbolFontTableWmfGenerator {
 		}
 	}
 
-	private static void drawTable(WmfGdi gdi, GdiPen black, GdiPen grid, GdiBrush white,
-			GdiBrush hollow, GdiFont titleFont, GdiFont labelFont, GdiFont tableFont,
-			int x, int y, String title) {
+	private static void drawTable(WmfGdi gdi, GdiPen black, GdiPen grid, GdiBrush white, GdiBrush hollow,
+			GdiFont titleFont, GdiFont labelFont, GdiFont tableFont, int x, int y, String title) {
 		int left = x;
 		int top = y + TITLE_H;
 		int rowHeader = left + HEADER;
@@ -123,17 +118,16 @@ public class SymbolFontTableWmfGenerator {
 		for (int row = 2; row <= 15; row++) {
 			for (int col = 0; col < 16; col++) {
 				int code = (row << 4) | col;
-				gdi.textOut(rowHeader + col * CELL + CELL / 2,
-						colHeader + (row - 2) * CELL + 45,
-						new byte[] {(byte)code});
+				gdi.textOut(rowHeader + col * CELL + CELL / 2, colHeader + (row - 2) * CELL + 45,
+						new byte[]{(byte) code});
 			}
 		}
 		gdi.setTextAlign(Gdi.TA_LEFT | Gdi.TA_TOP);
 	}
 
 	private static GdiFont symbolFont(WmfGdi gdi, String faceName) {
-		return gdi.createFontIndirect(-260, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
-				GdiFont.SYMBOL_CHARSET, 0, 0, 0, 0, ascii(faceName));
+		return gdi.createFontIndirect(-260, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false, GdiFont.SYMBOL_CHARSET, 0,
+				0, 0, 0, ascii(faceName));
 	}
 
 	private static String hex(int value) {

@@ -55,9 +55,9 @@ public class Main {
 					usage();
 					return;
 				}
-			} else if (i == args.length-2) {
+			} else if (i == args.length - 2) {
 				src = args[i];
-			} else if (i == args.length-1) {
+			} else if (i == args.length - 1) {
 				dest = args[i];
 			}
 		}
@@ -74,8 +74,8 @@ public class Main {
 			gdi.setReplaceSymbolFont(replaceSymbolFont);
 			if (debug) {
 				ClassLoader cl = gdi.getClass().getClassLoader();
-				Class<?>[] interfaces = new Class[] { Gdi.class };
-				parser.parse(in, (Gdi)Proxy.newProxyInstance(cl, interfaces, new InvocationHandler() {
+				Class<?>[] interfaces = new Class[]{Gdi.class};
+				parser.parse(in, (Gdi) Proxy.newProxyInstance(cl, interfaces, new InvocationHandler() {
 					StringBuffer sb = new StringBuffer(1000);
 
 					public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
@@ -83,17 +83,19 @@ public class Main {
 						sb.append(method.getName()).append("(");
 						if (args != null) {
 							for (int i = 0; i < args.length; i++) {
-								if (i > 0) sb.append(", ");
+								if (i > 0)
+									sb.append(", ");
 								if (args[i] instanceof int[]) {
-									int[] array = (int[])args[i];
+									int[] array = (int[]) args[i];
 									sb.append("[");
 									for (int j = 0; j < array.length; j++) {
-										if (j > 0) sb.append(", ");
+										if (j > 0)
+											sb.append(", ");
 										sb.append(array[j]);
 									}
 									sb.append("]");
 								} else if (args[i] instanceof byte[]) {
-									byte[] array = (byte[])args[i];
+									byte[] array = (byte[]) args[i];
 									if (method.getName().equals("extTextOut") && i == 4) {
 										sb.append('"');
 										sb.append(new String(array, System.getProperty("file.encoding")));
@@ -110,18 +112,20 @@ public class Main {
 										sb.append("]");
 									}
 								} else if (args[i] instanceof double[]) {
-									double[] array = (double[])args[i];
+									double[] array = (double[]) args[i];
 									sb.append("[");
 									for (int j = 0; j < array.length; j++) {
-										if (j > 0) sb.append(", ");
+										if (j > 0)
+											sb.append(", ");
 										sb.append(array[j]);
 									}
 									sb.append("]");
 								} else if (args[i] instanceof Object[]) {
-									Object[] array = (Object[])args[i];
+									Object[] array = (Object[]) args[i];
 									sb.append("[");
 									for (int j = 0; j < array.length; j++) {
-										if (j > 0) sb.append(", ");
+										if (j > 0)
+											sb.append(", ");
 										sb.append(array[j]);
 									}
 									sb.append("]");
@@ -152,7 +156,8 @@ public class Main {
 
 				gdi.write(out);
 			} finally {
-				if (out != null) out.close();
+				if (out != null)
+					out.close();
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

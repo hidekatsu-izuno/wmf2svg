@@ -22,12 +22,10 @@ public interface ImagesService {
 			return Image.DUMMY;
 		}
 	};
-	
+
 	public enum OutputEncoding {
-		PNG,
-		JPEG,
-		WEBP
+		PNG, JPEG, WEBP
 	}
-	
+
 	public Image applyTransform(Transform transform, Image image, ImagesService.OutputEncoding encoding);
 }

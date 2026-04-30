@@ -8,6 +8,6 @@ abstract class SvgRegion extends SvgObject implements GdiRegion {
 	public SvgRegion(SvgGdi gdi) {
 		super(gdi);
 	}
-	
+
 	public abstract Element createElement();
 }

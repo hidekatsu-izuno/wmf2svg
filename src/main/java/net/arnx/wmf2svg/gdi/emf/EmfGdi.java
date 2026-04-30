@@ -65,8 +65,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		throw new UnsupportedOperationException("EMF does not support AnimatePalette.");
 	}
 
-	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, int blendFunction) {
+	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			int blendFunction) {
 		writeBlendRecord(EMR_ALPHABLEND, image, dx, dy, dw, dh, sx, sy, sw, sh, blendFunction);
 	}
 
@@ -101,13 +101,12 @@ public class EmfGdi implements Gdi, EmfConstants {
 		writeBitBltRecord(image, dx, dy, dw, dh, sx, sy, rop);
 	}
 
-	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, byte[] mask, int mx, int my, long rop) {
+	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx, int my,
+			long rop) {
 		writeMaskBltRecord(image, dx, dy, dw, dh, sx, sy, mask, mx, my, rop);
 	}
 
-	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
-			byte[] mask, int mx, int my) {
+	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh, byte[] mask, int mx, int my) {
 		writePlgBltRecord(image, points, sx, sy, sw, sh, mask, mx, my);
 	}
 
@@ -155,13 +154,11 @@ public class EmfGdi implements Gdi, EmfConstants {
 		return colorSpace;
 	}
 
-	public GdiFont createFontIndirect(int height, int width, int escapement,
-			int orientation, int weight, boolean italic, boolean underline,
-			boolean strikeout, int charset, int outPrecision, int clipPrecision,
+	public GdiFont createFontIndirect(int height, int width, int escapement, int orientation, int weight,
+			boolean italic, boolean underline, boolean strikeout, int charset, int outPrecision, int clipPrecision,
 			int quality, int pitchAndFamily, byte[] faceName) {
-		EmfFont font = new EmfFont(allocateHandle(), height, width, escapement, orientation,
-				weight, italic, underline, strikeout, charset, outPrecision,
-				clipPrecision, quality, pitchAndFamily, faceName);
+		EmfFont font = new EmfFont(allocateHandle(), height, width, escapement, orientation, weight, italic, underline,
+				strikeout, charset, outPrecision, clipPrecision, quality, pitchAndFamily, faceName);
 		byte[] record = record(EMR_EXTCREATEFONTINDIRECTW, 4 + EXT_LOG_FONT_W_SIZE);
 		setInt32(record, 8, font.id);
 		writeLogFont(record, 12, font);
@@ -323,7 +320,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	public int extSelectClipRgn(GdiRegion rgn, int mode) {
-		byte[] data = rgn instanceof EmfRegion ? ((EmfRegion)rgn).data : null;
+		byte[] data = rgn instanceof EmfRegion ? ((EmfRegion) rgn).data : null;
 		int dataSize = data != null ? data.length : 0;
 		byte[] record = record(EMR_EXTSELECTCLIPRGN, 8 + dataSize);
 		setInt32(record, 8, dataSize);
@@ -434,7 +431,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		polyPolyPointRecord16(EMR_POLYPOLYGON16, points);
 	}
 
-	private void extTextOutRecord(int type, int x, int y, int options, int[] rect, byte[] bytes, int[] lpdx, int charSize) {
+	private void extTextOutRecord(int type, int x, int y, int options, int[] rect, byte[] bytes, int[] lpdx,
+			int charSize) {
 		int chars = bytes.length;
 		if (charSize > 1) {
 			chars /= charSize;
@@ -466,8 +464,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includePoint(x, y);
 	}
 
-	private void polyTextOutRecord(int type, Point[] points, int[] options, int[][] rects,
-			byte[][] texts, int[][] lpdx, int charSize) {
+	private void polyTextOutRecord(int type, Point[] points, int[] options, int[][] rects, byte[][] texts, int[][] lpdx,
+			int charSize) {
 		byte[][] bytes = texts != null ? texts : new byte[0][];
 		int count = bytes.length;
 		byte[][] textValues = new byte[count][];
@@ -602,7 +600,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, 28, y);
 		setInt32(record, 32, width);
 		setInt32(record, 36, height);
-		setInt32(record, 40, (int)rop);
+		setInt32(record, 40, (int) rop);
 		setInt32(record, 44, x);
 		setInt32(record, 48, y);
 		setIdentityXForm(record, 52);
@@ -749,13 +747,13 @@ public class EmfGdi implements Gdi, EmfConstants {
 		pointRecord(EMR_SETBRUSHORGEX, x, y);
 	}
 
-	public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx, int sy,
-			int startscan, int scanlines, byte[] image, int colorUse) {
+	public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx, int sy, int startscan, int scanlines,
+			byte[] image, int colorUse) {
 		writeSetDIBitsToDevice(image, dx, dy, dw, dh, sx, sy, startscan, scanlines, colorUse);
 	}
 
 	public void setLayout(long layout) {
-		valueRecord(EMR_SETLAYOUT, (int)layout);
+		valueRecord(EMR_SETLAYOUT, (int) layout);
 	}
 
 	public void setMapMode(int mode) {
@@ -763,7 +761,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	public void setMapperFlags(long flags) {
-		valueRecord(EMR_SETMAPPERFLAGS, (int)flags);
+		valueRecord(EMR_SETMAPPERFLAGS, (int) flags);
 	}
 
 	public int setICMMode(int mode) {
@@ -885,13 +883,12 @@ public class EmfGdi implements Gdi, EmfConstants {
 		pointRecord(EMR_SETWINDOWORGEX, x, y);
 	}
 
-	public void stretchBlt(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, long rop) {
+	public void stretchBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop) {
 		writeStretchBltRecord(image, dx, dy, dw, dh, sx, sy, sw, sh, rop);
 	}
 
-	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
-			byte[] image, int usage, long rop) {
+	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, byte[] image, int usage,
+			long rop) {
 		writeBitmapRecord(EMR_STRETCHDIBITS, image, dx, dy, dw, dh, sx, sy, sw, sh, rop, 0, usage);
 	}
 
@@ -899,8 +896,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		extTextOut(x, y, 0, null, text, null);
 	}
 
-	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, int transparentColor) {
+	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			int transparentColor) {
 		writeBlendRecord(EMR_TRANSPARENTBLT, image, dx, dy, dw, dh, sx, sy, sw, sh, transparentColor);
 	}
 
@@ -1107,8 +1104,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		writeRect(record, pos, l, t, r, b);
 	}
 
-	private void writeSetDIBitsToDevice(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy,
-			int startscan, int scanlines, int colorUse) {
+	private void writeSetDIBitsToDevice(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int startscan,
+			int scanlines, int colorUse) {
 		byte[] dib = copy(image);
 		int bitsOffset = getDibBitsOffset(dib);
 		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
@@ -1146,7 +1143,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, 28, dy);
 		setInt32(record, 32, dw);
 		setInt32(record, 36, dh);
-		setInt32(record, 40, (int)rop);
+		setInt32(record, 40, (int) rop);
 		setInt32(record, 44, sx);
 		setInt32(record, 48, sy);
 		setIdentityXForm(record, 52);
@@ -1160,8 +1157,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includeRect(dx, dy, dx + dw, dy + dh);
 	}
 
-	private void writeStretchBltRecord(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, long rop) {
+	private void writeStretchBltRecord(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			long rop) {
 		byte[] dib = copy(image);
 		int bitsOffset = getDibBitsOffset(dib);
 		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
@@ -1173,7 +1170,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, 28, dy);
 		setInt32(record, 32, dw);
 		setInt32(record, 36, dh);
-		setInt32(record, 40, (int)rop);
+		setInt32(record, 40, (int) rop);
 		setInt32(record, 44, sx);
 		setInt32(record, 48, sy);
 		setIdentityXForm(record, 52);
@@ -1189,8 +1186,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includeRect(dx, dy, dx + dw, dy + dh);
 	}
 
-	private void writeMaskBltRecord(byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, byte[] mask, int mx, int my, long rop) {
+	private void writeMaskBltRecord(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx,
+			int my, long rop) {
 		byte[] dib = copy(image);
 		byte[] maskDib = mask != null ? copy(mask) : new byte[0];
 		int bitsOffset = getDibBitsOffset(dib);
@@ -1207,7 +1204,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, 28, dy);
 		setInt32(record, 32, dw);
 		setInt32(record, 36, dh);
-		setInt32(record, 40, (int)rop);
+		setInt32(record, 40, (int) rop);
 		setInt32(record, 44, sx);
 		setInt32(record, 48, sy);
 		setIdentityXForm(record, 52);
@@ -1230,8 +1227,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includeRect(dx, dy, dx + dw, dy + dh);
 	}
 
-	private void writePlgBltRecord(byte[] image, Point[] points, int sx, int sy, int sw, int sh,
-			byte[] mask, int mx, int my) {
+	private void writePlgBltRecord(byte[] image, Point[] points, int sx, int sy, int sw, int sh, byte[] mask, int mx,
+			int my) {
 		if (points == null || points.length < 3) {
 			throw new IllegalArgumentException("PLGBLT requires three destination points.");
 		}
@@ -1272,8 +1269,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includePoints(points);
 	}
 
-	private void writeBlendRecord(int type, byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, int blendOrTransparentColor) {
+	private void writeBlendRecord(int type, byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw,
+			int sh, int blendOrTransparentColor) {
 		byte[] dib = copy(image);
 		int bitsOffset = getDibBitsOffset(dib);
 		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
@@ -1300,8 +1297,8 @@ public class EmfGdi implements Gdi, EmfConstants {
 		includeRect(dx, dy, dx + dw, dy + dh);
 	}
 
-	private void writeBitmapRecord(int type, byte[] image, int dx, int dy, int dw, int dh,
-			int sx, int sy, int sw, int sh, long rop, int blendOrUsage, int usageOrTransparent) {
+	private void writeBitmapRecord(int type, byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw,
+			int sh, long rop, int blendOrUsage, int usageOrTransparent) {
 		byte[] dib = copy(image);
 		int bitsOffset = getDibBitsOffset(dib);
 		int bmiSize = bitsOffset > 0 ? bitsOffset : dib.length;
@@ -1320,7 +1317,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, 56, dibOffset + bmiSize);
 		setInt32(record, 60, bitsSize);
 		setInt32(record, 64, usageOrTransparent);
-		setInt32(record, 68, (int)rop);
+		setInt32(record, 68, (int) rop);
 		setInt32(record, 72, dw);
 		setInt32(record, 76, dh);
 		setBytes(record, dibOffset, dib);
@@ -1340,7 +1337,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 
 	private byte[] regionData(GdiRegion rgn) {
 		if (rgn instanceof EmfRegion) {
-			byte[] data = ((EmfRegion)rgn).data;
+			byte[] data = ((EmfRegion) rgn).data;
 			if (data != null) {
 				return data;
 			}
@@ -1381,7 +1378,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	private void writeXForm(byte[] record, int pos, float[] xform) {
-		float[] values = new float[] { 1, 0, 0, 1, 0, 0 };
+		float[] values = new float[]{1, 0, 0, 1, 0, 0};
 		if (xform != null) {
 			int length = Math.min(values.length, xform.length);
 			for (int i = 0; i < length; i++) {
@@ -1445,7 +1442,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 
 	private int objectId(GdiObject obj) {
 		if (obj instanceof EmfObject) {
-			return ((EmfObject)obj).id;
+			return ((EmfObject) obj).id;
 		}
 		throw new IllegalArgumentException("Unknown GDI object: " + obj);
 	}
@@ -1456,14 +1453,14 @@ public class EmfGdi implements Gdi, EmfConstants {
 		setInt32(record, pos + 8, font.escapement);
 		setInt32(record, pos + 12, font.orientation);
 		setInt32(record, pos + 16, font.weight);
-		record[pos + 20] = (byte)(font.italic ? 1 : 0);
-		record[pos + 21] = (byte)(font.underline ? 1 : 0);
-		record[pos + 22] = (byte)(font.strikeout ? 1 : 0);
-		record[pos + 23] = (byte)font.charset;
-		record[pos + 24] = (byte)font.outPrecision;
-		record[pos + 25] = (byte)font.clipPrecision;
-		record[pos + 26] = (byte)font.quality;
-		record[pos + 27] = (byte)font.pitchAndFamily;
+		record[pos + 20] = (byte) (font.italic ? 1 : 0);
+		record[pos + 21] = (byte) (font.underline ? 1 : 0);
+		record[pos + 22] = (byte) (font.strikeout ? 1 : 0);
+		record[pos + 23] = (byte) font.charset;
+		record[pos + 24] = (byte) font.outPrecision;
+		record[pos + 25] = (byte) font.clipPrecision;
+		record[pos + 26] = (byte) font.quality;
+		record[pos + 27] = (byte) font.pitchAndFamily;
 		byte[] face;
 		try {
 			face = font.faceName.getBytes("UTF-16LE");
@@ -1622,9 +1619,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 
 	private static byte[] unicodeNullTerminated(byte[] src) {
 		byte[] bytes = copy(src);
-		boolean terminated = bytes.length >= 2
-				&& bytes[bytes.length - 2] == 0
-				&& bytes[bytes.length - 1] == 0;
+		boolean terminated = bytes.length >= 2 && bytes[bytes.length - 2] == 0 && bytes[bytes.length - 1] == 0;
 		int length = bytes.length;
 		if ((length & 1) != 0) {
 			length++;
@@ -1645,9 +1640,7 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	private static int readInt32(byte[] data, int pos) {
-		return (data[pos] & 0xFF)
-				| ((data[pos + 1] & 0xFF) << 8)
-				| ((data[pos + 2] & 0xFF) << 16)
+		return (data[pos] & 0xFF) | ((data[pos + 1] & 0xFF) << 8) | ((data[pos + 2] & 0xFF) << 16)
 				| (data[pos + 3] << 24);
 	}
 
@@ -1660,20 +1653,20 @@ public class EmfGdi implements Gdi, EmfConstants {
 	}
 
 	private static void setUInt16(byte[] record, int pos, int value) {
-		record[pos] = (byte)(value & 0xFF);
-		record[pos + 1] = (byte)((value >>> 8) & 0xFF);
+		record[pos] = (byte) (value & 0xFF);
+		record[pos + 1] = (byte) ((value >>> 8) & 0xFF);
 	}
 
 	private static void setInt16(byte[] record, int pos, int value) {
-		record[pos] = (byte)(value & 0xFF);
-		record[pos + 1] = (byte)((value >>> 8) & 0xFF);
+		record[pos] = (byte) (value & 0xFF);
+		record[pos + 1] = (byte) ((value >>> 8) & 0xFF);
 	}
 
 	private static void setInt32(byte[] record, int pos, int value) {
-		record[pos] = (byte)(value & 0xFF);
-		record[pos + 1] = (byte)((value >>> 8) & 0xFF);
-		record[pos + 2] = (byte)((value >>> 16) & 0xFF);
-		record[pos + 3] = (byte)((value >>> 24) & 0xFF);
+		record[pos] = (byte) (value & 0xFF);
+		record[pos + 1] = (byte) ((value >>> 8) & 0xFF);
+		record[pos + 2] = (byte) ((value >>> 16) & 0xFF);
+		record[pos + 3] = (byte) ((value >>> 24) & 0xFF);
 	}
 
 	private static void setFloat(byte[] record, int pos, float value) {

@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
@@ -29,39 +29,35 @@ class SvgBrush extends SvgObject implements GdiBrush {
 	private int color;
 	private int hatch;
 
-	public SvgBrush(
-		SvgGdi gdi,
-		int style,
-		int color,
-		int hatch) {
-		
+	public SvgBrush(SvgGdi gdi, int style, int color, int hatch) {
+
 		super(gdi);
 		this.style = style;
 		this.color = color;
 		this.hatch = hatch;
 	}
-	
+
 	public int getStyle() {
 		return style;
 	}
-	
+
 	public int getColor() {
 		return color;
 	}
-	
+
 	public int getHatch() {
 		return hatch;
 	}
-	
+
 	public Element createFillPattern(String id) {
 		Element pattern = null;
-		
+
 		if (style == BS_HATCHED) {
 			pattern = getGDI().getDocument().createElement("pattern");
 			pattern.setAttribute("id", id);
 			pattern.setAttribute("patternUnits", "userSpaceOnUse");
-			pattern.setAttribute("x", "" + (int)getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
-			pattern.setAttribute("y", "" + (int)getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
+			pattern.setAttribute("x", "" + (int) getGDI().getDC().toAbsoluteX(getGDI().getDC().getBrushOrgX()));
+			pattern.setAttribute("y", "" + (int) getGDI().getDC().toAbsoluteY(getGDI().getDC().getBrushOrgY()));
 			pattern.setAttribute("width", "" + toHatchSize(8));
 			pattern.setAttribute("height", "" + toHatchSize(8));
 
@@ -74,9 +70,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 				rect.setAttribute("height", "" + toHatchSize(8));
 				pattern.appendChild(rect);
 			}
-			
+
 			switch (hatch) {
-				case HS_HORIZONTAL: {
+				case HS_HORIZONTAL : {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
 					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -85,8 +81,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path.setAttribute("x2", "" + toHatchSize(8));
 					path.setAttribute("y2", "" + toHatchSize(4));
 					pattern.appendChild(path);
-				} break;
-				case HS_VERTICAL: {
+				}
+					break;
+				case HS_VERTICAL : {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
 					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -95,8 +92,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path.setAttribute("x2", "" + toHatchSize(4));
 					path.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path);
-				} break;
-				case HS_FDIAGONAL: {
+				}
+					break;
+				case HS_FDIAGONAL : {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
 					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -105,8 +103,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path.setAttribute("x2", "" + toHatchSize(8));
 					path.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path);
-				} break;
-				case HS_BDIAGONAL: {
+				}
+					break;
+				case HS_BDIAGONAL : {
 					Element path = getGDI().getDocument().createElement("line");
 					path.setAttribute("stroke", toColor(color));
 					path.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -115,8 +114,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path.setAttribute("x2", "" + toHatchSize(8));
 					path.setAttribute("y2", "" + toHatchSize(0));
 					pattern.appendChild(path);
-				} break;
-				case HS_CROSS: {
+				}
+					break;
+				case HS_CROSS : {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
 					path1.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -133,8 +133,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path2.setAttribute("x2", "" + toHatchSize(4));
 					path2.setAttribute("y2", "" + toHatchSize(8));
 					pattern.appendChild(path2);
-				} break;
-				case HS_DIAGCROSS: {
+				}
+					break;
+				case HS_DIAGCROSS : {
 					Element path1 = getGDI().getDocument().createElement("line");
 					path1.setAttribute("stroke", toColor(color));
 					path1.setAttribute("stroke-width", "" + Math.max(1, toHatchSize(1)));
@@ -151,7 +152,8 @@ class SvgBrush extends SvgObject implements GdiBrush {
 					path2.setAttribute("x2", "" + toHatchSize(8));
 					path2.setAttribute("y2", "" + toHatchSize(0));
 					pattern.appendChild(path2);
-				} break;
+				}
+					break;
 			}
 		}
 
@@ -160,7 +162,7 @@ class SvgBrush extends SvgObject implements GdiBrush {
 
 	private int toHatchSize(int px) {
 		if (getGDI().hasPlaceableHeader()) {
-			return Math.max(1, (int)Math.round(getGDI().getDC().getDpi() * px / (double)SVG_DPI));
+			return Math.max(1, (int) Math.round(getGDI().getDC().getDpi() * px / (double) SVG_DPI));
 		}
 		return px;
 	}
@@ -190,11 +192,11 @@ class SvgBrush extends SvgObject implements GdiBrush {
 			return false;
 		return true;
 	}
-	
+
 	public Text createTextNode(String id) {
 		return getGDI().getDocument().createTextNode("." + id + " { " + toString() + " }\n");
 	}
-	
+
 	public String toString() {
 		StringBuffer buffer = new StringBuffer();
 
@@ -208,8 +210,9 @@ class SvgBrush extends SvgObject implements GdiBrush {
 			default :
 				buffer.append("fill: none; ");
 		}
-		
-		if (buffer.length() > 0) buffer.setLength(buffer.length()-1);
+
+		if (buffer.length() > 0)
+			buffer.setLength(buffer.length() - 1);
 		return buffer.toString();
 	}
 }

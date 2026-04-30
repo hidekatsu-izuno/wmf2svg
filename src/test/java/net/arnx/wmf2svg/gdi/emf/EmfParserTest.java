@@ -103,7 +103,7 @@ public class EmfParserTest {
 		writeHeader(out);
 		writeFont(out);
 		writeRecord(out, 37, intData(1));
-		writeUtf16Text(out, "徒然なる", new int[] {14, 14, 14, 14, 14, 14});
+		writeUtf16Text(out, "徒然なる", new int[]{14, 14, 14, 14, 14, 14});
 		writeRecord(out, 14, new byte[12]);
 		return out.toByteArray();
 	}
@@ -174,7 +174,7 @@ public class EmfParserTest {
 		byte[] data = new byte[96];
 		setInt(data, 0, 1);
 		setInt(data, 4, 14);
-		data[27] = (byte)128;
+		data[27] = (byte) 128;
 		byte[] face = "MS PGothic".getBytes(java.nio.charset.StandardCharsets.UTF_16LE);
 		System.arraycopy(face, 0, data, 32, face.length);
 		writeRecord(out, 82, data);
@@ -318,9 +318,9 @@ public class EmfParserTest {
 	}
 
 	private static void setInt(byte[] data, int pos, int value) {
-		data[pos] = (byte)(value & 0xFF);
-		data[pos + 1] = (byte)((value >>> 8) & 0xFF);
-		data[pos + 2] = (byte)((value >>> 16) & 0xFF);
-		data[pos + 3] = (byte)((value >>> 24) & 0xFF);
+		data[pos] = (byte) (value & 0xFF);
+		data[pos + 1] = (byte) ((value >>> 8) & 0xFF);
+		data[pos + 2] = (byte) ((value >>> 16) & 0xFF);
+		data[pos + 3] = (byte) ((value >>> 24) & 0xFF);
 	}
 }

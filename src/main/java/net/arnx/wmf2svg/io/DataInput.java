@@ -9,7 +9,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, 
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
  * either express or implied. See the License for the specific language
  * governing permissions and limitations under the License.
  */
@@ -24,15 +24,16 @@ import java.nio.ByteOrder;
 public class DataInput {
 	private InputStream in;
 	private ByteOrder endian;
-	
+
 	private byte[] buf = new byte[4];
 	private int count = 0;
 
 	/**
 	 * Create a DataInput class instance using by native order.
 	 *
-	 * @param in the input stream that had better buffer by a BufferedInputStream.
-	 **/	
+	 * @param in
+	 *            the input stream that had better buffer by a BufferedInputStream.
+	 **/
 	public DataInput(InputStream in) {
 		this.endian = ByteOrder.nativeOrder();
 		this.in = in;
@@ -41,9 +42,11 @@ public class DataInput {
 	/**
 	 * Create a DataInput class instance.
 	 *
-	 * @param in the input stream that had better buffer by a BufferedInputStream.
-	 * @param endian the endian of the input stream 
-	 **/	
+	 * @param in
+	 *            the input stream that had better buffer by a BufferedInputStream.
+	 * @param endian
+	 *            the endian of the input stream
+	 **/
 	public DataInput(InputStream in, ByteOrder endian) {
 		if (endian != ByteOrder.BIG_ENDIAN && endian != ByteOrder.LITTLE_ENDIAN) {
 			throw new IllegalArgumentException();
@@ -51,13 +54,15 @@ public class DataInput {
 		this.in = in;
 		this.endian = endian;
 	}
-	
+
 	/**
 	 * Reads the next one byte of this input stream as a signed 8-bit integer.
 	 *
 	 * @return the <code>int</code> value as a signed 8-bit integer.
-	 * @exception IOException if an I/O error occurs.
-	 * @exception EOFException if this stream reaches the end before reading all the bytes.
+	 * @exception IOException
+	 *                if an I/O error occurs.
+	 * @exception EOFException
+	 *                if this stream reaches the end before reading all the bytes.
 	 **/
 	public int readByte() throws IOException, EOFException {
 		if (in.read(buf, 0, 1) == 1) {
@@ -71,8 +76,10 @@ public class DataInput {
 	 * Reads the next two bytes of this input stream as a signed 16-bit integer.
 	 *
 	 * @return the <code>int</code> value as a signed 16-bit integer.
-	 * @exception IOException if an I/O error occurs.
-	 * @exception EOFException if this stream reaches the end before reading all the bytes.
+	 * @exception IOException
+	 *                if an I/O error occurs.
+	 * @exception EOFException
+	 *                if this stream reaches the end before reading all the bytes.
 	 **/
 	public int readInt16() throws IOException, EOFException {
 		if (in.read(buf, 0, 2) == 2) {
@@ -80,7 +87,7 @@ public class DataInput {
 			if (endian == ByteOrder.BIG_ENDIAN) {
 				value |= (0xff & buf[1]);
 				value |= (0xff & buf[0]) << 8;
-			} else { 
+			} else {
 				value |= (0xff & buf[0]);
 				value |= (0xff & buf[1]) << 8;
 			}
@@ -94,8 +101,10 @@ public class DataInput {
 	 * Reads the next four bytes of this input stream as a signed 32-bit integer.
 	 *
 	 * @return the <code>int</code> value as a signed 32-bit integer.
-	 * @exception IOException if an I/O error occurs.
-	 * @exception EOFException if this stream reaches the end before reading all the bytes.
+	 * @exception IOException
+	 *                if an I/O error occurs.
+	 * @exception EOFException
+	 *                if this stream reaches the end before reading all the bytes.
 	 **/
 	public int readInt32() throws IOException, EOFException {
 		if (in.read(buf, 0, 4) == 4) {
@@ -121,8 +130,10 @@ public class DataInput {
 	 * Reads the next two bytes of this input stream as a unsigned 16-bit integer.
 	 *
 	 * @return the <code>int</code> value as a unsigned 16-bit integer.
-	 * @exception IOException if an I/O error occurs.
-	 * @exception EOFException if this stream reaches the end before reading all the bytes.
+	 * @exception IOException
+	 *                if an I/O error occurs.
+	 * @exception EOFException
+	 *                if this stream reaches the end before reading all the bytes.
 	 **/
 	public int readUint16() throws IOException, EOFException {
 		if (in.read(buf, 0, 2) == 2) {
@@ -144,8 +155,10 @@ public class DataInput {
 	 * Reads the next four bytes of this input stream as a unsigned 32-bit integer.
 	 *
 	 * @return the <code>long</code> value as a unsigned 32-bit integer.
-	 * @exception IOException if an I/O error occurs.
-	 * @exception EOFException if this stream reaches the end before reading all the bytes.
+	 * @exception IOException
+	 *                if an I/O error occurs.
+	 * @exception EOFException
+	 *                if this stream reaches the end before reading all the bytes.
 	 **/
 	public long readUint32() throws IOException, EOFException {
 		if (in.read(buf, 0, 4) == 4) {
@@ -167,19 +180,19 @@ public class DataInput {
 		throw new EOFException();
 	}
 
-       public byte[] readBytes(int n) throws IOException, EOFException {
-               byte[] array = new byte[n];
-               int offset = 0;
-               while (offset < n) {
-                       int r = in.read(array, offset, n - offset);
-                       if (r == -1) {
-                               throw new EOFException();
-                       }
-                       offset += r;
-               }
-               count += n;
-               return array;
-       }
+	public byte[] readBytes(int n) throws IOException, EOFException {
+		byte[] array = new byte[n];
+		int offset = 0;
+		while (offset < n) {
+			int r = in.read(array, offset, n - offset);
+			if (r == -1) {
+				throw new EOFException();
+			}
+			offset += r;
+		}
+		count += n;
+		return array;
+	}
 
 	public void setCount(int count) {
 		this.count = count;
@@ -188,11 +201,11 @@ public class DataInput {
 	public int getCount() {
 		return count;
 	}
-	
+
 	public void close() {
 		try {
 			in.close();
-		} catch(IOException e) {
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}

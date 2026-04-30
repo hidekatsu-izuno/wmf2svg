@@ -47,11 +47,8 @@ class SvgComplexRegion extends SvgRegion {
 		int[][] rects = new int[rectCount][];
 		int offset = headerSize;
 		for (int i = 0; i < rects.length; i++) {
-			rects[i] = transformRect(xform,
-					readInt32(data, offset),
-					readInt32(data, offset + 4),
-					readInt32(data, offset + 8),
-					readInt32(data, offset + 12));
+			rects[i] = transformRect(xform, readInt32(data, offset), readInt32(data, offset + 4),
+					readInt32(data, offset + 8), readInt32(data, offset + 12));
 			offset += 16;
 		}
 		return rects;
@@ -63,28 +60,22 @@ class SvgComplexRegion extends SvgRegion {
 		int[] p3 = transformPoint(xform, right, bottom);
 		int[] p4 = transformPoint(xform, left, bottom);
 
-		return new int[] {
-			Math.min(Math.min(p1[0], p2[0]), Math.min(p3[0], p4[0])),
-			Math.min(Math.min(p1[1], p2[1]), Math.min(p3[1], p4[1])),
-			Math.max(Math.max(p1[0], p2[0]), Math.max(p3[0], p4[0])),
-			Math.max(Math.max(p1[1], p2[1]), Math.max(p3[1], p4[1]))
-		};
+		return new int[]{Math.min(Math.min(p1[0], p2[0]), Math.min(p3[0], p4[0])),
+				Math.min(Math.min(p1[1], p2[1]), Math.min(p3[1], p4[1])),
+				Math.max(Math.max(p1[0], p2[0]), Math.max(p3[0], p4[0])),
+				Math.max(Math.max(p1[1], p2[1]), Math.max(p3[1], p4[1]))};
 	}
 
 	private static int[] transformPoint(float[] xform, int x, int y) {
 		if (xform == null || xform.length < 6) {
-			return new int[] {x, y};
+			return new int[]{x, y};
 		}
-		return new int[] {
-			(int)Math.round(xform[0] * x + xform[2] * y + xform[4]),
-			(int)Math.round(xform[1] * x + xform[3] * y + xform[5])
-		};
+		return new int[]{(int) Math.round(xform[0] * x + xform[2] * y + xform[4]),
+				(int) Math.round(xform[1] * x + xform[3] * y + xform[5])};
 	}
 
 	private static int readInt32(byte[] data, int offset) {
-		return (data[offset] & 0xFF)
-				| ((data[offset + 1] & 0xFF) << 8)
-				| ((data[offset + 2] & 0xFF) << 16)
+		return (data[offset] & 0xFF) | ((data[offset + 1] & 0xFF) << 8) | ((data[offset + 2] & 0xFF) << 16)
 				| ((data[offset + 3] & 0xFF) << 24);
 	}
 }

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".codex/hooks/spotless-apply.sh",
+            "timeout": 120,
+            "statusMessage": "Running Spotless formatter"
+          }
+        ]
+      }
+    ]
+  }
+}

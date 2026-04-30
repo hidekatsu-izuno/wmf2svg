@@ -109,6 +109,14 @@ class AwtDc implements Cloneable {
 		return wy;
 	}
 
+	public int getWindowWidth() {
+		return ww;
+	}
+
+	public int getWindowHeight() {
+		return wh;
+	}
+
 	public void setWindowExtEx(int width, int height, Size old) {
 		if (old != null) {
 			old.width = ww;
@@ -139,6 +147,14 @@ class AwtDc implements Cloneable {
 		}
 		vx = x;
 		vy = y;
+	}
+
+	public int getViewportWidth() {
+		return vw;
+	}
+
+	public int getViewportHeight() {
+		return vh;
 	}
 
 	public void setViewportExtEx(int width, int height, Size old) {

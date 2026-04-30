@@ -9,6 +9,7 @@ import java.io.IOException;
 
 import org.junit.Test;
 
+import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.emf.EmfGdi;
 
 public class AwtGdiTest {
@@ -32,6 +33,42 @@ public class AwtGdiTest {
 		BufferedImage image = gdi.getImage();
 		assertTrue(countPaintedPixels(image) > 100 * 100);
 		assertEquals(0, alphaAtBottomRight(image));
+	}
+
+	@Test
+	public void testPendingEmfUsesOuterMappingWhenMappingFollowsComment() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.escape(createEscapeRecord(0x1234, createBackgroundEmf()));
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(100, 100, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setViewportExtEx(200, 200, null);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(200, image.getWidth());
+		assertEquals(200, image.getHeight());
+		assertTrue(countPaintedPixels(image) > 30_000);
+	}
+
+	@Test
+	public void testPlaceableViewportExtRemainsScaledToCanvasPixels() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.placeableHeader(0, 0, 1000, 1000, 1000);
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1000, 1000, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setViewportExtEx(1000, 1000, null);
+		gdi.rectangle(900, 900, 1000, 1000);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(144, image.getWidth());
+		assertEquals(144, image.getHeight());
+		assertTrue(((image.getRGB(140, 140) >>> 24) & 0xFF) != 0);
 	}
 
 	private byte[] createLineEmf() throws IOException {

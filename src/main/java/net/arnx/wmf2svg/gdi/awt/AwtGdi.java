@@ -79,6 +79,8 @@ public class AwtGdi implements Gdi {
 	private BufferedImage image;
 	private Graphics2D graphics;
 	private boolean placeableHeader;
+	private double placeableViewportScaleX = 1.0;
+	private double placeableViewportScaleY = 1.0;
 	private boolean growCanvas = true;
 	private int initialDpi = 1440;
 	private int canvasWidth = DEFAULT_CANVAS_WIDTH;
@@ -94,6 +96,7 @@ public class AwtGdi implements Gdi {
 	private int emfTotalSize;
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
 	private boolean replayingPendingEmf;
+	private int ignoredPendingEmfHeaderMappings;
 
 	public AwtGdi() {
 	}
@@ -148,9 +151,11 @@ public class AwtGdi implements Gdi {
 		initialDpi = dpi;
 		canvasWidth = unitsToPixels(vsx, vex, dpi);
 		canvasHeight = unitsToPixels(vsy, vey, dpi);
+		placeableViewportScaleX = (double) canvasWidth / Math.max(Math.abs(vex - vsx), 1);
+		placeableViewportScaleY = (double) canvasHeight / Math.max(Math.abs(vey - vsy), 1);
 		initDc();
 		dc.setWindowExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
-		dc.setViewportExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
+		setViewportExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		dc.setDpi(dpi);
 	}
 
@@ -526,7 +531,7 @@ public class AwtGdi implements Gdi {
 			oldClip = graphics.getClip();
 			graphics.clip(toRectangle(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]));
 		}
-		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0));
+		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), lpdx);
 		if (oldClip != null) {
 			graphics.setClip(oldClip);
 		}
@@ -632,6 +637,10 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void offsetViewportOrgEx(int x, int y, Point point) {
+		if (placeableHeader && !replayingPendingEmf) {
+			x = placeableViewportX(x);
+			y = placeableViewportY(y);
+		}
 		dc.offsetViewportOrgEx(x, y, point);
 	}
 
@@ -967,6 +976,10 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void setViewportExtEx(int x, int y, Size old) {
+		if (placeableHeader && !replayingPendingEmf) {
+			x = placeableViewportX(x);
+			y = placeableViewportY(y);
+		}
 		dc.setViewportExtEx(x, y, old);
 		if (!replayingPendingEmf && !placeableHeader && x != 0 && y != 0 && image == null) {
 			growCanvas = false;
@@ -976,10 +989,25 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void setViewportOrgEx(int x, int y, Point old) {
+		if (placeableHeader && !replayingPendingEmf) {
+			x = placeableViewportX(x);
+			y = placeableViewportY(y);
+		}
 		dc.setViewportOrgEx(x, y, old);
 	}
 
+	private int placeableViewportX(int value) {
+		return (int) Math.round(value * placeableViewportScaleX);
+	}
+
+	private int placeableViewportY(int value) {
+		return (int) Math.round(value * placeableViewportScaleY);
+	}
+
 	public void setWindowExtEx(int width, int height, Size old) {
+		if (ignorePendingEmfHeaderMapping()) {
+			return;
+		}
 		dc.setWindowExtEx(width, height, old);
 		if (!replayingPendingEmf && !placeableHeader && width != 0 && height != 0) {
 			growCanvas = dc.getWindowX() == 0 && dc.getWindowY() == 0;
@@ -998,7 +1026,18 @@ public class AwtGdi implements Gdi {
 		return Math.min(size, MAX_CANVAS_SIZE);
 	}
 
+	private boolean ignorePendingEmfHeaderMapping() {
+		if (replayingPendingEmf && ignoredPendingEmfHeaderMappings > 0) {
+			ignoredPendingEmfHeaderMappings--;
+			return true;
+		}
+		return false;
+	}
+
 	public void setWindowOrgEx(int x, int y, Point old) {
+		if (ignorePendingEmfHeaderMapping()) {
+			return;
+		}
 		dc.setWindowOrgEx(x, y, old);
 	}
 
@@ -1012,7 +1051,7 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void textOut(int x, int y, byte[] text) {
-		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0));
+		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), null);
 	}
 
 	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
@@ -1035,9 +1074,13 @@ public class AwtGdi implements Gdi {
 		AwtDc savedDc = dc;
 		for (PendingEmf pendingEmf : list) {
 			try {
-				dc = (AwtDc) pendingEmf.dc.clone();
+				boolean useOuterDc = !pendingEmf.hasExplicitDc() && hasExplicitMapping(savedDc);
+				dc = (AwtDc) (useOuterDc ? savedDc : pendingEmf.dc).clone();
 				replayingPendingEmf = true;
-				applyPendingEmfFrame(pendingEmf.header);
+				ignoredPendingEmfHeaderMappings = useOuterDc ? 2 : 0;
+				if (!useOuterDc) {
+					applyPendingEmfFrame(pendingEmf.header);
+				}
 				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
@@ -1045,6 +1088,7 @@ public class AwtGdi implements Gdi {
 				throw new IllegalStateException(e);
 			} finally {
 				replayingPendingEmf = false;
+				ignoredPendingEmfHeaderMappings = 0;
 				dc = savedDc;
 			}
 		}
@@ -1057,7 +1101,16 @@ public class AwtGdi implements Gdi {
 		initDc();
 		byte[] copy = new byte[data.length];
 		System.arraycopy(data, 0, copy, 0, data.length);
-		pendingEmfList.add(new PendingEmf(copy, (AwtDc) dc.clone(), readEmfHeader(copy)));
+		pendingEmfList.add(new PendingEmf(copy, (AwtDc) dc.clone(), readEmfHeader(copy), hasExplicitMapping()));
+	}
+
+	private boolean hasExplicitMapping() {
+		return hasExplicitMapping(dc);
+	}
+
+	private boolean hasExplicitMapping(AwtDc dc) {
+		return dc != null && (dc.getWindowWidth() != 0 || dc.getWindowHeight() != 0 || dc.getViewportWidth() != 0
+				|| dc.getViewportHeight() != 0);
 	}
 
 	private void applyPendingEmfFrame(EmfHeader header) {
@@ -1141,11 +1194,17 @@ public class AwtGdi implements Gdi {
 		private final byte[] data;
 		private final AwtDc dc;
 		private final EmfHeader header;
+		private final boolean explicitDc;
 
-		private PendingEmf(byte[] data, AwtDc dc, EmfHeader header) {
+		private PendingEmf(byte[] data, AwtDc dc, EmfHeader header, boolean explicitDc) {
 			this.data = data;
 			this.dc = dc;
 			this.header = header;
+			this.explicitDc = explicitDc;
+		}
+
+		private boolean hasExplicitDc() {
+			return explicitDc;
 		}
 	}
 
@@ -1607,7 +1666,7 @@ public class AwtGdi implements Gdi {
 		return new Color(red, green, blue);
 	}
 
-	private void drawText(int x, int y, String text) {
+	private void drawText(int x, int y, String text, int[] lpdx) {
 		ensureGraphics();
 		if (text == null || text.length() == 0) {
 			return;
@@ -1622,12 +1681,14 @@ public class AwtGdi implements Gdi {
 		graphics.setFont(font);
 		graphics.setPaint(toColor(dc.getTextColor()));
 		FontMetrics metrics = graphics.getFontMetrics(font);
+		double[] advances = createTextAdvances(text, lpdx, metrics);
+		double textWidth = advances != null ? sumAdvances(advances) : metrics.stringWidth(text);
 		int drawX = (int) tx(x);
 		int drawY = (int) ty(y);
 		if ((align & Gdi.TA_CENTER) == Gdi.TA_CENTER) {
-			drawX -= metrics.stringWidth(text) / 2;
+			drawX -= (int) Math.round(textWidth / 2);
 		} else if ((align & Gdi.TA_RIGHT) == Gdi.TA_RIGHT) {
-			drawX -= metrics.stringWidth(text);
+			drawX -= (int) Math.round(textWidth);
 		}
 		if ((align & Gdi.TA_BASELINE) != Gdi.TA_BASELINE) {
 			if ((align & Gdi.TA_BOTTOM) == Gdi.TA_BOTTOM) {
@@ -1649,17 +1710,66 @@ public class AwtGdi implements Gdi {
 		if (gdiFont != null && gdiFont.getEscapement() != 0) {
 			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), drawX, drawY);
 		}
-		graphics.drawString(attributed.getIterator(), drawX, drawY);
+		if (advances != null) {
+			drawAttributedTextWithAdvances(text, gdiFont, advances, drawX, drawY);
+		} else {
+			graphics.drawString(attributed.getIterator(), drawX, drawY);
+		}
 		graphics.setTransform(old);
 		if ((align & (Gdi.TA_NOUPDATECP | Gdi.TA_UPDATECP)) == Gdi.TA_UPDATECP) {
-			dc.moveToEx(x + toLogicalTextAdvance(metrics.stringWidth(text)), y, null);
+			dc.moveToEx(x + toLogicalTextAdvance(textWidth), y, null);
 		}
 	}
 
-	private int toLogicalTextAdvance(int deviceWidth) {
+	private double[] createTextAdvances(String text, int[] lpdx, FontMetrics metrics) {
+		if ((lpdx == null || lpdx.length == 0) && dc.getTextCharacterExtra() == 0
+				&& dc.getTextJustificationExtra() == 0) {
+			return null;
+		}
+
+		double[] advances = new double[text.length()];
+		for (int i = 0; i < advances.length; i++) {
+			if (lpdx != null && i < lpdx.length) {
+				advances[i] = rx(lpdx[i]);
+			} else {
+				advances[i] = metrics.charWidth(text.charAt(i));
+			}
+			advances[i] += rx(dc.getTextCharacterExtra());
+			if (text.charAt(i) == ' ' && dc.getTextJustificationCount() > 0) {
+				advances[i] += rx(dc.getTextJustificationExtra()) / dc.getTextJustificationCount();
+			}
+		}
+		return advances;
+	}
+
+	private double sumAdvances(double[] advances) {
+		double width = 0.0;
+		for (int i = 0; i < advances.length; i++) {
+			width += advances[i];
+		}
+		return width;
+	}
+
+	private void drawAttributedTextWithAdvances(String text, AwtFont gdiFont, double[] advances, int x, int y) {
+		double ax = x;
+		for (int i = 0; i < text.length(); i++) {
+			AttributedString ch = new AttributedString(text.substring(i, i + 1));
+			ch.addAttribute(TextAttribute.FONT, graphics.getFont());
+			if (gdiFont != null && gdiFont.isUnderlined()) {
+				ch.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
+			}
+			if (gdiFont != null && gdiFont.isStrikedOut()) {
+				ch.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
+			}
+			graphics.drawString(ch.getIterator(), (float) ax, (float) y);
+			ax += advances[i];
+		}
+	}
+
+	private int toLogicalTextAdvance(double deviceWidth) {
 		double unit = rx(1.0);
 		if (unit == 0.0) {
-			return deviceWidth;
+			return (int) Math.round(deviceWidth);
 		}
 		return (int) Math.round(deviceWidth / unit);
 	}
@@ -1680,7 +1790,21 @@ public class AwtGdi implements Gdi {
 		if (name == null || name.length() == 0) {
 			name = Font.SANS_SERIF;
 		}
-		return new Font(name, style, size);
+		Font font = new Font(name, style, size);
+		return fitFontHeight(font, gdiFont.getHeight(), size);
+	}
+
+	private Font fitFontHeight(Font font, int logicalHeight, int targetHeight) {
+		if (graphics == null || logicalHeight == 0 || targetHeight <= 0) {
+			return font;
+		}
+		FontMetrics metrics = graphics.getFontMetrics(font);
+		int actualHeight = logicalHeight < 0 ? metrics.getAscent() + metrics.getDescent() : metrics.getHeight();
+		if (actualHeight <= 0) {
+			return font;
+		}
+		float fittedSize = Math.max(1.0f, font.getSize2D() * targetHeight / actualHeight);
+		return font.deriveFont(fittedSize);
 	}
 
 	private void drawBitmap(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, int usage,

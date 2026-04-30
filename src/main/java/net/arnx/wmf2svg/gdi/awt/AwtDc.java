@@ -101,6 +101,14 @@ class AwtDc implements Cloneable {
 		wy = y;
 	}
 
+	public int getWindowX() {
+		return wx;
+	}
+
+	public int getWindowY() {
+		return wy;
+	}
+
 	public void setWindowExtEx(int width, int height, Size old) {
 		if (old != null) {
 			old.width = ww;
@@ -283,6 +291,10 @@ class AwtDc implements Cloneable {
 
 	public void setROP2(int mode) {
 		rop2Mode = mode;
+	}
+
+	public int getROP2() {
+		return rop2Mode;
 	}
 
 	public void setStretchBltMode(int mode) {

@@ -72,9 +72,14 @@ public class Main {
 			InputStream in = new FileInputStream(src);
 			Parser parser = src.toLowerCase().endsWith(".emf") ? new EmfParser() : new WmfParser();
 			String destLower = dest.toLowerCase();
-			final Gdi gdi = (destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg"))
-					? new AwtGdi()
-					: new SvgGdi(compatible);
+			final Gdi gdi;
+			if (destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg")) {
+				AwtGdi awtGdi = new AwtGdi();
+				awtGdi.setOpaqueBackground(src.toLowerCase().endsWith(".emf"));
+				gdi = awtGdi;
+			} else {
+				gdi = new SvgGdi(compatible);
+			}
 			if (gdi instanceof SvgGdi) {
 				((SvgGdi) gdi).setReplaceSymbolFont(replaceSymbolFont);
 			}
@@ -170,8 +175,9 @@ public class Main {
 					((SvgGdi) gdi).write(out);
 				}
 			} finally {
-				if (out != null)
+				if (out != null) {
 					out.close();
+				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

@@ -521,13 +521,13 @@ public class EmfParser implements Parser, EmfConstants {
 				case EMR_EXTCREATEFONTINDIRECTW : {
 					int id = readInt32(data, 0);
 					int charset = readUInt8(data, 27);
+					int height = transformFontHeight(readInt32(data, 4), transform);
+					int width = transformFontWidth(readInt32(data, 8), transform);
 					fontCharsets.put(id, Integer.valueOf(charset));
-					objects.put(id,
-							gdi.createFontIndirect(readInt32(data, 4), readInt32(data, 8), readInt32(data, 12),
-									readInt32(data, 16), readInt32(data, 20), readUInt8(data, 24) != 0,
-									readUInt8(data, 25) != 0, readUInt8(data, 26) != 0, charset, readUInt8(data, 28),
-									readUInt8(data, 29), readUInt8(data, 30), readUInt8(data, 31),
-									readUtf16StringBytes(data, 32, 32, charset)));
+					objects.put(id, gdi.createFontIndirect(height, width, readInt32(data, 12), readInt32(data, 16),
+							readInt32(data, 20), readUInt8(data, 24) != 0, readUInt8(data, 25) != 0,
+							readUInt8(data, 26) != 0, charset, readUInt8(data, 28), readUInt8(data, 29),
+							readUInt8(data, 30), readUInt8(data, 31), readUtf16StringBytes(data, 32, 32, charset)));
 					break;
 				}
 				case EMR_EXTTEXTOUTA :
@@ -1200,6 +1200,28 @@ public class EmfParser implements Parser, EmfConstants {
 			return (int) Math.max(1, Math.round(value * scale));
 		}
 		return value;
+	}
+
+	private static int transformFontHeight(int height, double[] transform) {
+		if (height == 0 || isIdentity(transform)) {
+			return height;
+		}
+		double scale = Math.hypot(transform[2], transform[3]);
+		if (scale == 0.0) {
+			scale = Math.hypot(transform[0], transform[1]);
+		}
+		return (int) Math.copySign(Math.max(1, Math.round(Math.abs(height) * scale)), height);
+	}
+
+	private static int transformFontWidth(int width, double[] transform) {
+		if (width == 0 || isIdentity(transform)) {
+			return width;
+		}
+		double scale = Math.hypot(transform[0], transform[1]);
+		if (scale == 0.0) {
+			scale = Math.hypot(transform[2], transform[3]);
+		}
+		return (int) Math.copySign(Math.max(1, Math.round(Math.abs(width) * scale)), width);
 	}
 
 	private static boolean isIdentity(double[] transform) {

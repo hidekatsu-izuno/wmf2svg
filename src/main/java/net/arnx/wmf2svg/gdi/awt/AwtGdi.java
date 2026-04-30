@@ -37,9 +37,11 @@ import java.awt.geom.Rectangle2D;
 import java.awt.geom.RectangularShape;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.AttributedString;
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 import javax.imageio.ImageIO;
@@ -59,27 +61,36 @@ import net.arnx.wmf2svg.gdi.GradientTriangle;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.Trivertex;
+import net.arnx.wmf2svg.gdi.emf.EmfParseException;
+import net.arnx.wmf2svg.gdi.emf.EmfParser;
 
 public class AwtGdi implements Gdi {
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
 	private static final int DEFAULT_CANVAS_HEIGHT = 460;
 	private static final int TARGET_DPI = 144;
-	private static final int MAX_CANVAS_SIZE = 8192;
+	private static final int MAX_CANVAS_SIZE = 32767;
+	private static final long MAX_CANVAS_PIXELS = 64_000_000L;
 
 	private AwtDc dc;
-	private LinkedList<AwtDc> saveDC = new LinkedList<AwtDc>();
+	private LinkedList<AwtSavedDc> saveDC = new LinkedList<AwtSavedDc>();
 	private BufferedImage image;
 	private Graphics2D graphics;
 	private boolean placeableHeader;
+	private boolean growCanvas = true;
 	private int initialDpi = 1440;
 	private int canvasWidth = DEFAULT_CANVAS_WIDTH;
 	private int canvasHeight = DEFAULT_CANVAS_HEIGHT;
+	private boolean opaqueBackground;
 	private AwtBrush defaultBrush;
 	private AwtPen defaultPen;
 	private AwtFont defaultFont;
 	private GdiPalette selectedPalette;
 	private GdiColorSpace selectedColorSpace;
 	private Path2D.Double currentPath;
+	private ByteArrayOutputStream emfBuffer;
+	private int emfTotalSize;
+	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
+	private boolean replayingPendingEmf;
 
 	public AwtGdi() {
 	}
@@ -88,12 +99,17 @@ public class AwtGdi implements Gdi {
 		this.graphics = graphics;
 		this.canvasWidth = Math.max(width, 1);
 		this.canvasHeight = Math.max(height, 1);
-		init();
+		initDc();
+		configureGraphics(graphics);
 	}
 
 	public BufferedImage getImage() {
 		ensureGraphics();
 		return image;
+	}
+
+	public void setOpaqueBackground(boolean opaqueBackground) {
+		this.opaqueBackground = opaqueBackground;
 	}
 
 	public void write(OutputStream out, String format) throws IOException {
@@ -125,23 +141,27 @@ public class AwtGdi implements Gdi {
 
 	public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi) {
 		placeableHeader = true;
+		growCanvas = false;
 		initialDpi = dpi;
 		canvasWidth = unitsToPixels(vsx, vex, dpi);
 		canvasHeight = unitsToPixels(vsy, vey, dpi);
-		init();
+		initDc();
 		dc.setWindowExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		dc.setViewportExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		dc.setDpi(dpi);
 	}
 
 	public void header() {
-		ensureGraphics();
+		initDc();
 	}
 
 	private int unitsToPixels(int start, int end, int inch) {
 		long denominator = Math.max(inch, 1);
 		long numerator = (long) Math.max(Math.abs(end - start), 1) * TARGET_DPI;
 		long pixels = (2 * numerator + denominator - 1) / (2 * denominator);
+		if (start == 0 && (2 * numerator) % denominator == 0 && (((2 * numerator) / denominator) & 1) == 1) {
+			pixels++;
+		}
 		if (pixels < 1) {
 			return 1;
 		}
@@ -152,12 +172,13 @@ public class AwtGdi implements Gdi {
 	}
 
 	private void ensureGraphics() {
+		initDc();
 		if (graphics == null) {
-			init();
+			createGraphics();
 		}
 	}
 
-	private void init() {
+	private void initDc() {
 		if (dc == null) {
 			dc = new AwtDc();
 			dc.setDpi(initialDpi);
@@ -168,19 +189,92 @@ public class AwtGdi implements Gdi {
 			dc.setPen(defaultPen);
 			dc.setFont(defaultFont);
 		}
+	}
+
+	private void createGraphics() {
 		if (graphics == null) {
 			image = new BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_INT_ARGB);
 			graphics = image.createGraphics();
 		}
 		configureGraphics(graphics);
-		graphics.setColor(Color.WHITE);
-		graphics.fillRect(0, 0, canvasWidth, canvasHeight);
+		if (opaqueBackground) {
+			graphics.setColor(Color.WHITE);
+			graphics.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+	}
+
+	private void ensureCanvasContains(Shape shape) {
+		if (!growCanvas || shape == null || image == null) {
+			return;
+		}
+		Rectangle2D bounds = shape.getBounds2D();
+		Shape clip = graphics.getClip();
+		if (clip != null) {
+			Rectangle2D clippedBounds = bounds.createIntersection(clip.getBounds2D());
+			if (clippedBounds.isEmpty()) {
+				return;
+			}
+			bounds = clippedBounds;
+		}
+		int requiredWidth = (int) Math.ceil(Math.max(canvasWidth, bounds.getMaxX()));
+		int requiredHeight = (int) Math.ceil(Math.max(canvasHeight, bounds.getMaxY()));
+		if ((requiredWidth > canvasWidth || requiredHeight > canvasHeight)
+				&& canAllocateCanvas(requiredWidth, requiredHeight)) {
+			resizeCanvas(requiredWidth, requiredHeight);
+		}
+	}
+
+	private void ensureCanvasContains(int x1, int y1, int x2, int y2) {
+		if (!growCanvas) {
+			return;
+		}
+		int requiredWidth = Math.max(canvasWidth, Math.max(Math.max(x1, x2), 0));
+		int requiredHeight = Math.max(canvasHeight, Math.max(Math.max(y1, y2), 0));
+		if ((requiredWidth > canvasWidth || requiredHeight > canvasHeight)
+				&& canAllocateCanvas(requiredWidth, requiredHeight)) {
+			resizeCanvas(requiredWidth, requiredHeight);
+		}
+	}
+
+	private void resizeCanvas(int width, int height) {
+		width = Math.max(1, Math.min(width, MAX_CANVAS_SIZE));
+		height = Math.max(1, Math.min(height, MAX_CANVAS_SIZE));
+		if ((width == canvasWidth && height == canvasHeight) || !canAllocateCanvas(width, height)) {
+			return;
+		}
+
+		BufferedImage resized = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = resized.createGraphics();
+		try {
+			configureGraphics(g);
+			if (opaqueBackground) {
+				g.setColor(Color.WHITE);
+				g.fillRect(0, 0, width, height);
+			}
+			if (image != null) {
+				g.drawImage(image, 0, 0, null);
+			}
+		} finally {
+			g.dispose();
+		}
+		if (graphics != null) {
+			graphics.dispose();
+		}
+		image = resized;
+		graphics = image.createGraphics();
+		configureGraphics(graphics);
+		canvasWidth = width;
+		canvasHeight = height;
+	}
+
+	private boolean canAllocateCanvas(int width, int height) {
+		return (long) width * height <= MAX_CANVAS_PIXELS;
 	}
 
 	private void configureGraphics(Graphics2D g) {
-		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 	}
 
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries) {
@@ -189,7 +283,9 @@ public class AwtGdi implements Gdi {
 
 	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
 			int blendFunction) {
-		drawBitmap(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, null, true);
+		int sourceConstantAlpha = (blendFunction >>> 16) & 0xFF;
+		boolean sourceAlpha = ((blendFunction >>> 24) & 0x01) != 0;
+		drawAlphaBlend(image, dx, dy, dw, dh, sx, sy, sw, sh, sourceConstantAlpha, sourceAlpha);
 	}
 
 	public void angleArc(int x, int y, int radius, float startAngle, float sweepAngle) {
@@ -241,6 +337,10 @@ public class AwtGdi implements Gdi {
 
 	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx, int my,
 			long rop) {
+		if (mask != null && rop == Gdi.SRCCOPY) {
+			drawMaskedSrcCopy(image, dx, dy, dw, dh, sx, sy, dw, dh, mask, mx, my);
+			return;
+		}
 		bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
 	}
 
@@ -248,8 +348,7 @@ public class AwtGdi implements Gdi {
 		if (points == null || points.length < 3) {
 			return;
 		}
-		drawBitmap(image, points[0].x, points[0].y, points[1].x - points[0].x, points[2].y - points[0].y, sx, sy, sw,
-				sh, Gdi.DIB_RGB_COLORS, Long.valueOf(Gdi.SRCCOPY), false);
+		drawPlgBlt(image, points, sx, sy, sw, sh, mask, mx, my);
 	}
 
 	public void chord(int sxr, int syr, int exr, int eyr, int sxa, int sya, int exa, int eya) {
@@ -333,8 +432,13 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void ellipse(int sx, int sy, int ex, int ey) {
-		drawShape(new Ellipse2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)), Math.abs(rx(ex - sx)),
-				Math.abs(ry(ey - sy))));
+		Shape ellipse = new Ellipse2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)), Math.abs(rx(ex - sx)),
+				Math.abs(ry(ey - sy)));
+		if (currentPath != null) {
+			currentPath.append(ellipse, false);
+			return;
+		}
+		drawShape(ellipse);
 	}
 
 	public void endPath() {
@@ -347,7 +451,25 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void comment(byte[] data) {
-		// Metafile comments do not affect the Graphics2D drawing surface.
+		if (!EmfParser.isEnhancedMetafileEscape(data)) {
+			return;
+		}
+
+		if (emfBuffer == null) {
+			emfTotalSize = EmfParser.getEnhancedMetafileTotalSize(data);
+			emfBuffer = new ByteArrayOutputStream(Math.max(emfTotalSize, 1024));
+		}
+
+		byte[] bytes = EmfParser.getEnhancedMetafileBytes(data);
+		emfBuffer.write(bytes, 0, bytes.length);
+
+		if (emfBuffer.size() >= emfTotalSize) {
+			byte[] bytesToParse = new byte[emfTotalSize];
+			System.arraycopy(emfBuffer.toByteArray(), 0, bytesToParse, 0, emfTotalSize);
+			pendingEmfList.add(new PendingEmf(bytesToParse, (AwtDc) dc.clone()));
+			emfBuffer = null;
+			emfTotalSize = 0;
+		}
 	}
 
 	public int excludeClipRect(int left, int top, int right, int bottom) {
@@ -371,7 +493,8 @@ public class AwtGdi implements Gdi {
 	}
 
 	public int extSelectClipRgn(GdiRegion rgn, int mode) {
-		selectClipRgn(rgn);
+		ensureGraphics();
+		applyClip(rgn instanceof AwtRegion ? ((AwtRegion) rgn).shape : null, mode);
 		return GdiRegion.SIMPLEREGION;
 	}
 
@@ -452,7 +575,7 @@ public class AwtGdi implements Gdi {
 
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int w, int h) {
 		if (rgn instanceof AwtRegion) {
-			strokeShape(((AwtRegion) rgn).shape, new AwtPen(GdiPen.PS_SOLID, Math.max(w, h), brush.getColor()));
+			fillShape(createFrameArea(((AwtRegion) rgn).shape, w, h), brush);
 		}
 	}
 
@@ -486,7 +609,11 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void offsetClipRgn(int x, int y) {
-		dc.offsetClipRgn(x, y);
+		ensureGraphics();
+		Shape clip = graphics.getClip();
+		if (clip != null) {
+			graphics.setClip(AffineTransform.getTranslateInstance(rx(x), ry(y)).createTransformedShape(clip));
+		}
 	}
 
 	public void offsetViewportOrgEx(int x, int y, Point point) {
@@ -522,19 +649,47 @@ public class AwtGdi implements Gdi {
 	public void pie(int sxr, int syr, int exr, int eyr, int sx, int sy, int ex, int ey) {
 		Arc2D pie = createArc(sxr, syr, exr, eyr, sx, sy, ex, ey, Arc2D.PIE);
 		if (pie != null) {
+			if (currentPath != null) {
+				currentPath.append(pie, false);
+				return;
+			}
 			drawShape(pie);
 		}
 	}
 
 	public void polyBezier(Point[] points) {
-		polyline(points);
+		if (currentPath != null) {
+			appendBezier(points, false);
+			return;
+		}
+		Path2D.Double path = createBezierPath(points, false);
+		if (path != null) {
+			strokeShape(path, dc.getPen());
+		}
 	}
 
 	public void polyBezierTo(Point[] points) {
-		polyline(points);
+		if (currentPath != null) {
+			appendBezier(points, true);
+			if (points != null && points.length > 0) {
+				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
+			}
+			return;
+		}
+		Path2D.Double path = createBezierPath(points, true);
+		if (path != null) {
+			strokeShape(path, dc.getPen());
+			if (points != null && points.length > 0) {
+				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
+			}
+		}
 	}
 
 	public void polygon(Point[] points) {
+		if (currentPath != null) {
+			appendPoints(points, true);
+			return;
+		}
 		Polygon polygon = toPolygon(points);
 		if (polygon != null) {
 			drawShape(polygon);
@@ -542,6 +697,13 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void polyline(Point[] points) {
+		if (currentPath != null) {
+			appendPoints(points, false);
+			if (points != null && points.length > 0) {
+				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
+			}
+			return;
+		}
 		Polygon polygon = toPolygon(points);
 		if (polygon != null) {
 			strokeShape(polygon, dc.getPen());
@@ -586,13 +748,36 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void restoreDC(int savedDC) {
-		if (!saveDC.isEmpty()) {
-			dc = saveDC.removeLast();
+		if (saveDC.isEmpty()) {
+			return;
+		}
+		if (savedDC == 0) {
+			while (!saveDC.isEmpty()) {
+				restoreLastDC();
+			}
+			return;
+		}
+		int count = savedDC < -1 ? Math.min(-savedDC, saveDC.size()) : 1;
+		for (int i = 0; i < count; i++) {
+			restoreLastDC();
+		}
+	}
+
+	private void restoreLastDC() {
+		AwtSavedDc saved = saveDC.removeLast();
+		dc = saved.dc;
+		if (graphics != null) {
+			graphics.setClip(saved.clip);
 		}
 	}
 
 	public void rectangle(int sx, int sy, int ex, int ey) {
-		drawShape(toRectangle(sx, sy, ex - sx, ey - sy));
+		Shape rect = toRectangle(sx, sy, ex - sx, ey - sy);
+		if (currentPath != null) {
+			currentPath.append(rect, false);
+			return;
+		}
+		drawShape(rect);
 	}
 
 	public void resizePalette(GdiPalette palette, int entries) {
@@ -602,12 +787,17 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh) {
-		drawShape(new java.awt.geom.RoundRectangle2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)),
-				Math.abs(rx(ex - sx)), Math.abs(ry(ey - sy)), Math.abs(rx(rw)), Math.abs(ry(rh))));
+		Shape rect = new java.awt.geom.RoundRectangle2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)),
+				Math.abs(rx(ex - sx)), Math.abs(ry(ey - sy)), Math.abs(rx(rw)), Math.abs(ry(rh)));
+		if (currentPath != null) {
+			currentPath.append(rect, false);
+			return;
+		}
+		drawShape(rect);
 	}
 
 	public void seveDC() {
-		saveDC.add((AwtDc) dc.clone());
+		saveDC.add(new AwtSavedDc((AwtDc) dc.clone(), graphics != null ? graphics.getClip() : null));
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
@@ -621,7 +811,7 @@ public class AwtGdi implements Gdi {
 	public void selectClipRgn(GdiRegion rgn) {
 		ensureGraphics();
 		if (rgn instanceof AwtRegion) {
-			graphics.setClip(((AwtRegion) rgn).shape);
+			applyClip(((AwtRegion) rgn).shape, GdiRegion.RGN_COPY);
 		} else if (rgn == null) {
 			graphics.setClip(null);
 		}
@@ -630,7 +820,7 @@ public class AwtGdi implements Gdi {
 	public void selectClipPath(int mode) {
 		if (currentPath != null) {
 			ensureGraphics();
-			graphics.clip(currentPath);
+			applyClip(currentPath, mode);
 			currentPath = null;
 		}
 	}
@@ -682,7 +872,7 @@ public class AwtGdi implements Gdi {
 
 	public void setDIBitsToDevice(int dx, int dy, int dw, int dh, int sx, int sy, int startscan, int scanlines,
 			byte[] image, int colorUse) {
-		drawBitmap(image, dx, dy, dw, dh, sx, sy, dw, dh, colorUse, Long.valueOf(Gdi.SRCCOPY), false);
+		drawDIBitsToDevice(image, dx, dy, dw, dh, sx, sy, startscan, scanlines, colorUse);
 	}
 
 	public void setLayout(long layout) {
@@ -763,6 +953,11 @@ public class AwtGdi implements Gdi {
 
 	public void setViewportExtEx(int x, int y, Size old) {
 		dc.setViewportExtEx(x, y, old);
+		if (!replayingPendingEmf && !placeableHeader && x != 0 && y != 0 && image == null) {
+			growCanvas = false;
+			canvasWidth = Math.min(Math.max(Math.abs(x), 1), MAX_CANVAS_SIZE);
+			canvasHeight = Math.min(Math.max(Math.abs(y), 1), MAX_CANVAS_SIZE);
+		}
 	}
 
 	public void setViewportOrgEx(int x, int y, Point old) {
@@ -771,10 +966,21 @@ public class AwtGdi implements Gdi {
 
 	public void setWindowExtEx(int width, int height, Size old) {
 		dc.setWindowExtEx(width, height, old);
-		if (!placeableHeader && width != 0 && height != 0 && image == null) {
-			canvasWidth = Math.min(Math.max(Math.abs(width), 1), MAX_CANVAS_SIZE);
-			canvasHeight = Math.min(Math.max(Math.abs(height), 1), MAX_CANVAS_SIZE);
+		if (!replayingPendingEmf && !placeableHeader && width != 0 && height != 0) {
+			growCanvas = dc.getWindowX() == 0 && dc.getWindowY() == 0;
+			if (image == null) {
+				canvasWidth = windowExtentToCanvasSize(width, dc.getWindowX());
+				canvasHeight = windowExtentToCanvasSize(height, dc.getWindowY());
+			}
 		}
+	}
+
+	private int windowExtentToCanvasSize(int extent, int origin) {
+		int size = Math.max(Math.abs(extent), 1);
+		if (origin == 0 && extent > 0 && (size & 1) == 1) {
+			size++;
+		}
+		return Math.min(size, MAX_CANVAS_SIZE);
 	}
 
 	public void setWindowOrgEx(int x, int y, Point old) {
@@ -800,7 +1006,52 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void footer() {
+		flushPendingEmf();
 		ensureGraphics();
+	}
+
+	private void flushPendingEmf() {
+		if (pendingEmfList.isEmpty()) {
+			return;
+		}
+
+		ArrayList<PendingEmf> list = pendingEmfList;
+		pendingEmfList = new ArrayList<PendingEmf>();
+		AwtDc savedDc = dc;
+		for (PendingEmf pendingEmf : list) {
+			try {
+				dc = (AwtDc) pendingEmf.dc.clone();
+				replayingPendingEmf = true;
+				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
+			} catch (IOException e) {
+				throw new IllegalStateException(e);
+			} catch (EmfParseException e) {
+				throw new IllegalStateException(e);
+			} finally {
+				replayingPendingEmf = false;
+				dc = savedDc;
+			}
+		}
+	}
+
+	private static class PendingEmf {
+		private final byte[] data;
+		private final AwtDc dc;
+
+		private PendingEmf(byte[] data, AwtDc dc) {
+			this.data = data;
+			this.dc = dc;
+		}
+	}
+
+	private static class AwtSavedDc {
+		private final AwtDc dc;
+		private final Shape clip;
+
+		private AwtSavedDc(AwtDc dc, Shape clip) {
+			this.dc = dc;
+			this.clip = clip;
+		}
 	}
 
 	private Arc2D createArc(int sxr, int syr, int exr, int eyr, int sxa, int sya, int exa, int eya, int type) {
@@ -871,6 +1122,24 @@ public class AwtGdi implements Gdi {
 		return index >= 0 && index < vertex.length;
 	}
 
+	private Area createFrameArea(Shape shape, int w, int h) {
+		Area frame = new Area(shape);
+		Rectangle2D bounds = shape.getBounds2D();
+		double insetX = Math.abs(rx(w));
+		double insetY = Math.abs(ry(h));
+		if (insetX <= 0.0 || insetY <= 0.0 || bounds.getWidth() <= insetX * 2.0 || bounds.getHeight() <= insetY * 2.0) {
+			return frame;
+		}
+
+		AffineTransform shrink = new AffineTransform();
+		shrink.translate(bounds.getX() + insetX, bounds.getY() + insetY);
+		shrink.scale((bounds.getWidth() - insetX * 2.0) / bounds.getWidth(),
+				(bounds.getHeight() - insetY * 2.0) / bounds.getHeight());
+		shrink.translate(-bounds.getX(), -bounds.getY());
+		frame.subtract(new Area(shrink.createTransformedShape(shape)));
+		return frame;
+	}
+
 	private void fillGradientRectangle(Trivertex upperLeft, Trivertex lowerRight, int mode) {
 		Rectangle2D rect = toRectangle(upperLeft.x, upperLeft.y, lowerRight.x - upperLeft.x,
 				lowerRight.y - upperLeft.y);
@@ -883,16 +1152,55 @@ public class AwtGdi implements Gdi {
 	}
 
 	private void fillGradientTriangle(Trivertex v1, Trivertex v2, Trivertex v3) {
-		Polygon triangle = new Polygon();
-		triangle.addPoint((int) tx(v1.x), (int) ty(v1.y));
-		triangle.addPoint((int) tx(v2.x), (int) ty(v2.y));
-		triangle.addPoint((int) tx(v3.x), (int) ty(v3.y));
-		int red = (((v1.getColor() >>> 16) & 0xFF) + ((v2.getColor() >>> 16) & 0xFF) + ((v3.getColor() >>> 16) & 0xFF))
-				/ 3;
-		int green = (((v1.getColor() >>> 8) & 0xFF) + ((v2.getColor() >>> 8) & 0xFF) + ((v3.getColor() >>> 8) & 0xFF))
-				/ 3;
-		int blue = ((v1.getColor() & 0xFF) + (v2.getColor() & 0xFF) + (v3.getColor() & 0xFF)) / 3;
-		fillWithPaint(triangle, new Color(red, green, blue));
+		double x1 = tx(v1.x);
+		double y1 = ty(v1.y);
+		double x2 = tx(v2.x);
+		double y2 = ty(v2.y);
+		double x3 = tx(v3.x);
+		double y3 = ty(v3.y);
+		Path2D.Double triangle = new Path2D.Double();
+		triangle.moveTo(x1, y1);
+		triangle.lineTo(x2, y2);
+		triangle.lineTo(x3, y3);
+		triangle.closePath();
+		ensureGraphics();
+		ensureCanvasContains(triangle);
+
+		Rectangle2D bounds = triangle.getBounds2D();
+		int left = (int) Math.floor(bounds.getMinX());
+		int top = (int) Math.floor(bounds.getMinY());
+		int width = (int) Math.ceil(bounds.getMaxX()) - left;
+		int height = (int) Math.ceil(bounds.getMaxY()) - top;
+		double denominator = (y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3);
+		if (width <= 0 || height <= 0 || denominator == 0.0) {
+			return;
+		}
+
+		BufferedImage patch = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		int c1 = v1.getColor();
+		int c2 = v2.getColor();
+		int c3 = v3.getColor();
+		for (int y = 0; y < height; y++) {
+			double py = top + y + 0.5;
+			for (int x = 0; x < width; x++) {
+				double px = left + x + 0.5;
+				if (!triangle.contains(px, py)) {
+					continue;
+				}
+				double w1 = ((y2 - y3) * (px - x3) + (x3 - x2) * (py - y3)) / denominator;
+				double w2 = ((y3 - y1) * (px - x3) + (x1 - x3) * (py - y3)) / denominator;
+				double w3 = 1.0 - w1 - w2;
+				int red = interpolateTriangleChannel(c1 >>> 16, c2 >>> 16, c3 >>> 16, w1, w2, w3);
+				int green = interpolateTriangleChannel(c1 >>> 8, c2 >>> 8, c3 >>> 8, w1, w2, w3);
+				int blue = interpolateTriangleChannel(c1, c2, c3, w1, w2, w3);
+				patch.setRGB(x, y, 0xFF000000 | (red << 16) | (green << 8) | blue);
+			}
+		}
+		graphics.drawImage(patch, left, top, null);
+	}
+
+	private int interpolateTriangleChannel(int c1, int c2, int c3, double w1, double w2, double w3) {
+		return Math.max(0, Math.min(255, (int) Math.round((c1 & 0xFF) * w1 + (c2 & 0xFF) * w2 + (c3 & 0xFF) * w3)));
 	}
 
 	private Color toRgbColor(int rgb) {
@@ -916,12 +1224,88 @@ public class AwtGdi implements Gdi {
 		strokeShape(shape, dc.getPen());
 	}
 
+	private void appendPoints(Point[] points, boolean close) {
+		if (currentPath == null || points == null || points.length == 0) {
+			return;
+		}
+		currentPath.moveTo(tx(points[0].x), ty(points[0].y));
+		for (int i = 1; i < points.length; i++) {
+			currentPath.lineTo(tx(points[i].x), ty(points[i].y));
+		}
+		if (close) {
+			currentPath.closePath();
+		}
+	}
+
+	private void appendBezier(Point[] points, boolean connect) {
+		if (currentPath == null || points == null || points.length == 0) {
+			return;
+		}
+		int offset = 0;
+		if (!connect) {
+			currentPath.moveTo(tx(points[0].x), ty(points[0].y));
+			offset = 1;
+		}
+		for (int i = offset; i + 2 < points.length; i += 3) {
+			currentPath.curveTo(tx(points[i].x), ty(points[i].y), tx(points[i + 1].x), ty(points[i + 1].y),
+					tx(points[i + 2].x), ty(points[i + 2].y));
+		}
+	}
+
+	private Path2D.Double createBezierPath(Point[] points, boolean connect) {
+		if (points == null || points.length == 0) {
+			return null;
+		}
+		Path2D.Double path = new Path2D.Double();
+		int offset = 0;
+		if (connect) {
+			path.moveTo(tx(dc.getCurrentX()), ty(dc.getCurrentY()));
+		} else {
+			path.moveTo(tx(points[0].x), ty(points[0].y));
+			offset = 1;
+		}
+		for (int i = offset; i + 2 < points.length; i += 3) {
+			path.curveTo(tx(points[i].x), ty(points[i].y), tx(points[i + 1].x), ty(points[i + 1].y),
+					tx(points[i + 2].x), ty(points[i + 2].y));
+		}
+		return path;
+	}
+
 	private void fillWithPaint(Shape shape, Paint paint) {
 		ensureGraphics();
+		ensureCanvasContains(shape);
 		Paint old = graphics.getPaint();
 		graphics.setPaint(paint);
 		graphics.fill(shape);
 		graphics.setPaint(old);
+	}
+
+	private void applyClip(Shape shape, int mode) {
+		if (shape == null) {
+			if (mode == GdiRegion.RGN_COPY) {
+				graphics.setClip(null);
+			}
+			return;
+		}
+
+		Area newArea = new Area(shape);
+		Shape oldClip = graphics.getClip();
+		if (oldClip == null || mode == GdiRegion.RGN_COPY) {
+			graphics.setClip(newArea);
+			return;
+		}
+
+		Area oldArea = new Area(oldClip);
+		if (mode == GdiRegion.RGN_OR) {
+			oldArea.add(newArea);
+		} else if (mode == GdiRegion.RGN_XOR) {
+			oldArea.exclusiveOr(newArea);
+		} else if (mode == GdiRegion.RGN_DIFF) {
+			oldArea.subtract(newArea);
+		} else {
+			oldArea.intersect(newArea);
+		}
+		graphics.setClip(oldArea);
 	}
 
 	private void fillShape(Shape shape, GdiBrush brush) {
@@ -929,6 +1313,7 @@ public class AwtGdi implements Gdi {
 		if (brush == null || brush.getStyle() == GdiBrush.BS_NULL || brush.getStyle() == GdiBrush.BS_HOLLOW) {
 			return;
 		}
+		ensureCanvasContains(shape);
 		Paint old = graphics.getPaint();
 		graphics.setPaint(toPaint(brush));
 		graphics.fill(shape);
@@ -940,13 +1325,110 @@ public class AwtGdi implements Gdi {
 		if (pen == null || (pen.getStyle() & GdiPen.PS_STYLE_MASK) == GdiPen.PS_NULL) {
 			return;
 		}
+		BasicStroke stroke = toStroke(pen);
+		ensureCanvasContains(shape);
+		if (dc.getROP2() != Gdi.R2_COPYPEN) {
+			strokeShapeRop2(shape, stroke, pen.getColor());
+			return;
+		}
 		Paint oldPaint = graphics.getPaint();
 		java.awt.Stroke oldStroke = graphics.getStroke();
 		graphics.setPaint(toColor(pen.getColor()));
-		graphics.setStroke(toStroke(pen));
+		graphics.setStroke(stroke);
 		graphics.draw(shape);
 		graphics.setStroke(oldStroke);
 		graphics.setPaint(oldPaint);
+	}
+
+	private void strokeShapeRop2(Shape shape, BasicStroke stroke, int color) {
+		if (image == null || dc.getROP2() == Gdi.R2_COPYPEN) {
+			return;
+		}
+		if (dc.getROP2() == Gdi.R2_NOP) {
+			return;
+		}
+
+		BufferedImage mask = new BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_BYTE_BINARY);
+		Graphics2D mg = mask.createGraphics();
+		try {
+			configureGraphics(mg);
+			mg.setClip(graphics.getClip());
+			mg.setColor(Color.WHITE);
+			mg.setStroke(stroke);
+			mg.draw(shape);
+		} finally {
+			mg.dispose();
+		}
+
+		Rectangle2D bounds = stroke.createStrokedShape(shape).getBounds2D();
+		int left = Math.max(0, (int) Math.floor(bounds.getMinX()));
+		int top = Math.max(0, (int) Math.floor(bounds.getMinY()));
+		int right = Math.min(canvasWidth, (int) Math.ceil(bounds.getMaxX()));
+		int bottom = Math.min(canvasHeight, (int) Math.ceil(bounds.getMaxY()));
+		int penRgb = toColor(color).getRGB() & 0x00FFFFFF;
+		for (int y = top; y < bottom; y++) {
+			for (int x = left; x < right; x++) {
+				if ((mask.getRGB(x, y) & 0x00FFFFFF) == 0) {
+					continue;
+				}
+				int dest = image.getRGB(x, y) & 0x00FFFFFF;
+				int rgb = applyRop2(penRgb, dest, dc.getROP2());
+				image.setRGB(x, y, 0xFF000000 | rgb);
+			}
+		}
+	}
+
+	private int applyRop2(int pen, int dest, int mode) {
+		int rgb;
+		switch (mode) {
+			case Gdi.R2_BLACK :
+				rgb = 0;
+				break;
+			case Gdi.R2_NOTMERGEPEN :
+				rgb = ~(dest | pen);
+				break;
+			case Gdi.R2_MASKNOTPEN :
+				rgb = dest & ~pen;
+				break;
+			case Gdi.R2_NOTCOPYPEN :
+				rgb = ~pen;
+				break;
+			case Gdi.R2_MASKPENNOT :
+				rgb = pen & ~dest;
+				break;
+			case Gdi.R2_NOT :
+				rgb = ~dest;
+				break;
+			case Gdi.R2_XORPEN :
+				rgb = dest ^ pen;
+				break;
+			case Gdi.R2_NOTMASKPEN :
+				rgb = ~(dest & pen);
+				break;
+			case Gdi.R2_MASKPEN :
+				rgb = dest & pen;
+				break;
+			case Gdi.R2_NOTXORPEN :
+				rgb = ~(dest ^ pen);
+				break;
+			case Gdi.R2_MERGENOTPEN :
+				rgb = dest | ~pen;
+				break;
+			case Gdi.R2_MERGEPENNOT :
+				rgb = pen | ~dest;
+				break;
+			case Gdi.R2_MERGEPEN :
+				rgb = dest | pen;
+				break;
+			case Gdi.R2_WHITE :
+				rgb = 0x00FFFFFF;
+				break;
+			case Gdi.R2_COPYPEN :
+			default :
+				rgb = pen;
+				break;
+		}
+		return rgb & 0x00FFFFFF;
 	}
 
 	private BasicStroke toStroke(GdiPen pen) {
@@ -977,7 +1459,40 @@ public class AwtGdi implements Gdi {
 						pattern.getWidth(), pattern.getHeight()));
 			}
 		}
+		if (brush.getStyle() == GdiBrush.BS_HATCHED) {
+			return createHatchPaint(brush);
+		}
 		return toColor(brush.getColor());
+	}
+
+	private Paint createHatchPaint(GdiBrush brush) {
+		BufferedImage pattern = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = pattern.createGraphics();
+		try {
+			configureGraphics(g);
+			if (dc.getBkMode() == Gdi.OPAQUE) {
+				g.setColor(toColor(dc.getBkColor()));
+				g.fillRect(0, 0, 8, 8);
+			}
+			g.setColor(toColor(brush.getColor()));
+			int hatch = brush.getHatch();
+			if (hatch == GdiBrush.HS_HORIZONTAL || hatch == GdiBrush.HS_CROSS) {
+				g.drawLine(0, 4, 7, 4);
+			}
+			if (hatch == GdiBrush.HS_VERTICAL || hatch == GdiBrush.HS_CROSS) {
+				g.drawLine(4, 0, 4, 7);
+			}
+			if (hatch == GdiBrush.HS_FDIAGONAL || hatch == GdiBrush.HS_DIAGCROSS) {
+				g.drawLine(0, 7, 7, 0);
+			}
+			if (hatch == GdiBrush.HS_BDIAGONAL || hatch == GdiBrush.HS_DIAGCROSS) {
+				g.drawLine(0, 0, 7, 7);
+			}
+		} finally {
+			g.dispose();
+		}
+		return new TexturePaint(pattern, new Rectangle2D.Double(tx(dc.getBrushOrgX()), ty(dc.getBrushOrgY()),
+				pattern.getWidth(), pattern.getHeight()));
 	}
 
 	private Color toColor(int gdiColor) {
@@ -992,6 +1507,11 @@ public class AwtGdi implements Gdi {
 		if (text == null || text.length() == 0) {
 			return;
 		}
+		int align = dc.getTextAlign();
+		if ((align & (Gdi.TA_NOUPDATECP | Gdi.TA_UPDATECP)) == Gdi.TA_UPDATECP) {
+			x = dc.getCurrentX();
+			y = dc.getCurrentY();
+		}
 		AwtFont gdiFont = dc.getFont();
 		Font font = toFont(gdiFont);
 		graphics.setFont(font);
@@ -999,7 +1519,6 @@ public class AwtGdi implements Gdi {
 		FontMetrics metrics = graphics.getFontMetrics(font);
 		int drawX = (int) tx(x);
 		int drawY = (int) ty(y);
-		int align = dc.getTextAlign();
 		if ((align & Gdi.TA_CENTER) == Gdi.TA_CENTER) {
 			drawX -= metrics.stringWidth(text) / 2;
 		} else if ((align & Gdi.TA_RIGHT) == Gdi.TA_RIGHT) {
@@ -1027,6 +1546,17 @@ public class AwtGdi implements Gdi {
 		}
 		graphics.drawString(attributed.getIterator(), drawX, drawY);
 		graphics.setTransform(old);
+		if ((align & (Gdi.TA_NOUPDATECP | Gdi.TA_UPDATECP)) == Gdi.TA_UPDATECP) {
+			dc.moveToEx(x + toLogicalTextAdvance(metrics.stringWidth(text)), y, null);
+		}
+	}
+
+	private int toLogicalTextAdvance(int deviceWidth) {
+		double unit = rx(1.0);
+		if (unit == 0.0) {
+			return deviceWidth;
+		}
+		return (int) Math.round(deviceWidth / unit);
 	}
 
 	private Font toFont(AwtFont gdiFont) {
@@ -1060,7 +1590,7 @@ public class AwtGdi implements Gdi {
 			patBlt(dx, dy, dw, dh, rop.longValue());
 			return;
 		}
-		if (rop.longValue() != Gdi.SRCCOPY && rop.longValue() != Gdi.SRCPAINT && rop.longValue() != Gdi.SRCINVERT) {
+		if (!isSupportedBitmapRop(rop.longValue())) {
 			return;
 		}
 		BufferedImage source = decodeBitmap(data, usage, sh < 0, transparentColor, preserveAlpha);
@@ -1079,8 +1609,283 @@ public class AwtGdi implements Gdi {
 			return;
 		}
 		Image subImage = source.getSubimage(srcX, srcY, srcW, srcH);
-		graphics.drawImage(subImage, (int) tx(dx), (int) ty(dy), (int) tx(dx + dw), (int) ty(dy + dh), 0, 0, srcW, srcH,
-				null);
+		int x1 = (int) tx(dx);
+		int y1 = (int) ty(dy);
+		int x2 = (int) tx(dx + dw);
+		int y2 = (int) ty(dy + dh);
+		ensureCanvasContains(x1, y1, x2, y2);
+		if (rop.longValue() == Gdi.SRCCOPY && transparentColor == null) {
+			graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+		} else {
+			composeBitmapRop(subImage, x1, y1, x2, y2, rop.longValue());
+		}
+	}
+
+	private void drawAlphaBlend(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			int sourceConstantAlpha, boolean preserveAlpha) {
+		ensureGraphics();
+		if (data == null || data.length == 0 || sourceConstantAlpha == 0) {
+			return;
+		}
+		BufferedImage source = decodeBitmap(data, Gdi.DIB_RGB_COLORS, sh < 0, null, preserveAlpha);
+		if (source == null) {
+			return;
+		}
+		int srcX = sw < 0 ? sx + sw : sx;
+		int srcY = sh < 0 ? sy + sh : sy;
+		int srcW = Math.abs(sw);
+		int srcH = Math.abs(sh);
+		srcX = Math.max(0, Math.min(source.getWidth(), srcX));
+		srcY = Math.max(0, Math.min(source.getHeight(), srcY));
+		srcW = Math.max(0, Math.min(source.getWidth() - srcX, srcW));
+		srcH = Math.max(0, Math.min(source.getHeight() - srcY, srcH));
+		if (srcW == 0 || srcH == 0) {
+			return;
+		}
+
+		int x1 = (int) tx(dx);
+		int y1 = (int) ty(dy);
+		int x2 = (int) tx(dx + dw);
+		int y2 = (int) ty(dy + dh);
+		int left = Math.min(x1, x2);
+		int top = Math.min(y1, y2);
+		int width = Math.abs(x2 - x1);
+		int height = Math.abs(y2 - y1);
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+		ensureCanvasContains(x1, y1, x2, y2);
+
+		BufferedImage blended = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D bg = blended.createGraphics();
+		try {
+			configureGraphics(bg);
+			bg.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), x1 < x2 ? 0 : width, y1 < y2 ? 0 : height,
+					x1 < x2 ? width : 0, y1 < y2 ? height : 0, null);
+		} finally {
+			bg.dispose();
+		}
+		if (sourceConstantAlpha < 255) {
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					int argb = blended.getRGB(x, y);
+					int alpha = (argb >>> 24) * sourceConstantAlpha / 255;
+					blended.setRGB(x, y, (alpha << 24) | (argb & 0x00FFFFFF));
+				}
+			}
+		}
+		graphics.drawImage(blended, left, top, null);
+	}
+
+	private void drawDIBitsToDevice(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int startscan,
+			int scanlines, int usage) {
+		ensureGraphics();
+		if (data == null || data.length == 0) {
+			return;
+		}
+		BufferedImage source = decodeBitmap(data, usage, false, null, false);
+		if (source == null) {
+			return;
+		}
+		int srcX = Math.max(0, Math.min(source.getWidth(), sx));
+		int srcW = Math.max(0, Math.min(source.getWidth() - srcX, dw));
+		int srcH = Math.max(0, Math.min(source.getHeight(), scanlines > 0 ? scanlines : dh));
+		if (srcW == 0 || srcH == 0) {
+			return;
+		}
+
+		int srcY = source.getHeight() - Math.max(0, startscan) - srcH;
+		srcY = Math.max(0, Math.min(source.getHeight() - srcH, srcY - sy));
+		Image subImage = source.getSubimage(srcX, srcY, srcW, srcH);
+		int x1 = (int) tx(dx);
+		int y1 = (int) ty(dy);
+		int x2 = (int) tx(dx + srcW);
+		int y2 = (int) ty(dy + srcH);
+		ensureCanvasContains(x1, y1, x2, y2);
+		graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+	}
+
+	private void drawPlgBlt(byte[] data, Point[] points, int sx, int sy, int sw, int sh, byte[] mask, int mx, int my) {
+		ensureGraphics();
+		if (data == null || data.length == 0) {
+			return;
+		}
+		BufferedImage source = decodeBitmap(data, Gdi.DIB_RGB_COLORS, sh < 0, null, true);
+		if (source == null) {
+			return;
+		}
+		if (mask != null) {
+			source = applyMask(source, mask, mx, my);
+		}
+		int srcX = sw < 0 ? sx + sw : sx;
+		int srcY = sh < 0 ? sy + sh : sy;
+		int srcW = Math.abs(sw);
+		int srcH = Math.abs(sh);
+		srcX = Math.max(0, Math.min(source.getWidth(), srcX));
+		srcY = Math.max(0, Math.min(source.getHeight(), srcY));
+		srcW = Math.max(0, Math.min(source.getWidth() - srcX, srcW));
+		srcH = Math.max(0, Math.min(source.getHeight() - srcY, srcH));
+		if (srcW == 0 || srcH == 0) {
+			return;
+		}
+
+		double x0 = tx(points[0].x);
+		double y0 = ty(points[0].y);
+		double x1 = tx(points[1].x);
+		double y1 = ty(points[1].y);
+		double x2 = tx(points[2].x);
+		double y2 = ty(points[2].y);
+		Path2D.Double bounds = new Path2D.Double();
+		bounds.moveTo(x0, y0);
+		bounds.lineTo(x1, y1);
+		bounds.lineTo(x1 + x2 - x0, y1 + y2 - y0);
+		bounds.lineTo(x2, y2);
+		bounds.closePath();
+		ensureCanvasContains(bounds);
+
+		AffineTransform old = graphics.getTransform();
+		graphics.transform(
+				new AffineTransform((x1 - x0) / srcW, (y1 - y0) / srcW, (x2 - x0) / srcH, (y2 - y0) / srcH, x0, y0));
+		graphics.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), 0, 0, null);
+		graphics.setTransform(old);
+	}
+
+	private void drawMaskedSrcCopy(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			byte[] mask, int mx, int my) {
+		ensureGraphics();
+		if (data == null || data.length == 0) {
+			return;
+		}
+		BufferedImage source = decodeBitmap(data, Gdi.DIB_RGB_COLORS, sh < 0, null, true);
+		if (source == null) {
+			return;
+		}
+		source = applyMask(source, mask, mx, my);
+		int srcX = sw < 0 ? sx + sw : sx;
+		int srcY = sh < 0 ? sy + sh : sy;
+		int srcW = Math.abs(sw);
+		int srcH = Math.abs(sh);
+		srcX = Math.max(0, Math.min(source.getWidth(), srcX));
+		srcY = Math.max(0, Math.min(source.getHeight(), srcY));
+		srcW = Math.max(0, Math.min(source.getWidth() - srcX, srcW));
+		srcH = Math.max(0, Math.min(source.getHeight() - srcY, srcH));
+		if (srcW == 0 || srcH == 0) {
+			return;
+		}
+		int x1 = (int) tx(dx);
+		int y1 = (int) ty(dy);
+		int x2 = (int) tx(dx + dw);
+		int y2 = (int) ty(dy + dh);
+		ensureCanvasContains(x1, y1, x2, y2);
+		graphics.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+	}
+
+	private BufferedImage applyMask(BufferedImage source, byte[] mask, int mx, int my) {
+		BufferedImage maskImage = decodeBitmap(mask, Gdi.DIB_RGB_COLORS, false, null, false);
+		if (maskImage == null) {
+			return source;
+		}
+		BufferedImage result = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < result.getHeight(); y++) {
+			int maskY = Math.max(0,
+					Math.min(maskImage.getHeight() - 1, my + y * maskImage.getHeight() / result.getHeight()));
+			for (int x = 0; x < result.getWidth(); x++) {
+				int maskX = Math.max(0,
+						Math.min(maskImage.getWidth() - 1, mx + x * maskImage.getWidth() / result.getWidth()));
+				int maskRgb = maskImage.getRGB(maskX, maskY);
+				int alpha = (((maskRgb >>> 16) & 0xFF) + ((maskRgb >>> 8) & 0xFF) + (maskRgb & 0xFF)) / 3;
+				result.setRGB(x, y, (source.getRGB(x, y) & 0x00FFFFFF) | (alpha << 24));
+			}
+		}
+		return result;
+	}
+
+	private boolean isSupportedBitmapRop(long rop) {
+		return rop == Gdi.BLACKNESS || rop == 0x001100A6L || rop == Gdi.NOTSRCCOPY || rop == 0x00440328L
+				|| rop == Gdi.DSTINVERT || rop == Gdi.SRCINVERT || rop == 0x008800C6L || rop == Gdi.MERGEPAINT
+				|| rop == Gdi.MERGECOPY || rop == Gdi.SRCCOPY || rop == Gdi.SRCPAINT || rop == Gdi.PATPAINT
+				|| rop == Gdi.WHITENESS;
+	}
+
+	private void composeBitmapRop(Image source, int x1, int y1, int x2, int y2, long rop) {
+		int left = Math.min(x1, x2);
+		int top = Math.min(y1, y2);
+		int width = Math.abs(x2 - x1);
+		int height = Math.abs(y2 - y1);
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+
+		BufferedImage src = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D sg = src.createGraphics();
+		try {
+			configureGraphics(sg);
+			sg.drawImage(source, x1 < x2 ? 0 : width, y1 < y2 ? 0 : height, x1 < x2 ? width : 0, y1 < y2 ? height : 0,
+					null);
+		} finally {
+			sg.dispose();
+		}
+
+		BufferedImage pat = null;
+		if (rop == Gdi.MERGECOPY || rop == Gdi.PATPAINT) {
+			pat = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D pg = pat.createGraphics();
+			try {
+				configureGraphics(pg);
+				pg.translate(-left, -top);
+				pg.setPaint(toPaint(dc.getBrush()));
+				pg.fillRect(left, top, width, height);
+			} finally {
+				pg.dispose();
+			}
+		}
+
+		int clipLeft = Math.max(left, 0);
+		int clipTop = Math.max(top, 0);
+		int clipRight = Math.min(left + width, canvasWidth);
+		int clipBottom = Math.min(top + height, canvasHeight);
+		for (int y = clipTop; y < clipBottom; y++) {
+			for (int x = clipLeft; x < clipRight; x++) {
+				int sx = x - left;
+				int sy = y - top;
+				int s = src.getRGB(sx, sy) & 0x00FFFFFF;
+				int d = image.getRGB(x, y) & 0x00FFFFFF;
+				int p = pat != null ? pat.getRGB(sx, sy) & 0x00FFFFFF : 0;
+				image.setRGB(x, y, 0xFF000000 | applyBitmapRop(s, d, p, rop));
+			}
+		}
+	}
+
+	private int applyBitmapRop(int s, int d, int p, long rop) {
+		int rgb;
+		if (rop == Gdi.BLACKNESS) {
+			rgb = 0;
+		} else if (rop == 0x001100A6L) {
+			rgb = ~(s | d);
+		} else if (rop == Gdi.NOTSRCCOPY) {
+			rgb = ~s;
+		} else if (rop == 0x00440328L) {
+			rgb = s & ~d;
+		} else if (rop == Gdi.DSTINVERT) {
+			rgb = ~d;
+		} else if (rop == Gdi.SRCINVERT) {
+			rgb = s ^ d;
+		} else if (rop == 0x008800C6L) {
+			rgb = s & d;
+		} else if (rop == Gdi.MERGEPAINT) {
+			rgb = ~s | d;
+		} else if (rop == Gdi.MERGECOPY) {
+			rgb = s & p;
+		} else if (rop == Gdi.SRCPAINT) {
+			rgb = s | d;
+		} else if (rop == Gdi.PATPAINT) {
+			rgb = d | p | ~s;
+		} else if (rop == Gdi.WHITENESS) {
+			rgb = 0x00FFFFFF;
+		} else {
+			rgb = s;
+		}
+		return rgb & 0x00FFFFFF;
 	}
 
 	private BufferedImage decodeBitmap(byte[] data, int usage, boolean reverse, Integer transparentColor,
@@ -1204,12 +2009,13 @@ public class AwtGdi implements Gdi {
 		int planes = readUInt16(dib, 12);
 		int bitCount = readUInt16(dib, 14);
 		int compression = readInt32(dib, 16);
-		if (width <= 0 || heightValue == 0 || planes != 1 || compression != 0) {
+		if (width <= 0 || heightValue == 0 || planes != 1 || (compression != 0 && compression != 3)) {
 			return null;
 		}
 		int height = Math.abs(heightValue);
+		int[] bitMasks = readDibBitMasks(dib, headerSize, compression, bitCount);
 		int colorCount = getDibColorCount(dib, headerSize, bitCount);
-		int bitsOffset = headerSize + colorCount * 4;
+		int bitsOffset = headerSize + (compression == 3 && headerSize == 40 ? 12 : 0) + colorCount * 4;
 		int stride = ((width * bitCount + 31) / 32) * 4;
 		if (colorCount > 0 && dib.length < bitsOffset + stride * height && dib.length >= headerSize + stride * height) {
 			colorCount = 0;
@@ -1236,7 +2042,8 @@ public class AwtGdi implements Gdi {
 			}
 			int row = bitsOffset + dibY * stride;
 			for (int x = 0; x < width; x++) {
-				image.setRGB(x, y, readBitmapPixel(dib, row, x, bitCount, colors, transparentColor, preserveAlpha));
+				image.setRGB(x, y,
+						readBitmapPixel(dib, row, x, bitCount, colors, bitMasks, transparentColor, preserveAlpha));
 			}
 		}
 		return image;
@@ -1244,6 +2051,11 @@ public class AwtGdi implements Gdi {
 
 	private int readBitmapPixel(byte[] data, int row, int x, int bitCount, int[] colors, Integer transparentColor,
 			boolean preserveAlpha) {
+		return readBitmapPixel(data, row, x, bitCount, colors, null, transparentColor, preserveAlpha);
+	}
+
+	private int readBitmapPixel(byte[] data, int row, int x, int bitCount, int[] colors, int[] bitMasks,
+			Integer transparentColor, boolean preserveAlpha) {
 		if (bitCount == 1) {
 			int index = (data[row + x / 8] >>> (7 - (x % 8))) & 0x01;
 			return colors != null && index < colors.length ? colors[index] : index == 0 ? 0xFF000000 : 0xFFFFFFFF;
@@ -1262,10 +2074,41 @@ public class AwtGdi implements Gdi {
 					preserveAlpha);
 		} else if (bitCount == 32) {
 			int pos = row + x * 4;
+			if (bitMasks != null) {
+				int value = readInt32(data, pos);
+				return applyAlpha(extractMaskedChannel(value, bitMasks[0]), extractMaskedChannel(value, bitMasks[1]),
+						extractMaskedChannel(value, bitMasks[2]), 0xFF, transparentColor, preserveAlpha);
+			}
 			return applyAlpha(data[pos + 2] & 0xFF, data[pos + 1] & 0xFF, data[pos] & 0xFF,
 					preserveAlpha ? data[pos + 3] & 0xFF : 0xFF, transparentColor, preserveAlpha);
+		} else if (bitCount == 16 && bitMasks != null) {
+			int value = readUInt16(data, row + x * 2);
+			return applyAlpha(extractMaskedChannel(value, bitMasks[0]), extractMaskedChannel(value, bitMasks[1]),
+					extractMaskedChannel(value, bitMasks[2]), 0xFF, transparentColor, preserveAlpha);
 		}
 		return 0x00000000;
+	}
+
+	private int[] readDibBitMasks(byte[] dib, int headerSize, int compression, int bitCount) {
+		if (compression != 3 || (bitCount != 16 && bitCount != 32)) {
+			return null;
+		}
+		int offset = headerSize >= 52 ? 40 : headerSize == 40 ? 40 : -1;
+		if (offset < 0 || dib.length < offset + 12) {
+			return null;
+		}
+		return new int[]{readInt32(dib, offset), readInt32(dib, offset + 4), readInt32(dib, offset + 8)};
+	}
+
+	private int extractMaskedChannel(int value, int mask) {
+		if (mask == 0) {
+			return 0;
+		}
+		int shift = Integer.numberOfTrailingZeros(mask);
+		int bits = Integer.bitCount(mask);
+		int channel = (value & mask) >>> shift;
+		int max = (1 << bits) - 1;
+		return max > 0 ? (channel * 255 + max / 2) / max : 0;
 	}
 
 	private int applyAlpha(int red, int green, int blue, int alpha, Integer transparentColor, boolean preserveAlpha) {

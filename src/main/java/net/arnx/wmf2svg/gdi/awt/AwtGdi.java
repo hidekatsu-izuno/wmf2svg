@@ -70,6 +70,9 @@ public class AwtGdi implements Gdi {
 	private static final int TARGET_DPI = 144;
 	private static final int MAX_CANVAS_SIZE = 32767;
 	private static final long MAX_CANVAS_PIXELS = 64_000_000L;
+	private static final int EMR_HEADER_RECORD_TYPE = 1;
+	private static final int EMF_HEADER_MIN_SIZE = 88;
+	private static final long EMF_SIGNATURE = 0x464D4520L;
 
 	private AwtDc dc;
 	private LinkedList<AwtSavedDc> saveDC = new LinkedList<AwtSavedDc>();
@@ -447,7 +450,19 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void escape(byte[] data) {
-		// Device escapes are not meaningful for BufferedImage output.
+		if (data == null || data.length == 0) {
+			return;
+		}
+		if (EmfParser.parseEscape(data, this)) {
+			return;
+		}
+
+		EscapeRecord record = readEscapeRecord(data);
+		if (record != null && record.escapeFunction != 0 && isStandaloneEmf(record.payload)) {
+			addPendingEmf(record.payload);
+		} else if (isStandaloneEmf(data)) {
+			addPendingEmf(data);
+		}
 	}
 
 	public void comment(byte[] data) {
@@ -466,7 +481,7 @@ public class AwtGdi implements Gdi {
 		if (emfBuffer.size() >= emfTotalSize) {
 			byte[] bytesToParse = new byte[emfTotalSize];
 			System.arraycopy(emfBuffer.toByteArray(), 0, bytesToParse, 0, emfTotalSize);
-			pendingEmfList.add(new PendingEmf(bytesToParse, (AwtDc) dc.clone()));
+			addPendingEmf(bytesToParse);
 			emfBuffer = null;
 			emfTotalSize = 0;
 		}
@@ -1022,6 +1037,7 @@ public class AwtGdi implements Gdi {
 			try {
 				dc = (AwtDc) pendingEmf.dc.clone();
 				replayingPendingEmf = true;
+				applyPendingEmfFrame(pendingEmf.header);
 				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
@@ -1034,13 +1050,102 @@ public class AwtGdi implements Gdi {
 		}
 	}
 
+	private void addPendingEmf(byte[] data) {
+		if (data == null || data.length == 0) {
+			return;
+		}
+		initDc();
+		byte[] copy = new byte[data.length];
+		System.arraycopy(data, 0, copy, 0, data.length);
+		pendingEmfList.add(new PendingEmf(copy, (AwtDc) dc.clone(), readEmfHeader(copy)));
+	}
+
+	private void applyPendingEmfFrame(EmfHeader header) {
+		if (header == null || header.boundsWidth <= 0 || header.boundsHeight <= 0 || header.frameWidth <= 0
+				|| header.frameHeight <= 0) {
+			return;
+		}
+		dc.setMapMode(Gdi.MM_TEXT);
+		dc.setWindowOrgEx(header.boundsLeft, header.boundsTop, null);
+		dc.setWindowExtEx(header.boundsWidth, header.boundsHeight, null);
+		dc.setViewportOrgEx(0, 0, null);
+		dc.setViewportExtEx(frameToPixels(header.frameWidth), frameToPixels(header.frameHeight), null);
+	}
+
+	private boolean isStandaloneEmf(byte[] data) {
+		if (data == null || data.length < EMF_HEADER_MIN_SIZE || readInt32(data, 0) != EMR_HEADER_RECORD_TYPE
+				|| readUInt32(data, 40) != EMF_SIGNATURE) {
+			return false;
+		}
+
+		long totalSize = readUInt32(data, 48);
+		return totalSize >= EMF_HEADER_MIN_SIZE && totalSize <= data.length;
+	}
+
+	private EmfHeader readEmfHeader(byte[] data) {
+		if (!isStandaloneEmf(data)) {
+			return null;
+		}
+		return new EmfHeader(readInt32(data, 8), readInt32(data, 12), readInt32(data, 16), readInt32(data, 20),
+				readInt32(data, 24), readInt32(data, 28), readInt32(data, 32), readInt32(data, 36));
+	}
+
+	private int frameToPixels(int frameSize) {
+		return Math.max(1, (int) Math.round(Math.abs(frameSize) * TARGET_DPI / 5080.0) + 1);
+	}
+
+	private EscapeRecord readEscapeRecord(byte[] data) {
+		if (data == null || data.length < 4) {
+			return null;
+		}
+		int escapeFunction = readUInt16(data, 0);
+		int count = readUInt16(data, 2);
+		if (count > data.length - 4) {
+			return null;
+		}
+		byte[] payload = new byte[count];
+		System.arraycopy(data, 4, payload, 0, count);
+		return new EscapeRecord(escapeFunction, payload);
+	}
+
+	private static class EscapeRecord {
+		private final int escapeFunction;
+		private final byte[] payload;
+
+		private EscapeRecord(int escapeFunction, byte[] payload) {
+			this.escapeFunction = escapeFunction;
+			this.payload = payload;
+		}
+	}
+
+	private static class EmfHeader {
+		private final int boundsLeft;
+		private final int boundsTop;
+		private final int boundsWidth;
+		private final int boundsHeight;
+		private final int frameWidth;
+		private final int frameHeight;
+
+		private EmfHeader(int boundsLeft, int boundsTop, int boundsRight, int boundsBottom, int frameLeft, int frameTop,
+				int frameRight, int frameBottom) {
+			this.boundsLeft = Math.min(boundsLeft, boundsRight);
+			this.boundsTop = Math.min(boundsTop, boundsBottom);
+			this.boundsWidth = Math.abs(boundsRight - boundsLeft);
+			this.boundsHeight = Math.abs(boundsBottom - boundsTop);
+			this.frameWidth = Math.abs(frameRight - frameLeft);
+			this.frameHeight = Math.abs(frameBottom - frameTop);
+		}
+	}
+
 	private static class PendingEmf {
 		private final byte[] data;
 		private final AwtDc dc;
+		private final EmfHeader header;
 
-		private PendingEmf(byte[] data, AwtDc dc) {
+		private PendingEmf(byte[] data, AwtDc dc, EmfHeader header) {
 			this.data = data;
 			this.dc = dc;
+			this.header = header;
 		}
 	}
 

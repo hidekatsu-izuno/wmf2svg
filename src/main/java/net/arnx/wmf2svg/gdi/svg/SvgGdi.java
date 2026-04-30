@@ -473,6 +473,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
+		if (image == null || image.length == 0) {
+			patBltWithoutSource(dx, dy, dw, dh, rop);
+			return;
+		}
+		if (handlePatternRasterOp(image, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.DIB_RGB_COLORS, rop)) {
+			return;
+		}
 		if (isWmfBitmap(image)) {
 			return;
 		}
@@ -757,6 +764,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
+		if (image == null || image.length == 0) {
+			patBltWithoutSource(dx, dy, dw, dh, rop);
+			return;
+		}
 		bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
 	}
 
@@ -5916,6 +5927,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void stretchBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop) {
+		if (image == null || image.length == 0) {
+			patBltWithoutSource(dx, dy, dw, dh, rop);
+			return;
+		}
+		if (handlePatternRasterOp(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, rop)) {
+			return;
+		}
 		if (isWmfBitmap(image)) {
 			return;
 		}
@@ -5924,6 +5942,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, byte[] image, int usage,
 			long rop) {
+		if (handlePatternRasterOp(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop)) {
+			return;
+		}
 		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop);
 	}
 
@@ -6372,6 +6393,88 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		appendPngToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, rop, opacity);
 	}
 
+	private boolean handlePatternRasterOp(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			int usage, long rop) {
+		if (rop == Gdi.PATCOPY) {
+			patBlt(dx, dy, dw, dh, rop);
+			return true;
+		}
+		if (rop == Gdi.PATINVERT) {
+			patBlt(dx, dy, dw, dh, rop);
+			return true;
+		}
+		if (rop != Gdi.MERGECOPY && rop != Gdi.PATPAINT) {
+			return false;
+		}
+
+		Integer brushColor = getSolidBrushColor();
+		if (brushColor == null) {
+			return false;
+		}
+
+		byte[] png = createSolidPatternRopPng(image, usage, sh < 0, brushColor.intValue(), rop);
+		if (png == null) {
+			return false;
+		}
+		appendPngToSvg(png, dx, dy, dw, dh, sx, sy, sw, sh, rop == Gdi.PATPAINT ? Gdi.SRCPAINT : Gdi.SRCCOPY, 1.0f);
+		return true;
+	}
+
+	private void patBltWithoutSource(int x, int y, int width, int height, long rop) {
+		if (rop == Gdi.BLACKNESS || rop == Gdi.DSTINVERT || rop == Gdi.PATCOPY || rop == Gdi.PATINVERT
+				|| rop == Gdi.WHITENESS) {
+			patBlt(x, y, width, height, rop);
+		}
+	}
+
+	private Integer getSolidBrushColor() {
+		SvgBrush brush = dc.getBrush();
+		if (brush == null || brush.getStyle() != GdiBrush.BS_SOLID) {
+			return null;
+		}
+		int color = brush.getColor();
+		int red = color & 0xFF;
+		int green = (color >>> 8) & 0xFF;
+		int blue = (color >>> 16) & 0xFF;
+		return Integer.valueOf((red << 16) | (green << 8) | blue);
+	}
+
+	private byte[] createSolidPatternRopPng(byte[] image, int usage, boolean reverse, int brushRgb, long rop) {
+		BufferedImage source = decodeDib(applyPaletteToDib(image, usage), reverse, null, true);
+		if (source == null) {
+			source = decodeWmfBitmap(image, reverse, null, true);
+		}
+		if (source == null) {
+			return null;
+		}
+
+		BufferedImage result = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < result.getHeight(); y++) {
+			for (int x = 0; x < result.getWidth(); x++) {
+				int argb = source.getRGB(x, y);
+				int alpha = argb & 0xFF000000;
+				int sourceRgb = argb & 0x00FFFFFF;
+				int rgb;
+				if (rop == Gdi.MERGECOPY) {
+					rgb = sourceRgb & brushRgb;
+				} else if (rop == Gdi.PATPAINT) {
+					rgb = (~sourceRgb | brushRgb) & 0x00FFFFFF;
+				} else {
+					return null;
+				}
+				result.setRGB(x, y, alpha | rgb);
+			}
+		}
+
+		try {
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			ImageIO.write(result, "png", out);
+			return out.toByteArray();
+		} catch (IOException e) {
+			return null;
+		}
+	}
+
 	private void appendPngToSvg(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop,
 			float opacity) {
 		String data = createPngDataUri(image);
@@ -6470,6 +6573,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 
 		previousElem.setAttribute("xlink:href", createPngDataUri(merged));
+		previousElem.removeAttribute("filter");
 		previousElem.setUserData(TRANSPARENT_MASK_ROP_USER_DATA, null, null);
 		return true;
 	}

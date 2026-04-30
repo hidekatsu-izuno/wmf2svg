@@ -93,6 +93,45 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testMergeCopyCombinesSourceWithSolidBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x454545, 0));
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0xFF00FF}), Gdi.DIB_RGB_COLORS,
+				Gdi.MERGECOPY);
+
+		BufferedImage image = readFirstPng(gdi);
+		Assert.assertEquals(1, image.getWidth());
+		Assert.assertEquals(1, image.getHeight());
+		Assert.assertEquals(0xFF450045, image.getRGB(0, 0));
+	}
+
+	@Test
+	public void testDibBitBltWithoutSourceUsesPatternForPatternOnlyRop() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		GdiBrush brush = gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x454545, 0);
+		gdi.selectObject(brush);
+
+		gdi.dibBitBlt(null, 1, 2, 3, 4, 0, 0, Gdi.PATCOPY);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("height=\"4\""));
+		Assert.assertTrue(svg.contains("width=\"3\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"2\""));
+		Assert.assertFalse(svg.contains("<image"));
+	}
+
+	@Test
 	public void testConsecutiveSrcInvertTransparentMaskUsesRenderedSize() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 2, 1, 96);
@@ -1927,6 +1966,14 @@ public class SvgGdiTest {
 			dib[pos + 2] = (byte) ((rgb >>> 16) & 0xFF);
 		}
 		return dib;
+	}
+
+	private BufferedImage readFirstPng(SvgGdi gdi) throws Exception {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		Matcher matcher = PNG_DATA_PATTERN.matcher(out.toString("UTF-8"));
+		Assert.assertTrue(matcher.find());
+		return ImageIO.read(new ByteArrayInputStream(java.util.Base64.getDecoder().decode(matcher.group(1))));
 	}
 
 	private byte[] createMonochromeDib(int width, int height, int[] rows) {

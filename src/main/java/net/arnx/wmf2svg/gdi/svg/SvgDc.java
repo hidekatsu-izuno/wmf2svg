@@ -622,9 +622,33 @@ public class SvgDc implements Cloneable {
 				gdi.getDefsElement().appendChild(filter);
 			}
 		} else if (rop == Gdi.PATINVERT) {
-			// TODO
+			name = "PATINVERT_FILTER";
+			Element filter = doc.getElementById(name);
+			if (filter == null) {
+				filter = createRopFilter(doc, name);
+
+				Element feBlend = doc.createElement("feBlend");
+				feBlend.setAttribute("in", "SourceGraphic");
+				feBlend.setAttribute("in2", "BackgroundImage");
+				feBlend.setAttribute("mode", "difference");
+				filter.appendChild(feBlend);
+
+				gdi.getDefsElement().appendChild(filter);
+			}
 		} else if (rop == Gdi.SRCINVERT) {
-			// TODO
+			name = "SRCINVERT_FILTER";
+			Element filter = doc.getElementById(name);
+			if (filter == null) {
+				filter = createRopFilter(doc, name);
+
+				Element feBlend = doc.createElement("feBlend");
+				feBlend.setAttribute("in", "SourceGraphic");
+				feBlend.setAttribute("in2", "BackgroundImage");
+				feBlend.setAttribute("mode", "difference");
+				filter.appendChild(feBlend);
+
+				gdi.getDefsElement().appendChild(filter);
+			}
 		} else if (rop == Gdi.DSTINVERT) {
 			name = "DSTINVERT_FILTER";
 			Element filter = doc.getElementById(name);

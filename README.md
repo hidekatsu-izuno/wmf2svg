@@ -1,21 +1,90 @@
-# wmf2svg - WMF to SVG Converting Tool & Library for Java
+# wmf2svg - WMF/EMF Converting Tool & Library for Java
 
-This project's goal is to make tool & library for converting wmf to svg.
+This project's goal is to provide a Java tool and library for reading WMF/EMF files and rendering or writing them through GDI-compatible backends.
 
-## Example
+## Command line
 
 ```
-java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg/svgz filename]
+java -jar wmf2svg-[version].jar [options...] [wmf/emf filename] [svg/svgz/png/jpg/jpeg filename]
 ```
+
+The output format is selected by the output filename suffix.
+
+- `.svg`: write SVG.
+- `.svgz`: write gzip-compressed SVG.
+- `.png`: render to PNG using Java2D/ImageIO.
+- `.jpg` or `.jpeg`: render to JPEG using Java2D/ImageIO.
 
 ## Options
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
 - -replace-symbol-font: replace SYMBOL/Wingdings[23]? Font to serif Unicode symbols.
 
-If you need to compress by gzip, you should use .svgz suffix as svg filename.
+If you render PNG/JPEG in a headless environment, specify Java's headless mode at runtime as needed:
+
+```
+java -Djava.awt.headless=true -jar wmf2svg-[version].jar input.wmf output.png
+```
 
 It now requires Java 8.0 or later.
+
+## Library usage
+
+The parsers replay metafile records to a `Gdi` implementation. Choose the implementation that matches the output you
+want.
+
+### SVG output
+
+```java
+try (InputStream in = new FileInputStream("input.wmf");
+		OutputStream out = new FileOutputStream("output.svg")) {
+	SvgGdi gdi = new SvgGdi();
+	new WmfParser().parse(in, gdi);
+	gdi.write(out);
+}
+```
+
+Use `new EmfParser()` for `.emf` input.
+
+### PNG/JPEG output
+
+```java
+try (InputStream in = new FileInputStream("input.emf");
+		OutputStream out = new FileOutputStream("output.png")) {
+	AwtGdi gdi = new AwtGdi();
+	gdi.setOpaqueBackground(true);
+	new EmfParser().parse(in, gdi);
+	gdi.write(out, "png");
+}
+```
+
+`AwtGdi` renders through `Graphics2D` and writes raster images with `ImageIO`. Use `"jpeg"` to write JPEG.
+
+### WMF/EMF output
+
+`WmfGdi` and `EmfGdi` record GDI calls and serialize them as WMF or EMF. This can be used to generate metafiles
+directly, or to transcode the supported subset of another metafile.
+
+```java
+try (InputStream in = new FileInputStream("input.wmf");
+		OutputStream out = new FileOutputStream("output.emf")) {
+	EmfGdi gdi = new EmfGdi();
+	new WmfParser().parse(in, gdi);
+	gdi.write(out);
+}
+```
+
+```java
+try (OutputStream out = new FileOutputStream("output.wmf")) {
+	WmfGdi gdi = new WmfGdi();
+	gdi.placeableHeader(0, 0, 1000, 1000, 1440);
+	gdi.header();
+	gdi.rectangle(100, 100, 900, 900);
+	gdi.write(out);
+}
+```
+
+Some advanced records are format-specific and may not be representable in the target metafile writer.
 
 ## Maven repository
 
@@ -35,7 +104,7 @@ mvn package
 
 ## History
 
-- 2026-04-30: Improve EMF+ GetDC, raw/indexed/high-depth/compressed bitmap images, continued object records, curve, anti-alias mode, pixel offset/compositing quality/compositing mode, terminal-server graphics state/clip including compressed clip, container state/transform, text/layout clipping/text rendering hint/text contrast/hotkey prefix/right-to-left/tracking/font unit preservation, path fill mode, clipping/offset clip/xor/complement clip combine, region/empty/infinite/intersect/union/xor/exclude/complement region, world/page transform, rendering origin, interpolation/image rendering mode, stroke-fill path, pen unit/dash/dash cap/cap/join/miter/transform data, image source rectangle clipping, linear gradient/preset color/horizontal and vertical blend factor/gamma correction/transform/wrap mode brush, path gradient/preset color/blend factor/focus scale/gamma correction/elliptical bounds/wrap mode brush, hatch brush, and texture brush transform/gamma correction support.
+- 2026-04-30: Improve EMF+ support. And add PNG/JPEG output through AWT/ImageIO and improve AWT PNG rendering fidelity.
 - 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)
 - 2026-04-26: Migrated to Maven build system. And some TODO implemented.

@@ -72,9 +72,9 @@ public class Main {
 			InputStream in = new FileInputStream(src);
 			Parser parser = src.toLowerCase().endsWith(".emf") ? new EmfParser() : new WmfParser();
 			String destLower = dest.toLowerCase();
-			boolean imageOutput = destLower.endsWith(".png") || destLower.endsWith(".jpg")
-					|| destLower.endsWith(".jpeg");
-			final Gdi gdi = imageOutput ? new AwtGdi() : new SvgGdi(compatible);
+			final Gdi gdi = (destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg"))
+					? new AwtGdi()
+					: new SvgGdi(compatible);
 			if (gdi instanceof SvgGdi) {
 				((SvgGdi) gdi).setReplaceSymbolFont(replaceSymbolFont);
 			}
@@ -160,8 +160,12 @@ public class Main {
 					out = new GZIPOutputStream(out);
 				}
 
-				if (imageOutput) {
-					((AwtGdi) gdi).write(out, destLower.endsWith(".png") ? "png" : "jpeg");
+				if (gdi instanceof AwtGdi) {
+					if (destLower.endsWith(".png")) {
+						((AwtGdi) gdi).write(out, "png");
+					} else {
+						((AwtGdi) gdi).write(out, "jpeg");
+					}
 				} else {
 					((SvgGdi) gdi).write(out);
 				}

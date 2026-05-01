@@ -1351,7 +1351,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		AwtDc savedDc = dc;
 		for (PendingEmf pendingEmf : list) {
 			try {
-				boolean useOuterDc = !pendingEmf.hasExplicitDc() && hasExplicitMapping(savedDc);
+				boolean useOuterDc = placeableHeader && !pendingEmf.hasExplicitDc() && hasExplicitMapping(savedDc);
 				dc = (AwtDc) (useOuterDc ? savedDc : pendingEmf.dc).clone();
 				replayingPendingEmf = true;
 				ignoredPendingEmfHeaderMappings = useOuterDc ? 2 : 0;
@@ -1899,8 +1899,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			dash = new float[]{4 * width, 2 * width, width, 2 * width, width, 2 * width};
 		}
 		return dash == null
-				? new BasicStroke(width)
-				: new BasicStroke(width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER,
+				? new BasicStroke(width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+				: new BasicStroke(width, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
 						Math.max(dc.getMiterLimit(), 1.0f), dash, 0.0f);
 	}
 

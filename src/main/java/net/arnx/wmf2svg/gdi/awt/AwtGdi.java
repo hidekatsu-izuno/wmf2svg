@@ -374,8 +374,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx, int my,
 			long rop) {
-		if (mask != null && rop == Gdi.SRCCOPY) {
-			drawMaskedSrcCopy(image, dx, dy, dw, dh, sx, sy, dw, dh, mask, mx, my);
+		maskBlt(image, dx, dy, dw, dh, sx, sy, mask, mx, my, rop, null);
+	}
+
+	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx, int my,
+			long rop, Integer sourceBackgroundColor) {
+		if (mask != null) {
+			drawMaskedBitmapRop(image, dx, dy, dw, dh, sx, sy, dw, dh, mask, mx, my, rop, sourceBackgroundColor);
 			return;
 		}
 		bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
@@ -2148,9 +2153,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			patBlt(dx, dy, dw, dh, rop.longValue());
 			return;
 		}
-		if (!isSupportedBitmapRop(rop.longValue())) {
-			return;
-		}
+		int rop3 = getBitmapRop3(rop.longValue());
 		BufferedImage source = decodeBitmap(data, usage, sh < 0, transparentColor, preserveAlpha);
 		if (source == null) {
 			return;
@@ -2172,10 +2175,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int x2 = (int) tx(dx + dw);
 		int y2 = (int) ty(dy + dh);
 		ensureCanvasContains(x1, y1, x2, y2);
-		if (rop.longValue() == Gdi.SRCCOPY && transparentColor == null) {
+		if (rop3 == getBitmapRop3(Gdi.SRCCOPY)) {
 			graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
 		} else {
-			composeBitmapRop(subImage, x1, y1, x2, y2, rop.longValue());
+			composeBitmapRop(subImage, x1, y1, x2, y2, rop3);
 		}
 	}
 
@@ -2308,17 +2311,17 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setTransform(old);
 	}
 
-	private void drawMaskedSrcCopy(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
-			byte[] mask, int mx, int my) {
+	private void drawMaskedBitmapRop(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
+			byte[] mask, int mx, int my, long rop, Integer sourceBackgroundColor) {
 		ensureGraphics();
 		if (data == null || data.length == 0) {
 			return;
 		}
 		BufferedImage source = decodeBitmap(data, Gdi.DIB_RGB_COLORS, sh < 0, null, true);
-		if (source == null) {
+		BufferedImage maskImage = decodeBitmap(mask, Gdi.DIB_RGB_COLORS, false, null, false);
+		if (source == null || maskImage == null) {
 			return;
 		}
-		source = applyMask(source, mask, mx, my);
 		int srcX = sw < 0 ? sx + sw : sx;
 		int srcY = sh < 0 ? sy + sh : sy;
 		int srcW = Math.abs(sw);
@@ -2335,7 +2338,18 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int x2 = (int) tx(dx + dw);
 		int y2 = (int) ty(dy + dh);
 		ensureCanvasContains(x1, y1, x2, y2);
-		graphics.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+
+		int foregroundRop3 = getBitmapRop3(rop & 0x00FFFFFFL);
+		int backgroundRop3 = (rop & 0xFF000000L) != 0 ? (int) ((rop >>> 24) & 0xFF) : 0xAA;
+		BufferedImage subImage = source.getSubimage(srcX, srcY, srcW, srcH);
+		Integer sourceBackgroundRgb = sourceBackgroundColor != null
+				? Integer.valueOf(toRgb(sourceBackgroundColor.intValue()))
+				: null;
+		if (isMaskBltCopySourceOnZeroMask(rop)) {
+			sourceBackgroundRgb = Integer.valueOf(subImage.getRGB(0, 0) & 0x00FFFFFF);
+		}
+		composeMaskedBitmapRop(subImage, maskImage, mx, my, x1, y1, x2, y2, foregroundRop3, backgroundRop3,
+				sourceBackgroundRgb);
 	}
 
 	private BufferedImage applyMask(BufferedImage source, byte[] mask, int mx, int my) {
@@ -2358,14 +2372,22 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return result;
 	}
 
-	private boolean isSupportedBitmapRop(long rop) {
-		return rop == Gdi.BLACKNESS || rop == 0x001100A6L || rop == Gdi.NOTSRCCOPY || rop == 0x00440328L
-				|| rop == Gdi.DSTINVERT || rop == Gdi.SRCINVERT || rop == 0x008800C6L || rop == Gdi.MERGEPAINT
-				|| rop == Gdi.MERGECOPY || rop == Gdi.SRCCOPY || rop == Gdi.SRCPAINT || rop == Gdi.PATPAINT
-				|| rop == Gdi.WHITENESS;
+	private int getBitmapRop3(long rop) {
+		if ((rop & 0xFF000000L) != 0) {
+			return (int) ((rop >>> 24) & 0xFF);
+		}
+		return (int) ((rop >>> 16) & 0xFF);
 	}
 
-	private void composeBitmapRop(Image source, int x1, int y1, int x2, int y2, long rop) {
+	private int toRgb(int gdiColor) {
+		return ((gdiColor & 0xFF) << 16) | (gdiColor & 0x0000FF00) | ((gdiColor >>> 16) & 0xFF);
+	}
+
+	private boolean isMaskBltCopySourceOnZeroMask(long rop) {
+		return (rop & 0xFF000000L) == 0xCC000000L && (rop & 0x00FFFFFFL) == 0x00AA0029L;
+	}
+
+	private void composeBitmapRop(Image source, int x1, int y1, int x2, int y2, int rop3) {
 		int left = Math.min(x1, x2);
 		int top = Math.min(y1, y2);
 		int width = Math.abs(x2 - x1);
@@ -2385,7 +2407,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 
 		BufferedImage pat = null;
-		if (rop == Gdi.MERGECOPY || rop == Gdi.PATPAINT) {
+		if (usesPattern(rop3)) {
 			pat = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 			Graphics2D pg = pat.createGraphics();
 			try {
@@ -2409,39 +2431,87 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				int s = src.getRGB(sx, sy) & 0x00FFFFFF;
 				int d = image.getRGB(x, y) & 0x00FFFFFF;
 				int p = pat != null ? pat.getRGB(sx, sy) & 0x00FFFFFF : 0;
-				image.setRGB(x, y, 0xFF000000 | applyBitmapRop(s, d, p, rop));
+				image.setRGB(x, y, 0xFF000000 | applyBitmapRop(s, d, p, rop3));
 			}
 		}
 	}
 
-	private int applyBitmapRop(int s, int d, int p, long rop) {
-		int rgb;
-		if (rop == Gdi.BLACKNESS) {
-			rgb = 0;
-		} else if (rop == 0x001100A6L) {
-			rgb = ~(s | d);
-		} else if (rop == Gdi.NOTSRCCOPY) {
-			rgb = ~s;
-		} else if (rop == 0x00440328L) {
-			rgb = s & ~d;
-		} else if (rop == Gdi.DSTINVERT) {
-			rgb = ~d;
-		} else if (rop == Gdi.SRCINVERT) {
-			rgb = s ^ d;
-		} else if (rop == 0x008800C6L) {
-			rgb = s & d;
-		} else if (rop == Gdi.MERGEPAINT) {
-			rgb = ~s | d;
-		} else if (rop == Gdi.MERGECOPY) {
-			rgb = s & p;
-		} else if (rop == Gdi.SRCPAINT) {
-			rgb = s | d;
-		} else if (rop == Gdi.PATPAINT) {
-			rgb = d | p | ~s;
-		} else if (rop == Gdi.WHITENESS) {
-			rgb = 0x00FFFFFF;
-		} else {
-			rgb = s;
+	private void composeMaskedBitmapRop(Image source, BufferedImage maskImage, int mx, int my, int x1, int y1, int x2,
+			int y2, int foregroundRop3, int backgroundRop3, Integer sourceBackgroundRgb) {
+		int left = Math.min(x1, x2);
+		int top = Math.min(y1, y2);
+		int width = Math.abs(x2 - x1);
+		int height = Math.abs(y2 - y1);
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+
+		BufferedImage src = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D sg = src.createGraphics();
+		try {
+			configureGraphics(sg);
+			sg.drawImage(source, x1 < x2 ? 0 : width, y1 < y2 ? 0 : height, x1 < x2 ? width : 0, y1 < y2 ? height : 0,
+					null);
+		} finally {
+			sg.dispose();
+		}
+
+		BufferedImage pat = null;
+		if (usesPattern(foregroundRop3) || usesPattern(backgroundRop3)) {
+			pat = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+			Graphics2D pg = pat.createGraphics();
+			try {
+				configureGraphics(pg);
+				pg.translate(-left, -top);
+				pg.setPaint(toPaint(dc.getBrush()));
+				pg.fillRect(left, top, width, height);
+			} finally {
+				pg.dispose();
+			}
+		}
+
+		int clipLeft = Math.max(left, 0);
+		int clipTop = Math.max(top, 0);
+		int clipRight = Math.min(left + width, canvasWidth);
+		int clipBottom = Math.min(top + height, canvasHeight);
+		for (int y = clipTop; y < clipBottom; y++) {
+			for (int x = clipLeft; x < clipRight; x++) {
+				int sx = x - left;
+				int sy = y - top;
+				int maskX = positiveModulo(mx + sx * maskImage.getWidth() / width, maskImage.getWidth());
+				int maskY = positiveModulo(my + sy * maskImage.getHeight() / height, maskImage.getHeight());
+				int maskRgb = maskImage.getRGB(maskX, maskY);
+				int maskValue = (((maskRgb >>> 16) & 0xFF) + ((maskRgb >>> 8) & 0xFF) + (maskRgb & 0xFF)) / 3;
+				int rop3 = maskValue >= 128 ? foregroundRop3 : backgroundRop3;
+				int s = src.getRGB(sx, sy) & 0x00FFFFFF;
+				int d = image.getRGB(x, y) & 0x00FFFFFF;
+				int p = pat != null ? pat.getRGB(sx, sy) & 0x00FFFFFF : 0;
+				if (sourceBackgroundRgb != null && rop3 == getBitmapRop3(Gdi.SRCCOPY)
+						&& s == sourceBackgroundRgb.intValue()) {
+					s = d;
+				}
+				image.setRGB(x, y, 0xFF000000 | applyBitmapRop(s, d, p, rop3));
+			}
+		}
+	}
+
+	private int positiveModulo(int value, int divisor) {
+		int result = value % divisor;
+		return result < 0 ? result + divisor : result;
+	}
+
+	private boolean usesPattern(int rop3) {
+		return (rop3 & 0x0F) != ((rop3 >>> 4) & 0x0F);
+	}
+
+	private int applyBitmapRop(int s, int d, int p, int rop3) {
+		int rgb = 0;
+		for (int bit = 0; bit < 24; bit++) {
+			int mask = 1 << bit;
+			int index = ((p & mask) != 0 ? 4 : 0) | ((s & mask) != 0 ? 2 : 0) | ((d & mask) != 0 ? 1 : 0);
+			if (((rop3 >>> index) & 1) != 0) {
+				rgb |= mask;
+			}
 		}
 		return rgb & 0x00FFFFFF;
 	}
@@ -2821,9 +2891,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private double[] multiplyEmfPlusMatrix(double[] a, double[] b) {
-		return new double[]{a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3],
-				a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3],
-				a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]};
+		return new double[]{a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2],
+				a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]};
 	}
 
 	private void setEmfPlusPageTransform(int flags, byte[] payload) {

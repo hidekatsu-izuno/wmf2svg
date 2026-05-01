@@ -889,7 +889,7 @@ public class EmfParser implements Parser, EmfConstants {
 
 		gdi.maskBlt(image, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1], readInt32(data, 36),
 				readInt32(data, 40), readBitmap(data, 104, 108, 112, 116), readInt32(data, 92), readInt32(data, 96),
-				rop);
+				rop, readInt32(data, 72));
 	}
 
 	private static void readPlgBlt(byte[] data, double[] transform, Gdi gdi) {

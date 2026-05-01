@@ -43,7 +43,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.text.AttributedString;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
 
@@ -62,11 +64,13 @@ import net.arnx.wmf2svg.gdi.GradientTriangle;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.Trivertex;
+import net.arnx.wmf2svg.gdi.emf.EmfPlusConstants;
+import net.arnx.wmf2svg.gdi.emf.EmfPlusParser;
 import net.arnx.wmf2svg.gdi.emf.EmfParseException;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.util.SymbolFontMappings;
 
-public class AwtGdi implements Gdi {
+public class AwtGdi implements Gdi, EmfPlusConstants {
 	private static final int DEFAULT_CANVAS_WIDTH = 330;
 	private static final int DEFAULT_CANVAS_HEIGHT = 460;
 	private static final int TARGET_DPI = 144;
@@ -100,6 +104,16 @@ public class AwtGdi implements Gdi {
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
 	private boolean replayingPendingEmf;
 	private int ignoredPendingEmfHeaderMappings;
+	private boolean parseEmfPlusComments = true;
+	private EmfPlusParser emfPlusParser = new EmfPlusParser();
+	private Map<Integer, byte[]> emfPlusMetafileImages = new HashMap<Integer, byte[]>();
+	private boolean suppressEmfPlusFallback;
+	private boolean emfPlusGetDCActive;
+	private double[] emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
+	private double emfPlusPageScale = 1.0;
+	private double emfPlusPageUnitScale = 1.0;
+	private LinkedList<double[]> emfPlusWorldTransformStack = new LinkedList<double[]>();
+	private LinkedList<double[]> emfPlusPageTransformStack = new LinkedList<double[]>();
 
 	public AwtGdi() {
 	}
@@ -127,6 +141,10 @@ public class AwtGdi implements Gdi {
 
 	public boolean isReplaceSymbolFont() {
 		return replaceSymbolFont;
+	}
+
+	private void setParseEmfPlusComments(boolean flag) {
+		parseEmfPlusComments = flag;
 	}
 
 	public void write(OutputStream out, String format) throws IOException {
@@ -482,6 +500,21 @@ public class AwtGdi implements Gdi {
 	}
 
 	public void comment(byte[] data) {
+		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
+			if (emfPlusGetDCActive) {
+				endEmfPlusGetDCMode();
+			} else {
+				suppressEmfPlusFallback = false;
+			}
+			emfPlusParser.parse(data, new EmfPlusParser.Handler() {
+				public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
+						int totalObjectSize) {
+					AwtGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
+				}
+			});
+			return;
+		}
+
 		if (!EmfParser.isEnhancedMetafileEscape(data)) {
 			return;
 		}
@@ -721,6 +754,224 @@ public class AwtGdi implements Gdi {
 				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
 			}
 		}
+	}
+
+	private void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
+			int totalObjectSize) {
+		if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
+			endEmfPlusGetDCMode();
+		}
+		if (type == EMF_PLUS_GET_DC) {
+			emfPlusGetDCActive = true;
+			suppressEmfPlusFallback = false;
+		} else if (type == EMF_PLUS_OBJECT) {
+			handleEmfPlusObject(flags, payload);
+		} else if (type == EMF_PLUS_DRAW_IMAGE) {
+			handleEmfPlusDrawImage(flags, payload);
+		} else if (type == EMF_PLUS_DRAW_IMAGE_POINTS) {
+			handleEmfPlusDrawImagePoints(flags, payload);
+		} else if (type == EMF_PLUS_SAVE || type == EMF_PLUS_BEGIN_CONTAINER
+				|| type == EMF_PLUS_BEGIN_CONTAINER_NO_PARAMS) {
+			saveEmfPlusState();
+		} else if (type == EMF_PLUS_RESTORE || type == EMF_PLUS_END_CONTAINER) {
+			restoreEmfPlusState();
+		} else if (type == EMF_PLUS_SET_WORLD_TRANSFORM) {
+			setEmfPlusWorldTransform(payload);
+		} else if (type == EMF_PLUS_RESET_WORLD_TRANSFORM) {
+			emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
+		} else if (type == EMF_PLUS_MULTIPLY_WORLD_TRANSFORM) {
+			multiplyEmfPlusWorldTransform(flags, payload);
+		} else if (type == EMF_PLUS_TRANSLATE_WORLD_TRANSFORM) {
+			translateEmfPlusWorldTransform(flags, payload);
+		} else if (type == EMF_PLUS_SCALE_WORLD_TRANSFORM) {
+			scaleEmfPlusWorldTransform(flags, payload);
+		} else if (type == EMF_PLUS_SET_PAGE_TRANSFORM) {
+			setEmfPlusPageTransform(flags, payload);
+		}
+	}
+
+	private void endEmfPlusGetDCMode() {
+		emfPlusGetDCActive = false;
+		suppressEmfPlusFallback = false;
+	}
+
+	private void saveEmfPlusState() {
+		emfPlusWorldTransformStack.addFirst(emfPlusWorldTransform.clone());
+		emfPlusPageTransformStack.addFirst(new double[]{emfPlusPageScale, emfPlusPageUnitScale});
+	}
+
+	private void restoreEmfPlusState() {
+		if (!emfPlusWorldTransformStack.isEmpty()) {
+			emfPlusWorldTransform = emfPlusWorldTransformStack.removeFirst();
+		}
+		if (!emfPlusPageTransformStack.isEmpty()) {
+			double[] pageTransform = emfPlusPageTransformStack.removeFirst();
+			emfPlusPageScale = pageTransform[0];
+			emfPlusPageUnitScale = pageTransform[1];
+		}
+	}
+
+	private void handleEmfPlusObject(int flags, byte[] payload) {
+		int objectId = flags & 0xFF;
+		int objectType = (flags >>> 8) & 0x7F;
+		if (objectType != EMF_PLUS_OBJECT_TYPE_IMAGE || payload.length < 16) {
+			return;
+		}
+
+		int imageDataType = readInt32(payload, 4);
+		if (imageDataType != EMF_PLUS_IMAGE_DATA_TYPE_METAFILE) {
+			return;
+		}
+		int metafileSize = readInt32(payload, 12);
+		if (metafileSize <= 0 || 16 + metafileSize > payload.length) {
+			return;
+		}
+
+		byte[] metafile = new byte[metafileSize];
+		System.arraycopy(payload, 16, metafile, 0, metafileSize);
+		emfPlusMetafileImages.put(Integer.valueOf(objectId), metafile);
+	}
+
+	private void handleEmfPlusDrawImage(int flags, byte[] payload) {
+		if (payload.length < 32) {
+			return;
+		}
+		int objectId = flags & 0xFF;
+		double srcX = readFloat(payload, 8);
+		double srcY = readFloat(payload, 12);
+		double srcWidth = readFloat(payload, 16);
+		double srcHeight = readFloat(payload, 20);
+		if (srcWidth == 0 || srcHeight == 0) {
+			return;
+		}
+		double[][] rects = readEmfPlusRects(payload, 24, 1, isEmfPlusCompressed(flags));
+		if (rects == null) {
+			return;
+		}
+		double[] rect = rects[0];
+		drawEmfPlusMetafileImage(objectId, srcX, srcY, srcWidth, srcHeight,
+				new double[][]{{rect[0], rect[1]}, {rect[0] + rect[2], rect[1]}, {rect[0], rect[1] + rect[3]}}, false);
+	}
+
+	private void handleEmfPlusDrawImagePoints(int flags, byte[] payload) {
+		int objectId = flags & 0xFF;
+		if (payload.length < 28) {
+			return;
+		}
+		double srcX = readFloat(payload, 8);
+		double srcY = readFloat(payload, 12);
+		double srcWidth = readFloat(payload, 16);
+		double srcHeight = readFloat(payload, 20);
+		int count = readInt32(payload, 24);
+		if (count < 3 || srcWidth == 0 || srcHeight == 0) {
+			return;
+		}
+		double[][] points = readEmfPlusDrawingPoints(payload, 28, count, flags);
+		if (points == null) {
+			return;
+		}
+		drawEmfPlusMetafileImage(objectId, srcX, srcY, srcWidth, srcHeight, points, true);
+	}
+
+	private void drawEmfPlusMetafileImage(int objectId, double srcX, double srcY, double srcWidth, double srcHeight,
+			double[][] points, boolean normalizeUnit) {
+		byte[] metafile = emfPlusMetafileImages.get(Integer.valueOf(objectId));
+		if (metafile == null) {
+			return;
+		}
+		BufferedImage metafileImage = renderEmfPlusMetafile(metafile);
+		if (metafileImage == null) {
+			return;
+		}
+
+		double[] p0 = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
+		double[] p1 = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
+		double[] p2 = toEmfPlusLogicalPoint(points[2][0], points[2][1]);
+		if (normalizeUnit) {
+			double[] unit = getEmfPlusImageUnitScale(p0, p1, p2, srcWidth, srcHeight);
+			p0 = normalizeEmfPlusImagePoint(p0, unit);
+			p1 = normalizeEmfPlusImagePoint(p1, unit);
+			p2 = normalizeEmfPlusImagePoint(p2, unit);
+		}
+
+		double a = (p1[0] - p0[0]) / srcWidth;
+		double b = (p1[1] - p0[1]) / srcWidth;
+		double c = (p2[0] - p0[0]) / srcHeight;
+		double d = (p2[1] - p0[1]) / srcHeight;
+		double e = p0[0];
+		double f = p0[1];
+
+		ensureGraphics();
+		AffineTransform old = graphics.getTransform();
+		graphics.drawImage(metafileImage, new AffineTransform(a, b, c, d, e, f), null);
+		graphics.setTransform(old);
+		suppressEmfPlusFallback = true;
+	}
+
+	private BufferedImage renderEmfPlusMetafile(byte[] metafile) {
+		try {
+			AwtGdi gdi = new AwtGdi();
+			gdi.setReplaceSymbolFont(replaceSymbolFont);
+			gdi.setParseEmfPlusComments(false);
+			new EmfParser().parse(new ByteArrayInputStream(metafile), gdi);
+			return cropTransparentBounds(gdi.getImage());
+		} catch (IOException e) {
+			return null;
+		} catch (EmfParseException e) {
+			return null;
+		}
+	}
+
+	private BufferedImage cropTransparentBounds(BufferedImage source) {
+		BufferedImage cropped = cropBounds(source, false);
+		if (cropped != source) {
+			return cropped;
+		}
+		return cropBounds(source, true);
+	}
+
+	private BufferedImage cropBounds(BufferedImage source, boolean ignoreBackgroundColor) {
+		int background = source.getRGB(0, 0) & 0x00FFFFFF;
+		int minX = source.getWidth();
+		int minY = source.getHeight();
+		int maxX = -1;
+		int maxY = -1;
+		for (int y = 0; y < source.getHeight(); y++) {
+			for (int x = 0; x < source.getWidth(); x++) {
+				int argb = source.getRGB(x, y);
+				int alpha = (argb >>> 24) & 0xFF;
+				if (alpha != 0 && (!ignoreBackgroundColor || (argb & 0x00FFFFFF) != background)) {
+					if (x < minX) {
+						minX = x;
+					}
+					if (y < minY) {
+						minY = y;
+					}
+					if (x > maxX) {
+						maxX = x;
+					}
+					if (y > maxY) {
+						maxY = y;
+					}
+				}
+			}
+		}
+		if (maxX < minX || maxY < minY) {
+			return source;
+		}
+		if (minX == 0 && minY == 0 && maxX == source.getWidth() - 1 && maxY == source.getHeight() - 1) {
+			return source;
+		}
+
+		BufferedImage cropped = new BufferedImage(maxX - minX + 1, maxY - minY + 1, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = cropped.createGraphics();
+		try {
+			configureGraphics(g);
+			g.drawImage(source, -minX, -minY, null);
+		} finally {
+			g.dispose();
+		}
+		return cropped;
 	}
 
 	public void polygon(Point[] points) {
@@ -1507,6 +1758,9 @@ public class AwtGdi implements Gdi {
 
 	private void fillShape(Shape shape, GdiBrush brush) {
 		ensureGraphics();
+		if (shouldSuppressEmfPlusFallback()) {
+			return;
+		}
 		if (brush == null || brush.getStyle() == GdiBrush.BS_NULL || brush.getStyle() == GdiBrush.BS_HOLLOW) {
 			return;
 		}
@@ -1519,6 +1773,9 @@ public class AwtGdi implements Gdi {
 
 	private void strokeShape(Shape shape, GdiPen pen) {
 		ensureGraphics();
+		if (shouldSuppressEmfPlusFallback()) {
+			return;
+		}
 		if (pen == null || (pen.getStyle() & GdiPen.PS_STYLE_MASK) == GdiPen.PS_NULL) {
 			return;
 		}
@@ -1701,6 +1958,9 @@ public class AwtGdi implements Gdi {
 
 	private void drawText(int x, int y, String text, int[] lpdx) {
 		ensureGraphics();
+		if (shouldSuppressEmfPlusFallback()) {
+			return;
+		}
 		if (text == null || text.length() == 0) {
 			return;
 		}
@@ -1876,6 +2136,9 @@ public class AwtGdi implements Gdi {
 	private void drawBitmap(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, int usage,
 			Object ropOrTransparentColor, boolean preserveAlpha) {
 		ensureGraphics();
+		if (shouldSuppressEmfPlusFallback()) {
+			return;
+		}
 		if (data == null || data.length == 0) {
 			return;
 		}
@@ -2433,6 +2696,166 @@ public class AwtGdi implements Gdi {
 			default :
 				return 0;
 		}
+	}
+
+	private boolean shouldSuppressEmfPlusFallback() {
+		return suppressEmfPlusFallback && !emfPlusGetDCActive;
+	}
+
+	private boolean isEmfPlusCompressed(int flags) {
+		return (flags & EMF_PLUS_FLAG_COMPRESSED) != 0;
+	}
+
+	private double[][] readEmfPlusRects(byte[] payload, int offset, int count, boolean compressed) {
+		if (count < 0) {
+			return null;
+		}
+		int elementSize = compressed ? 8 : 16;
+		if (payload.length < offset || (payload.length - offset) / elementSize < count) {
+			return null;
+		}
+		double[][] rects = new double[count][4];
+		for (int i = 0; i < count; i++) {
+			int pos = offset + i * elementSize;
+			if (compressed) {
+				rects[i][0] = readInt16(payload, pos);
+				rects[i][1] = readInt16(payload, pos + 2);
+				rects[i][2] = readInt16(payload, pos + 4);
+				rects[i][3] = readInt16(payload, pos + 6);
+			} else {
+				rects[i][0] = readFloat(payload, pos);
+				rects[i][1] = readFloat(payload, pos + 4);
+				rects[i][2] = readFloat(payload, pos + 8);
+				rects[i][3] = readFloat(payload, pos + 12);
+			}
+		}
+		return rects;
+	}
+
+	private double[][] readEmfPlusDrawingPoints(byte[] payload, int offset, int count, int flags) {
+		return readEmfPlusDrawingPoints(payload, offset, count, isEmfPlusCompressed(flags));
+	}
+
+	private double[][] readEmfPlusDrawingPoints(byte[] payload, int offset, int count, boolean compressed) {
+		if (count < 0) {
+			return null;
+		}
+		int elementSize = compressed ? 4 : 8;
+		if (payload.length < offset || (payload.length - offset) / elementSize < count) {
+			return null;
+		}
+		double[][] points = new double[count][2];
+		for (int i = 0; i < count; i++) {
+			int pos = offset + i * elementSize;
+			if (compressed) {
+				points[i][0] = readInt16(payload, pos);
+				points[i][1] = readInt16(payload, pos + 2);
+			} else {
+				points[i][0] = readFloat(payload, pos);
+				points[i][1] = readFloat(payload, pos + 4);
+			}
+		}
+		return points;
+	}
+
+	private double[] toEmfPlusLogicalPoint(double x, double y) {
+		double scale = emfPlusPageScale * emfPlusPageUnitScale;
+		double tx = emfPlusWorldTransform[0] * x + emfPlusWorldTransform[2] * y + emfPlusWorldTransform[4];
+		double ty = emfPlusWorldTransform[1] * x + emfPlusWorldTransform[3] * y + emfPlusWorldTransform[5];
+		return new double[]{tx * scale, ty * scale};
+	}
+
+	private double[] getEmfPlusImageUnitScale(double[] p0, double[] p1, double[] p2, double srcWidth,
+			double srcHeight) {
+		double scaleX = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / Math.abs(srcWidth);
+		double scaleY = Math.hypot(p2[0] - p0[0], p2[1] - p0[1]) / Math.abs(srcHeight);
+		if (scaleX <= 0 || Double.isNaN(scaleX) || Double.isInfinite(scaleX)) {
+			scaleX = 1;
+		}
+		if (scaleY <= 0 || Double.isNaN(scaleY) || Double.isInfinite(scaleY)) {
+			scaleY = 1;
+		}
+		return new double[]{scaleX, scaleY};
+	}
+
+	private double[] normalizeEmfPlusImagePoint(double[] point, double[] unit) {
+		return new double[]{point[0] / unit[0], point[1] / unit[1]};
+	}
+
+	private void setEmfPlusWorldTransform(byte[] payload) {
+		if (payload.length < 24) {
+			return;
+		}
+		emfPlusWorldTransform = new double[]{readFloat(payload, 0), readFloat(payload, 4), readFloat(payload, 8),
+				readFloat(payload, 12), readFloat(payload, 16), readFloat(payload, 20)};
+	}
+
+	private void multiplyEmfPlusWorldTransform(int flags, byte[] payload) {
+		if (payload.length < 24) {
+			return;
+		}
+		applyEmfPlusWorldTransform(flags, new double[]{readFloat(payload, 0), readFloat(payload, 4),
+				readFloat(payload, 8), readFloat(payload, 12), readFloat(payload, 16), readFloat(payload, 20)});
+	}
+
+	private void translateEmfPlusWorldTransform(int flags, byte[] payload) {
+		if (payload.length < 8) {
+			return;
+		}
+		applyEmfPlusWorldTransform(flags, new double[]{1, 0, 0, 1, readFloat(payload, 0), readFloat(payload, 4)});
+	}
+
+	private void scaleEmfPlusWorldTransform(int flags, byte[] payload) {
+		if (payload.length < 8) {
+			return;
+		}
+		applyEmfPlusWorldTransform(flags, new double[]{readFloat(payload, 0), 0, 0, readFloat(payload, 4), 0, 0});
+	}
+
+	private void applyEmfPlusWorldTransform(int flags, double[] matrix) {
+		if ((flags & EMF_PLUS_FLAG_MATRIX_ORDER_APPEND) != 0) {
+			emfPlusWorldTransform = multiplyEmfPlusMatrix(emfPlusWorldTransform, matrix);
+		} else {
+			emfPlusWorldTransform = multiplyEmfPlusMatrix(matrix, emfPlusWorldTransform);
+		}
+	}
+
+	private double[] multiplyEmfPlusMatrix(double[] a, double[] b) {
+		return new double[]{a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3],
+				a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3],
+				a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]};
+	}
+
+	private void setEmfPlusPageTransform(int flags, byte[] payload) {
+		if (payload.length < 4) {
+			return;
+		}
+		emfPlusPageScale = readFloat(payload, 0);
+		emfPlusPageUnitScale = toEmfPlusPageUnitScale(flags & 0xFF);
+	}
+
+	private double toEmfPlusPageUnitScale(int unit) {
+		if (unit == EMF_PLUS_UNIT_POINT) {
+			return 4.0 / 3.0;
+		}
+		if (unit == EMF_PLUS_UNIT_INCH) {
+			return 96.0;
+		}
+		if (unit == EMF_PLUS_UNIT_DOCUMENT) {
+			return 96.0 / 300.0;
+		}
+		if (unit == EMF_PLUS_UNIT_MILLIMETER) {
+			return 96.0 / 25.4;
+		}
+		return 1.0;
+	}
+
+	private static float readFloat(byte[] data, int offset) {
+		return Float.intBitsToFloat(readInt32(data, offset));
+	}
+
+	private static int readInt16(byte[] data, int offset) {
+		return (short) readUInt16(data, offset);
 	}
 
 	private static int readInt32(byte[] data, int offset) {

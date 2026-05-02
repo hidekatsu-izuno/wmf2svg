@@ -63,6 +63,23 @@ public class WmfGdi implements Gdi, WmfConstants {
 		out.flush();
 	}
 
+	private int nextObjectID() {
+		for (int i = 0; i < objects.size(); i++) {
+			if (objects.get(i) == null) {
+				return i;
+			}
+		}
+		return objects.size();
+	}
+
+	private void setObject(WmfObject object) {
+		int id = object.getID();
+		while (objects.size() <= id) {
+			objects.add(null);
+		}
+		objects.set(id, object);
+	}
+
 	public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi) {
 		byte[] record = new byte[22];
 		int pos = 0;
@@ -209,8 +226,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint16(record, pos, hatch);
 		records.add(record);
 
-		WmfBrush brush = new WmfBrush(objects.size(), style, color, hatch);
-		objects.add(brush);
+		WmfBrush brush = new WmfBrush(nextObjectID(), style, color, hatch);
+		setObject(brush);
 		return brush;
 	}
 
@@ -248,9 +265,9 @@ public class WmfGdi implements Gdi, WmfConstants {
 			pos = setByte(record, pos, 0);
 		records.add(record);
 
-		WmfFont font = new WmfFont(objects.size(), height, width, escapement, orientation, weight, italic, underline,
+		WmfFont font = new WmfFont(nextObjectID(), height, width, escapement, orientation, weight, italic, underline,
 				strikeout, charset, outPrecision, clipPrecision, quality, pitchAndFamily, faceName);
-		objects.add(font);
+		setObject(font);
 		return font;
 	}
 
@@ -266,8 +283,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		}
 		records.add(record);
 
-		GdiPalette palette = new WmfPalette(objects.size(), version, entries);
-		objects.add(palette);
+		GdiPalette palette = new WmfPalette(nextObjectID(), version, entries);
+		setObject((WmfObject) palette);
 		return palette;
 	}
 
@@ -281,8 +298,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 			pos = setByte(record, pos, 0);
 		records.add(record);
 
-		GdiPatternBrush brush = new WmfPatternBrush(objects.size(), image);
-		objects.add(brush);
+		GdiPatternBrush brush = new WmfPatternBrush(nextObjectID(), image);
+		setObject((WmfObject) brush);
 		return brush;
 	}
 
@@ -298,24 +315,30 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt32(record, pos, color);
 		records.add(record);
 
-		WmfPen pen = new WmfPen(objects.size(), style, width, color);
-		objects.add(pen);
+		WmfPen pen = new WmfPen(nextObjectID(), style, width, color);
+		setObject(pen);
 		return pen;
 	}
 
 	public GdiRegion createRectRgn(int left, int top, int right, int bottom) {
-		byte[] record = new byte[14];
+		byte[] record = new byte[28];
 		int pos = 0;
 		pos = setUint32(record, pos, record.length / 2);
 		pos = setUint16(record, pos, META_CREATEREGION);
-		pos = setInt16(record, pos, bottom);
-		pos = setInt16(record, pos, right);
-		pos = setInt16(record, pos, top);
+		pos = setUint16(record, pos, 0);
+		pos = setUint16(record, pos, 0x0006);
+		pos = setUint32(record, pos, 0);
+		pos = setUint16(record, pos, 0);
+		pos = setUint16(record, pos, 0);
+		pos = setUint16(record, pos, 0);
 		pos = setInt16(record, pos, left);
+		pos = setInt16(record, pos, top);
+		pos = setInt16(record, pos, right);
+		pos = setInt16(record, pos, bottom);
 		records.add(record);
 
-		WmfRectRegion rgn = new WmfRectRegion(objects.size(), left, top, right, bottom);
-		objects.add(rgn);
+		WmfRectRegion rgn = new WmfRectRegion(nextObjectID(), left, top, right, bottom);
+		setObject(rgn);
 		return rgn;
 	}
 
@@ -324,6 +347,10 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public int extSelectClipRgn(GdiRegion rgn, int mode) {
+		if (mode == GdiRegion.RGN_COPY) {
+			selectClipRgn(rgn);
+			return (rgn != null) ? GdiRegion.SIMPLEREGION : GdiRegion.NULLREGION;
+		}
 		throw new UnsupportedOperationException();
 	}
 
@@ -386,8 +413,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		records.add(record);
 
 		// TODO usage
-		GdiPatternBrush brush = new WmfPatternBrush(objects.size(), image);
-		objects.add(brush);
+		GdiPatternBrush brush = new WmfPatternBrush(nextObjectID(), image);
+		setObject((WmfObject) brush);
 		return brush;
 	}
 

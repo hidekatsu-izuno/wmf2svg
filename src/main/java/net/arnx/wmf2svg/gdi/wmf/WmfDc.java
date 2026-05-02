@@ -32,23 +32,11 @@ public class WmfDc implements Cloneable {
 	private int ww = 0;
 	private int wh = 0;
 
-	// window scale
-	private double wsx = 1.0;
-	private double wsy = 1.0;
-
 	// viewport
 	private int vx = 0;
 	private int vy = 0;
 	private int vw = 0;
 	private int vh = 0;
-
-	// viewport offset
-	private int vox = 0;
-	private int voy = 0;
-
-	// viewport scale
-	private double vsx = 1.0;
-	private double vsy = 1.0;
 
 	// current location
 	private int cx = 0;
@@ -96,9 +84,14 @@ public class WmfDc implements Cloneable {
 	}
 
 	public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old) {
-		// TODO
-		wsx = (wsx * x) / xd;
-		wsy = (wsy * y) / yd;
+		if (old != null) {
+			old.width = ww;
+			old.height = wh;
+		}
+		if (xd != 0 && yd != 0) {
+			ww = (ww * x) / xd;
+			wh = (wh * y) / yd;
+		}
 	}
 
 	public void setViewportOrgEx(int x, int y, Point old) {
@@ -129,9 +122,14 @@ public class WmfDc implements Cloneable {
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
-		// TODO
-		vsx = (vsx * x) / xd;
-		vsy = (vsy * y) / yd;
+		if (old != null) {
+			old.width = vw;
+			old.height = vh;
+		}
+		if (xd != 0 && yd != 0) {
+			vw = (vw * x) / xd;
+			vh = (vh * y) / yd;
+		}
 	}
 
 	public void moveToEx(int x, int y, Point old) {

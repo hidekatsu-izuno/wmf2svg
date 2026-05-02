@@ -726,6 +726,40 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testTextOutClipsAtDefaultCanvasRightEdge() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.setBkColor(0x0000FF);
+		gdi.setTextColor(0x000000);
+		gdi.selectObject(gdi.createFontIndirect(-18, 0, 0, 0, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'D', 'i', 'a', 'l', 'o', 'g', 0}));
+		gdi.textOut(320, 20, new byte[]{'A', 'B', 'C', 'D', 'E', 'F'});
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(330, image.getWidth());
+		assertEquals(460, image.getHeight());
+		assertTrue(countPaintedPixels(image, 320, 0, 10, 40) > 0);
+	}
+
+	@Test
+	public void testNegativeDeviceBoundsShiftExistingCanvasContent() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x0000FF));
+		gdi.rectangle(0, -20, 20, 0);
+		gdi.rectangle(0, 0, 20, 20);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(330, image.getWidth());
+		assertEquals(460, image.getHeight());
+		assertTrue(countPaintedPixels(image, 0, 0, 25, 5) > 0);
+		assertTrue(countPaintedPixels(image, 0, 20, 25, 5) > 0);
+	}
+
+	@Test
 	public void testWindowExtPreventsTextFromGrowingCanvas() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();

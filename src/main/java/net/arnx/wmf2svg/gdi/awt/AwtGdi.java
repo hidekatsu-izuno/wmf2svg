@@ -100,6 +100,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private int initialDpi = 1440;
 	private int canvasWidth = DEFAULT_CANVAS_WIDTH;
 	private int canvasHeight = DEFAULT_CANVAS_HEIGHT;
+	private int canvasMinX;
+	private int canvasMinY;
+	private Rectangle2D contentBounds;
 	private boolean opaqueBackground;
 	private boolean replaceSymbolFont;
 	private AwtBrush defaultBrush;
@@ -268,6 +271,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			graphics = image.createGraphics();
 		}
 		configureGraphics(graphics);
+		applyCanvasTransform(graphics);
 		if (opaqueBackground) {
 			graphics.setColor(Color.WHITE);
 			graphics.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -287,30 +291,43 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			}
 			bounds = clippedBounds;
 		}
-		int requiredWidth = (int) Math.ceil(Math.max(canvasWidth, bounds.getMaxX()));
-		int requiredHeight = (int) Math.ceil(Math.max(canvasHeight, bounds.getMaxY()));
-		if ((requiredWidth > canvasWidth || requiredHeight > canvasHeight)
-				&& canAllocateCanvas(requiredWidth, requiredHeight)) {
-			resizeCanvas(requiredWidth, requiredHeight);
-		}
+		ensureCanvasContains(bounds);
 	}
 
 	private void ensureCanvasContains(int x1, int y1, int x2, int y2) {
-		if (!growCanvas) {
+		if (!growCanvas || image == null) {
 			return;
 		}
-		int requiredWidth = Math.max(canvasWidth, Math.max(Math.max(x1, x2), 0));
-		int requiredHeight = Math.max(canvasHeight, Math.max(Math.max(y1, y2), 0));
-		if ((requiredWidth > canvasWidth || requiredHeight > canvasHeight)
-				&& canAllocateCanvas(requiredWidth, requiredHeight)) {
-			resizeCanvas(requiredWidth, requiredHeight);
+		ensureCanvasContains(
+				new Rectangle2D.Double(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)));
+	}
+
+	private void ensureCanvasContains(Rectangle2D bounds) {
+		if (!growCanvas || image == null || bounds == null || bounds.isEmpty()) {
+			return;
+		}
+		contentBounds = contentBounds == null ? (Rectangle2D) bounds.clone() : contentBounds.createUnion(bounds);
+		int requiredMinX = Math.min(0, (int) Math.floor(contentBounds.getMinX()));
+		int requiredMinY = Math.min(0, (int) Math.floor(contentBounds.getMinY()));
+		int requiredMaxX = (int) Math.ceil(contentBounds.getMaxX());
+		int requiredMaxY = (int) Math.ceil(contentBounds.getMaxY());
+		int requiredWidth = Math.max(canvasWidth, requiredMaxX - requiredMinX);
+		int requiredHeight = Math.max(canvasHeight, requiredMaxY - requiredMinY);
+		if ((requiredWidth > canvasWidth || requiredHeight > canvasHeight || requiredMinX != canvasMinX
+				|| requiredMinY != canvasMinY) && canAllocateCanvas(requiredWidth, requiredHeight)) {
+			resizeCanvas(requiredWidth, requiredHeight, requiredMinX, requiredMinY);
 		}
 	}
 
 	private void resizeCanvas(int width, int height) {
+		resizeCanvas(width, height, canvasMinX, canvasMinY);
+	}
+
+	private void resizeCanvas(int width, int height, int minX, int minY) {
 		width = Math.max(1, Math.min(width, MAX_CANVAS_SIZE));
 		height = Math.max(1, Math.min(height, MAX_CANVAS_SIZE));
-		if ((width == canvasWidth && height == canvasHeight) || !canAllocateCanvas(width, height)) {
+		if ((width == canvasWidth && height == canvasHeight && minX == canvasMinX && minY == canvasMinY)
+				|| !canAllocateCanvas(width, height)) {
 			return;
 		}
 
@@ -323,7 +340,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				g.fillRect(0, 0, width, height);
 			}
 			if (image != null) {
-				g.drawImage(image, 0, 0, null);
+				g.drawImage(image, canvasMinX - minX, canvasMinY - minY, null);
 			}
 		} finally {
 			g.dispose();
@@ -334,6 +351,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		image = resized;
 		graphics = image.createGraphics();
 		configureGraphics(graphics);
+		canvasMinX = minX;
+		canvasMinY = minY;
+		applyCanvasTransform(graphics);
 		canvasWidth = width;
 		canvasHeight = height;
 	}
@@ -350,6 +370,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, emfPlusAlphaInterpolationHint);
 		g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, emfPlusStrokeControlHint);
 		g.setComposite(emfPlusComposite);
+	}
+
+	private void applyCanvasTransform(Graphics2D g) {
+		if (canvasMinX != 0 || canvasMinY != 0) {
+			g.translate(-canvasMinX, -canvasMinY);
+		}
 	}
 
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries) {
@@ -3423,8 +3449,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				&& ((align & Gdi.TA_RTLREADING) != 0 || (options & Gdi.ETO_RTLREADING) != 0);
 		TextAdvances advances = createTextAdvances(text, lpdx, metrics, options, middleEasternText);
 		double textWidth = advances != null ? advances.sumX() : metrics.stringWidth(text);
-		int drawX = (int) tx(x);
-		int drawY = (int) ty(y);
+		int referenceX = (int) tx(x);
+		int referenceY = (int) ty(y);
+		int drawX = referenceX;
+		int drawY = referenceY;
 		if ((align & Gdi.TA_CENTER) == Gdi.TA_CENTER) {
 			drawX -= (int) Math.round(textWidth / 2);
 		} else if ((align & Gdi.TA_RIGHT) == Gdi.TA_RIGHT) {
@@ -3451,9 +3479,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		AffineTransform old = graphics.getTransform();
 		if (gdiFont != null && gdiFont.getEscapement() != 0) {
-			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), drawX, drawY);
+			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), referenceX, referenceY);
 		}
-		ensureTextCanvasContains(drawX, drawY, text, textWidth, metrics, advances);
+		ensureTextCanvasContains(drawX, drawY, text, textWidth, metrics, advances, gdiFont, referenceX, referenceY);
 		fillTextBackground(drawX, drawY, text, textWidth, metrics, advances);
 		if (dc.getROP2() != Gdi.R2_COPYPEN) {
 			drawTextRop2(attributed, text, gdiFont, advances, rightToLeft, drawX, drawY, textWidth, metrics);
@@ -3468,9 +3496,25 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private void ensureTextCanvasContains(int drawX, int baselineY, String text, double textWidth, FontMetrics metrics,
-			TextAdvances advances) {
+			TextAdvances advances, AwtFont gdiFont, int referenceX, int referenceY) {
 		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
-		ensureCanvasContains(graphics.getTransform().createTransformedShape(bounds));
+		if (gdiFont != null && gdiFont.getEscapement() != 0) {
+			AffineTransform transform = AffineTransform
+					.getRotateInstance(-Math.toRadians(gdiFont.getEscapement() / 10.0), referenceX, referenceY);
+			ensureTextCanvasContains(transform.createTransformedShape(bounds).getBounds2D());
+		} else {
+			ensureTextCanvasContains(bounds);
+		}
+	}
+
+	private void ensureTextCanvasContains(Rectangle2D bounds) {
+		double minX = bounds.getMinX();
+		double minY = bounds.getMinY();
+		double maxX = Math.min(bounds.getMaxX(), canvasMinX + canvasWidth);
+		double maxY = Math.min(bounds.getMaxY(), canvasMinY + canvasHeight);
+		if (minX < maxX && minY < maxY) {
+			ensureCanvasContains(new Rectangle2D.Double(minX, minY, maxX - minX, maxY - minY));
+		}
 	}
 
 	private Rectangle2D createTextLogicalBounds(int x, int baselineY, String text, double textWidth,
@@ -3538,7 +3582,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
-		ensureCanvasContains(graphics.getTransform().createTransformedShape(bounds));
 		Paint old = graphics.getPaint();
 		graphics.setPaint(toColor(dc.getBkColor()));
 		graphics.fill(bounds);

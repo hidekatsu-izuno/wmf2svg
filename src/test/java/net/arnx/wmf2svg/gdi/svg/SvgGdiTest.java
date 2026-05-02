@@ -36,6 +36,80 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testTextOutFillsEstimatedOpaqueBackground() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.setBkColor(0x0000FF);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.textOut(10, 20, "ABCD".getBytes("US-ASCII"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<g>"));
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("fill=\"rgb(255,0,0)\""));
+		Assert.assertTrue(svg.contains("x=\"10\""));
+		Assert.assertTrue(svg.contains("y=\"20\""));
+		Assert.assertTrue(svg.contains("width=\"40\""));
+		Assert.assertTrue(svg.contains("height=\"20\""));
+		Assert.assertTrue(svg.indexOf("<rect ") < svg.indexOf(">ABCD</text>"));
+	}
+
+	@Test
+	public void testExtTextOutFillsEstimatedOpaqueBackgroundWithoutRect() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.setBkColor(0x00FF00);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.extTextOut(10, 20, 0, null, "ABCD".getBytes("US-ASCII"), null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<g>"));
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("fill=\"rgb(0,255,0)\""));
+		Assert.assertTrue(svg.contains("x=\"10\""));
+		Assert.assertTrue(svg.contains("y=\"20\""));
+		Assert.assertTrue(svg.contains("width=\"40\""));
+		Assert.assertTrue(svg.contains("height=\"20\""));
+		Assert.assertTrue(svg.indexOf("<rect ") < svg.indexOf(">ABCD</text>"));
+	}
+
+	@Test
+	public void testTextOutEstimatesFullWidthBackground() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.SHIFTJIS_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.textOut(10, 20, "日本".getBytes("MS932"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"40\""));
+		Assert.assertTrue(svg.contains(">日本</text>"));
+	}
+
+	@Test
+	public void testTextOutEstimatesMixedWidthBackground() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.SHIFTJIS_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.textOut(10, 20, "A日".getBytes("MS932"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"30\""));
+		Assert.assertTrue(svg.contains(">A日</text>"));
+	}
+
+	@Test
 	public void testPie() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 9000, 9000, 1440);
@@ -4490,6 +4564,12 @@ public class SvgGdiTest {
 
 	private void assertFontFamily(String faceName, String expectedFontFamily) throws Exception {
 		Assert.assertTrue(renderFontStyle(faceName).contains(expectedFontFamily));
+	}
+
+	private String writeSvg(SvgGdi gdi) throws Exception {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		return out.toString("UTF-8");
 	}
 
 	private String renderFontStyle(String faceName) throws Exception {

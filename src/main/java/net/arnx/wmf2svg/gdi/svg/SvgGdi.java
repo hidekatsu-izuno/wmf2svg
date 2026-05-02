@@ -4412,6 +4412,93 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		appendFloodFillSeed(x, y);
 	}
 
+	private int estimateTextWidth(String text, int[] dx) {
+		if (dx != null && dx.length > 0) {
+			int width = 0;
+			for (int i = 0; i < dx.length; i++) {
+				width += dx[i];
+			}
+			return Math.abs(width);
+		}
+		if (dc.getFont() == null || text == null || text.length() == 0) {
+			return 0;
+		}
+		double ems = 0.0;
+		for (int offset = 0; offset < text.length();) {
+			int codePoint = text.codePointAt(offset);
+			ems += isFullWidthTextCodePoint(codePoint) ? 1.0 : 0.5;
+			offset += Character.charCount(codePoint);
+		}
+		return (int) Math.round(Math.abs(dc.getFont().getFontSize() * ems));
+	}
+
+	private boolean isFullWidthTextCodePoint(int codePoint) {
+		Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+		return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+				|| block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+				|| block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+				|| block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+				|| block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT
+				|| block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
+				|| block == Character.UnicodeBlock.HIRAGANA || block == Character.UnicodeBlock.KATAKANA
+				|| block == Character.UnicodeBlock.KATAKANA_PHONETIC_EXTENSIONS
+				|| block == Character.UnicodeBlock.HANGUL_SYLLABLES || block == Character.UnicodeBlock.HANGUL_JAMO
+				|| block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+				|| block == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS
+				|| block == Character.UnicodeBlock.ENCLOSED_CJK_LETTERS_AND_MONTHS;
+	}
+
+	private int[] estimateTextBackgroundRect(int x, int y, int width, int height, int align, boolean vertical) {
+		int[] rect = new int[4];
+		if (vertical) {
+			if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BOTTOM) {
+				rect[0] = x - width;
+			} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
+				rect[0] = x - (int) (width * 0.85);
+			} else {
+				rect[0] = x;
+			}
+			if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_RIGHT) {
+				rect[1] = y - height;
+			} else if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_CENTER) {
+				rect[1] = y - height / 2;
+			} else {
+				rect[1] = y;
+			}
+		} else {
+			if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_RIGHT) {
+				rect[0] = x - width;
+			} else if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_CENTER) {
+				rect[0] = x - width / 2;
+			} else {
+				rect[0] = x;
+			}
+			if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BOTTOM) {
+				rect[1] = y - height;
+			} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
+				rect[1] = y - (int) (height * 0.85);
+			} else {
+				rect[1] = y;
+			}
+		}
+		rect[2] = rect[0] + width;
+		rect[3] = rect[1] + height;
+		return rect;
+	}
+
+	private Element createTextBackgroundRect(int[] rect) {
+		if (rect == null) {
+			return null;
+		}
+		Element bk = doc.createElement("rect");
+		bk.setAttribute("x", Integer.toString((int) dc.toAbsoluteX(rect[0])));
+		bk.setAttribute("y", Integer.toString((int) dc.toAbsoluteY(rect[1])));
+		bk.setAttribute("width", Integer.toString((int) dc.toRelativeX(rect[2] - rect[0])));
+		bk.setAttribute("height", Integer.toString((int) dc.toRelativeY(rect[3] - rect[1])));
+		bk.setAttribute("fill", SvgObject.toColor(dc.getBkColor()));
+		return bk;
+	}
+
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
 		Element elem = doc.createElement("text");
 
@@ -4472,6 +4559,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			y = dc.getCurrentY();
 		}
 
+		String str = null;
+		if (dc.getFont() != null) {
+			str = GdiUtils.convertString(text, dc.getFont().getCharset());
+		} else {
+			str = GdiUtils.convertString(text, GdiFont.DEFAULT_CHARSET);
+		}
+
 		// x
 		int ax = (int) dc.toAbsoluteX(x);
 		int width = 0;
@@ -4510,7 +4604,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				elem.setAttribute("x", buffer.toString());
 			} else {
 				if (dc.getFont() != null)
-					width = Math.abs(dc.getFont().getFontSize() * text.length) / 2;
+					width = estimateTextWidth(str, null);
 				elem.setAttribute("x", Integer.toString(ax));
 			}
 		}
@@ -4554,7 +4648,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				}
 			} else {
 				if (dc.getFont() != null)
-					height = Math.abs(dc.getFont().getFontSize() * text.length) / 2;
+					height = estimateTextWidth(str, null);
 			}
 			elem.setAttribute("y", buffer.toString());
 		} else {
@@ -4581,47 +4675,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		Element bk = null;
 		if (dc.getBkMode() == OPAQUE || (options & ETO_OPAQUE) > 0) {
 			if (rect == null && dc.getFont() != null) {
-				rect = new int[4];
-				if (vertical) {
-					if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BOTTOM) {
-						rect[0] = x - width;
-					} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
-						rect[0] = x - (int) (width * 0.85);
-					} else {
-						rect[0] = x;
-					}
-					if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_RIGHT) {
-						rect[1] = y - height;
-					} else if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_CENTER) {
-						rect[1] = y - height / 2;
-					} else {
-						rect[1] = y;
-					}
-				} else {
-					if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_RIGHT) {
-						rect[0] = x - width;
-					} else if ((align & (TA_LEFT | TA_RIGHT | TA_CENTER)) == TA_CENTER) {
-						rect[0] = x - width / 2;
-					} else {
-						rect[0] = x;
-					}
-					if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BOTTOM) {
-						rect[1] = y - height;
-					} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
-						rect[1] = y - (int) (height * 0.85);
-					} else {
-						rect[1] = y;
-					}
-				}
-				rect[2] = rect[0] + width;
-				rect[3] = rect[1] + height;
+				rect = estimateTextBackgroundRect(x, y, width, height, align, vertical);
 			}
-			bk = doc.createElement("rect");
-			bk.setAttribute("x", Integer.toString((int) dc.toAbsoluteX(rect[0])));
-			bk.setAttribute("y", Integer.toString((int) dc.toAbsoluteY(rect[1])));
-			bk.setAttribute("width", Integer.toString((int) dc.toRelativeX(rect[2] - rect[0])));
-			bk.setAttribute("height", Integer.toString((int) dc.toRelativeY(rect[3] - rect[1])));
-			bk.setAttribute("fill", SvgObject.toColor(dc.getBkColor()));
+			bk = createTextBackgroundRect(rect);
 		}
 
 		Element clip = null;
@@ -4639,13 +4695,6 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 			clip.appendChild(clipRect);
 			elem.setAttribute("clip-path", "url(#" + name + ")");
-		}
-
-		String str = null;
-		if (dc.getFont() != null) {
-			str = GdiUtils.convertString(text, dc.getFont().getCharset());
-		} else {
-			str = GdiUtils.convertString(text, GdiFont.DEFAULT_CHARSET);
 		}
 
 		if (dc.getFont() != null && dc.getFont().getLang() != null) {
@@ -6011,10 +6060,6 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		elem.setAttribute("x", Integer.toString(ax));
 		elem.setAttribute("y", Integer.toString(ay));
 
-		if (escapement != 0) {
-			elem.setAttribute("transform", "rotate(" + (-escapement / 10.0) + ", " + ax + ", " + ay + ")");
-		}
-
 		String str = null;
 		if (dc.getFont() != null) {
 			str = GdiUtils.convertString(text, dc.getFont().getCharset());
@@ -6040,7 +6085,30 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 		elem.setAttribute("xml:space", "preserve");
 		appendText(elem, str);
-		parentNode.appendChild(elem);
+
+		Element bk = null;
+		if (dc.getBkMode() == OPAQUE && dc.getFont() != null) {
+			int fontSize = Math.abs(dc.getFont().getFontSize());
+			int estimatedAdvance = estimateTextWidth(str, null);
+			if (str != null && str.length() > 1) {
+				estimatedAdvance += Math.abs(dc.getTextCharacterExtra() * (str.length() - 1));
+			}
+			int width = vertical ? fontSize : estimatedAdvance;
+			int height = vertical ? estimatedAdvance : fontSize;
+			bk = createTextBackgroundRect(estimateTextBackgroundRect(x, y, width, height, align, vertical));
+		}
+
+		Element output = elem;
+		if (bk != null) {
+			Element g = doc.createElement("g");
+			g.appendChild(bk);
+			g.appendChild(elem);
+			output = g;
+		}
+		if (escapement != 0) {
+			output.setAttribute("transform", "rotate(" + (-escapement / 10.0) + ", " + ax + ", " + ay + ")");
+		}
+		parentNode.appendChild(output);
 	}
 
 	public void footer() {

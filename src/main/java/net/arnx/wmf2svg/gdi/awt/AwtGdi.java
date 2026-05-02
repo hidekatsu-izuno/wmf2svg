@@ -320,10 +320,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private void resizeCanvas(int width, int height) {
-		resizeCanvas(width, height, canvasMinX, canvasMinY);
-	}
-
 	private void resizeCanvas(int width, int height, int minX, int minY) {
 		width = Math.max(1, Math.min(width, MAX_CANVAS_SIZE));
 		height = Math.max(1, Math.min(height, MAX_CANVAS_SIZE));
@@ -1841,11 +1837,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private void drawEmfPlusImage(int objectId, int imageAttributesId, double srcX, double srcY, double srcWidth,
-			double srcHeight, double[][] points, boolean normalizeUnit) {
-		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit, null);
-	}
-
-	private void drawEmfPlusImage(int objectId, int imageAttributesId, double srcX, double srcY, double srcWidth,
 			double srcHeight, double[][] points, boolean normalizeUnit, EmfPlusImageEffect effect) {
 		EmfPlusImageAttributes attributes = emfPlusImageAttributes.get(Integer.valueOf(imageAttributesId));
 		BufferedImage bitmapImage = emfPlusBitmapImages.get(Integer.valueOf(objectId));
@@ -2865,10 +2856,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int px = x + (int) Math.round(radius * Math.cos(radians));
 		int py = y - (int) Math.round(radius * Math.sin(radians));
 		return new Point(px, py);
-	}
-
-	private Area createRegionArea(byte[] rgnData, int count) {
-		return createRegionArea(rgnData, count, null);
 	}
 
 	private Area createRegionArea(byte[] rgnData, int count, float[] xform) {

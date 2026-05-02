@@ -124,6 +124,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private Map<Integer, EmfPlusFont> emfPlusFonts = new HashMap<Integer, EmfPlusFont>();
 	private Map<Integer, EmfPlusStringFormat> emfPlusStringFormats = new HashMap<Integer, EmfPlusStringFormat>();
 	private Map<Integer, EmfPlusImageAttributes> emfPlusImageAttributes = new HashMap<Integer, EmfPlusImageAttributes>();
+	private EmfPlusImageEffect pendingEmfPlusImageEffect;
 	private boolean suppressEmfPlusFallback;
 	private boolean emfPlusGetDCActive;
 	private double[] emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
@@ -849,6 +850,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			handleEmfPlusDrawString(flags, payload);
 		} else if (type == EMF_PLUS_DRAW_DRIVER_STRING) {
 			handleEmfPlusDrawDriverString(flags, payload);
+		} else if (type == EMF_PLUS_SERIALIZABLE_OBJECT) {
+			pendingEmfPlusImageEffect = readEmfPlusSerializableObject(payload);
 		} else if (type == EMF_PLUS_SET_RENDERING_ORIGIN) {
 			if (payload.length >= 8) {
 				emfPlusRenderingOriginX = readInt32(payload, 0);
@@ -1735,22 +1738,30 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (points == null) {
 			return;
 		}
-		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points, true);
+		EmfPlusImageEffect effect = pendingEmfPlusImageEffect;
+		pendingEmfPlusImageEffect = null;
+		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points, true, effect);
 	}
 
 	private void drawEmfPlusImage(int objectId, int imageAttributesId, double srcX, double srcY, double srcWidth,
 			double srcHeight, double[][] points, boolean normalizeUnit) {
+		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit, null);
+	}
+
+	private void drawEmfPlusImage(int objectId, int imageAttributesId, double srcX, double srcY, double srcWidth,
+			double srcHeight, double[][] points, boolean normalizeUnit, EmfPlusImageEffect effect) {
 		EmfPlusImageAttributes attributes = emfPlusImageAttributes.get(Integer.valueOf(imageAttributesId));
 		BufferedImage bitmapImage = emfPlusBitmapImages.get(Integer.valueOf(objectId));
 		if (bitmapImage != null) {
-			drawEmfPlusBitmapImage(bitmapImage, attributes, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit);
+			drawEmfPlusBitmapImage(applyEmfPlusImageEffect(bitmapImage, effect), attributes, srcX, srcY, srcWidth,
+					srcHeight, points, normalizeUnit);
 			return;
 		}
-		drawEmfPlusMetafileImage(objectId, attributes, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit);
+		drawEmfPlusMetafileImage(objectId, attributes, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit, effect);
 	}
 
 	private void drawEmfPlusMetafileImage(int objectId, EmfPlusImageAttributes attributes, double srcX, double srcY,
-			double srcWidth, double srcHeight, double[][] points, boolean normalizeUnit) {
+			double srcWidth, double srcHeight, double[][] points, boolean normalizeUnit, EmfPlusImageEffect effect) {
 		byte[] metafile = emfPlusMetafileImages.get(Integer.valueOf(objectId));
 		if (metafile == null) {
 			return;
@@ -1759,7 +1770,62 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (metafileImage == null) {
 			return;
 		}
-		drawEmfPlusBitmapImage(metafileImage, attributes, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit);
+		drawEmfPlusBitmapImage(applyEmfPlusImageEffect(metafileImage, effect), attributes, srcX, srcY, srcWidth,
+				srcHeight, points, normalizeUnit);
+	}
+
+	private BufferedImage applyEmfPlusImageEffect(BufferedImage source, EmfPlusImageEffect effect) {
+		if (source == null || effect == null) {
+			return source;
+		}
+		BufferedImage filtered = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < source.getHeight(); y++) {
+			for (int x = 0; x < source.getWidth(); x++) {
+				filtered.setRGB(x, y, applyEmfPlusImageEffect(source.getRGB(x, y), effect));
+			}
+		}
+		return filtered;
+	}
+
+	private int applyEmfPlusImageEffect(int argb, EmfPlusImageEffect effect) {
+		if (effect.colorMatrix != null) {
+			return applyEmfPlusColorMatrix(argb, effect.colorMatrix);
+		}
+		if (effect.lookupTables != null) {
+			return applyEmfPlusColorLookupTable(argb, effect.lookupTables);
+		}
+		return argb;
+	}
+
+	private int applyEmfPlusColorMatrix(int argb, double[][] matrix) {
+		double r = ((argb >>> 16) & 0xFF) / 255.0;
+		double g = ((argb >>> 8) & 0xFF) / 255.0;
+		double b = (argb & 0xFF) / 255.0;
+		double a = ((argb >>> 24) & 0xFF) / 255.0;
+		double outR = r * matrix[0][0] + g * matrix[1][0] + b * matrix[2][0] + a * matrix[3][0] + matrix[4][0];
+		double outG = r * matrix[0][1] + g * matrix[1][1] + b * matrix[2][1] + a * matrix[3][1] + matrix[4][1];
+		double outB = r * matrix[0][2] + g * matrix[1][2] + b * matrix[2][2] + a * matrix[3][2] + matrix[4][2];
+		double outA = r * matrix[0][3] + g * matrix[1][3] + b * matrix[2][3] + a * matrix[3][3] + matrix[4][3];
+		return (clampEmfPlusColorChannel(outA) << 24) | (clampEmfPlusColorChannel(outR) << 16)
+				| (clampEmfPlusColorChannel(outG) << 8) | clampEmfPlusColorChannel(outB);
+	}
+
+	private int clampEmfPlusColorChannel(double value) {
+		if (value <= 0.0 || Double.isNaN(value)) {
+			return 0;
+		}
+		if (value >= 1.0) {
+			return 0xFF;
+		}
+		return (int) Math.round(value * 255.0);
+	}
+
+	private int applyEmfPlusColorLookupTable(int argb, byte[][] lookupTables) {
+		int b = lookupTables[0][argb & 0xFF] & 0xFF;
+		int g = lookupTables[1][(argb >>> 8) & 0xFF] & 0xFF;
+		int r = lookupTables[2][(argb >>> 16) & 0xFF] & 0xFF;
+		int a = lookupTables[3][(argb >>> 24) & 0xFF] & 0xFF;
+		return (a << 24) | (r << 16) | (g << 8) | b;
 	}
 
 	private void drawEmfPlusBitmapImage(BufferedImage bitmapImage, EmfPlusImageAttributes attributes, double srcX,
@@ -4017,6 +4083,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		double dashOffset = 0.0;
 		double[] dashPattern = null;
 		double[] penTransform = null;
+		EmfPlusCustomLineCap customStartCap = null;
+		EmfPlusCustomLineCap customEndCap = null;
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_TRANSFORM) != 0) {
 			if (payload.length < optionalOffset + 24) {
 				return null;
@@ -4104,13 +4172,23 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			if (payload.length < optionalOffset + 4) {
 				return null;
 			}
-			optionalOffset += 4 + Math.max(0, readInt32(payload, optionalOffset));
+			int size = readInt32(payload, optionalOffset);
+			if (size < 0 || payload.length < optionalOffset + 4 + size) {
+				return null;
+			}
+			customStartCap = readEmfPlusCustomLineCap(payload, optionalOffset + 4, size);
+			optionalOffset += 4 + size;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_CUSTOM_END_CAP) != 0) {
 			if (payload.length < optionalOffset + 4) {
 				return null;
 			}
-			optionalOffset += 4 + Math.max(0, readInt32(payload, optionalOffset));
+			int size = readInt32(payload, optionalOffset);
+			if (size < 0 || payload.length < optionalOffset + 4 + size) {
+				return null;
+			}
+			customEndCap = readEmfPlusCustomLineCap(payload, optionalOffset + 4, size);
+			optionalOffset += 4 + size;
 		}
 		if (payload.length < optionalOffset) {
 			return null;
@@ -4118,8 +4196,24 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		EmfPlusBrush brush = readEmfPlusBrush(payload, optionalOffset);
 		return brush != null
 				? new EmfPlusPen(width, brush, startCap, endCap, lineJoin, miterLimit, lineStyle, dashCap, dashOffset,
-						dashPattern, penTransform)
+						dashPattern, penTransform, customStartCap, customEndCap)
 				: null;
+	}
+
+	private EmfPlusCustomLineCap readEmfPlusCustomLineCap(byte[] payload, int offset, int size) {
+		if (size < 60 || payload.length < offset + size
+				|| readInt32(payload, offset + 4) != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
+			return null;
+		}
+		int dataOffset = offset + 8;
+		double width = readFloat(payload, dataOffset);
+		double height = readFloat(payload, dataOffset + 4);
+		boolean fill = readInt32(payload, dataOffset + 12) != 0;
+		double widthScale = readFloat(payload, dataOffset + 32);
+		if (width <= 0.0 || height <= 0.0 || widthScale <= 0.0) {
+			return null;
+		}
+		return new EmfPlusCustomLineCap(width, height, fill, widthScale);
 	}
 
 	private EmfPlusPath readEmfPlusPath(byte[] payload) {
@@ -4237,6 +4331,60 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int clampColor = readInt32(payload, 12);
 		int objectClamp = readInt32(payload, 16);
 		return new EmfPlusImageAttributes(wrapMode, clampColor, objectClamp);
+	}
+
+	private EmfPlusImageEffect readEmfPlusSerializableObject(byte[] payload) {
+		if (payload.length < 20) {
+			return null;
+		}
+		int bufferSize = readInt32(payload, 16);
+		if (bufferSize < 0 || payload.length < 20 + bufferSize) {
+			return null;
+		}
+		if (isEmfPlusColorMatrixEffectGuid(payload, 0) && bufferSize >= 100) {
+			return new EmfPlusImageEffect(readEmfPlusColorMatrixEffect(payload, 20), null);
+		}
+		if (isEmfPlusColorLookupTableEffectGuid(payload, 0) && bufferSize >= 1024) {
+			return new EmfPlusImageEffect(null, readEmfPlusColorLookupTableEffect(payload, 20));
+		}
+		return null;
+	}
+
+	private boolean isEmfPlusColorMatrixEffectGuid(byte[] payload, int offset) {
+		return payload[offset] == 0x15 && payload[offset + 1] == 0x26 && payload[offset + 2] == (byte) 0x8F
+				&& payload[offset + 3] == 0x71 && payload[offset + 4] == 0x33 && payload[offset + 5] == 0x79
+				&& payload[offset + 6] == (byte) 0xE3 && payload[offset + 7] == 0x40
+				&& payload[offset + 8] == (byte) 0xA5 && payload[offset + 9] == 0x11 && payload[offset + 10] == 0x5F
+				&& payload[offset + 11] == 0x68 && payload[offset + 12] == (byte) 0xFE && payload[offset + 13] == 0x14
+				&& payload[offset + 14] == (byte) 0xDD && payload[offset + 15] == 0x74;
+	}
+
+	private boolean isEmfPlusColorLookupTableEffectGuid(byte[] payload, int offset) {
+		return payload[offset] == (byte) 0xA9 && payload[offset + 1] == 0x72 && payload[offset + 2] == (byte) 0xCE
+				&& payload[offset + 3] == (byte) 0xA7 && payload[offset + 4] == 0x7F && payload[offset + 5] == 0x0F
+				&& payload[offset + 6] == (byte) 0xD7 && payload[offset + 7] == 0x40
+				&& payload[offset + 8] == (byte) 0xB3 && payload[offset + 9] == (byte) 0xCC
+				&& payload[offset + 10] == (byte) 0xD0 && payload[offset + 11] == (byte) 0xC0
+				&& payload[offset + 12] == 0x2D && payload[offset + 13] == 0x5C && payload[offset + 14] == 0x32
+				&& payload[offset + 15] == 0x12;
+	}
+
+	private double[][] readEmfPlusColorMatrixEffect(byte[] payload, int offset) {
+		double[][] matrix = new double[5][5];
+		for (int column = 0; column < 5; column++) {
+			for (int row = 0; row < 5; row++) {
+				matrix[row][column] = readFloat(payload, offset + (column * 5 + row) * 4);
+			}
+		}
+		return matrix;
+	}
+
+	private byte[][] readEmfPlusColorLookupTableEffect(byte[] payload, int offset) {
+		byte[][] lookupTables = new byte[4][256];
+		for (int table = 0; table < lookupTables.length; table++) {
+			System.arraycopy(payload, offset + table * 256, lookupTables[table], 0, 256);
+		}
+		return lookupTables;
 	}
 
 	private BufferedImage readEmfPlusBitmapImage(byte[] payload, int offset) {
@@ -4804,9 +4952,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 		Shape line = createEmfPlusPolyline(points, false, Path2D.WIND_NON_ZERO);
 		float width = (float) Math.max(1.0, pen.width * getEmfPlusPenScale(pen));
-		Shape startCap = createEmfPlusLineCapShape(pen.startCap, points[0], points[1], width);
-		Shape endCap = createEmfPlusLineCapShape(pen.endCap, points[points.length - 1], points[points.length - 2],
-				width);
+		Shape startCap = createEmfPlusLineCapShape(pen.startCap, pen.customStartCap, points[0], points[1], width);
+		Shape endCap = createEmfPlusLineCapShape(pen.endCap, pen.customEndCap, points[points.length - 1],
+				points[points.length - 2], width);
 
 		ensureGraphics();
 		ensureCanvasContains(line);
@@ -4818,18 +4966,27 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setStroke(toEmfPlusStroke(pen, BasicStroke.CAP_BUTT));
 		graphics.draw(line);
 		if (startCap != null) {
-			graphics.fill(startCap);
+			drawEmfPlusLineCap(startCap, pen.customStartCap);
 		}
 		if (endCap != null) {
-			graphics.fill(endCap);
+			drawEmfPlusLineCap(endCap, pen.customEndCap);
 		}
 		graphics.setStroke(oldStroke);
 		graphics.setPaint(oldPaint);
 		suppressEmfPlusFallback = true;
 	}
 
+	private void drawEmfPlusLineCap(Shape shape, EmfPlusCustomLineCap customCap) {
+		if (customCap == null || customCap.fill) {
+			graphics.fill(shape);
+		} else {
+			graphics.draw(shape);
+		}
+	}
+
 	private boolean hasDistinctSolidLineCaps(EmfPlusPen pen) {
-		return pen != null && !hasEmfPlusDash(pen) && pen.startCap != pen.endCap
+		return pen != null && !hasEmfPlusDash(pen)
+				&& (pen.customStartCap != null || pen.customEndCap != null || pen.startCap != pen.endCap)
 				&& (isSupportedEmfPlusLineCap(pen.startCap) || isSupportedEmfPlusLineCap(pen.endCap));
 	}
 
@@ -4843,7 +5000,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return cap == EMF_PLUS_LINE_CAP_FLAT || cap == EMF_PLUS_LINE_CAP_SQUARE || cap == EMF_PLUS_LINE_CAP_ROUND;
 	}
 
-	private Shape createEmfPlusLineCapShape(int cap, double[] end, double[] adjacent, float width) {
+	private Shape createEmfPlusLineCapShape(int cap, EmfPlusCustomLineCap customCap, double[] end, double[] adjacent,
+			float width) {
+		if (customCap != null) {
+			return createEmfPlusCustomLineCapShape(customCap, end, adjacent, width);
+		}
 		if (cap == EMF_PLUS_LINE_CAP_FLAT || !isSupportedEmfPlusLineCap(cap)) {
 			return null;
 		}
@@ -4867,6 +5028,28 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		path.lineTo(end[0] + ux - nx, end[1] + uy - ny);
 		path.lineTo(end[0] + ux + nx, end[1] + uy + ny);
 		path.lineTo(end[0] - ux + nx, end[1] - uy + ny);
+		path.closePath();
+		return path;
+	}
+
+	private Shape createEmfPlusCustomLineCapShape(EmfPlusCustomLineCap cap, double[] end, double[] adjacent,
+			float penWidth) {
+		double dx = end[0] - adjacent[0];
+		double dy = end[1] - adjacent[1];
+		double length = Math.hypot(dx, dy);
+		if (length <= 0.0 || Double.isNaN(length) || Double.isInfinite(length)) {
+			return null;
+		}
+		double ux = dx / length;
+		double uy = dy / length;
+		double nx = -uy;
+		double ny = ux;
+		double width = cap.width * penWidth * cap.widthScale;
+		double height = cap.height * penWidth * cap.widthScale;
+		Path2D path = new Path2D.Double();
+		path.moveTo(end[0] + ux * height, end[1] + uy * height);
+		path.lineTo(end[0] + nx * width / 2.0, end[1] + ny * width / 2.0);
+		path.lineTo(end[0] - nx * width / 2.0, end[1] - ny * width / 2.0);
 		path.closePath();
 		return path;
 	}
@@ -5690,9 +5873,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		private final double dashOffset;
 		private final double[] dashPattern;
 		private final double[] transform;
+		private final EmfPlusCustomLineCap customStartCap;
+		private final EmfPlusCustomLineCap customEndCap;
 
 		private EmfPlusPen(double width, EmfPlusBrush brush, int startCap, int endCap, int lineJoin, double miterLimit,
-				int lineStyle, int dashCap, double dashOffset, double[] dashPattern, double[] transform) {
+				int lineStyle, int dashCap, double dashOffset, double[] dashPattern, double[] transform,
+				EmfPlusCustomLineCap customStartCap, EmfPlusCustomLineCap customEndCap) {
 			this.width = width;
 			this.brush = brush;
 			this.startCap = startCap;
@@ -5704,6 +5890,22 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			this.dashOffset = dashOffset;
 			this.dashPattern = dashPattern;
 			this.transform = transform;
+			this.customStartCap = customStartCap;
+			this.customEndCap = customEndCap;
+		}
+	}
+
+	private static class EmfPlusCustomLineCap {
+		private final double width;
+		private final double height;
+		private final boolean fill;
+		private final double widthScale;
+
+		private EmfPlusCustomLineCap(double width, double height, boolean fill, double widthScale) {
+			this.width = width;
+			this.height = height;
+			this.fill = fill;
+			this.widthScale = widthScale;
 		}
 	}
 
@@ -5805,6 +6007,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			this.wrapMode = wrapMode;
 			this.clampColor = clampColor;
 			this.objectClamp = objectClamp;
+		}
+	}
+
+	private static class EmfPlusImageEffect {
+		private final double[][] colorMatrix;
+		private final byte[][] lookupTables;
+
+		private EmfPlusImageEffect(double[][] colorMatrix, byte[][] lookupTables) {
+			this.colorMatrix = colorMatrix;
+			this.lookupTables = lookupTables;
 		}
 	}
 

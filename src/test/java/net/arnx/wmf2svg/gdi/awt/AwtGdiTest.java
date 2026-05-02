@@ -327,6 +327,30 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusDrawImagePointsAppliesColorMatrixEffect() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusColorMatrixDrawImagePointsComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0x000000, image.getRGB(0, 0) & 0x00FFFFFF);
+		assertEquals(0x00FF00, image.getRGB(1, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testEmfPlusDrawImagePointsAppliesColorLookupTableEffect() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusColorLookupTableDrawImagePointsComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0x110033, image.getRGB(0, 0) & 0x00FFFFFF);
+		assertEquals(0x002233, image.getRGB(1, 0) & 0x00FFFFFF);
+	}
+
+	@Test
 	public void testEmfPlus48BppRawBitmapDrawImageRendersPixels() {
 		ByteArrayOutputStream pixels = new ByteArrayOutputStream();
 		writeShort(pixels, 0);
@@ -637,6 +661,18 @@ public class AwtGdiTest {
 		BufferedImage image = gdi.getImage();
 		assertTrue((image.getRGB(8, 20) >>> 24) != 0);
 		assertEquals(0, (image.getRGB(33, 20) >>> 24) & 0xFF);
+	}
+
+	@Test
+	public void testEmfPlusDrawLinesUsesCustomArrowStartCap() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusCustomArrowStartCapPenComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue((image.getRGB(12, 20) >>> 24) != 0);
+		assertEquals(0, (image.getRGB(8, 12) >>> 24) & 0xFF);
 	}
 
 	@Test
@@ -1043,6 +1079,112 @@ public class AwtGdiTest {
 
 	private byte[] createEmfPlusOversizedSourceDrawImageComment(boolean clamp) throws IOException {
 		return createEmfPlusOversizedSourceDrawImageComment(clamp ? 4 : -1, 0xFF0000FF, 0);
+	}
+
+	private byte[] createEmfPlusColorMatrixDrawImagePointsComment() throws IOException {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		byte[] png = createTwoPixelPng();
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeColorMatrixEffectGuid(payload);
+		writeInt(payload, 100);
+		for (int column = 0; column < 5; column++) {
+			for (int row = 0; row < 5; row++) {
+				writeFloat(payload, row == column && row != 0 ? 1 : 0);
+			}
+		}
+		writeEmfPlusRecord(comment, 0x4038, 0, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, 0x0000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private void writeColorMatrixEffectGuid(ByteArrayOutputStream out) {
+		int[] guid = {0x15, 0x26, 0x8F, 0x71, 0x33, 0x79, 0xE3, 0x40, 0xA5, 0x11, 0x5F, 0x68, 0xFE, 0x14, 0xDD, 0x74};
+		for (int value : guid) {
+			out.write(value);
+		}
+	}
+
+	private byte[] createEmfPlusColorLookupTableDrawImagePointsComment() throws IOException {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		byte[] png = createTwoPixelPng();
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeColorLookupTableEffectGuid(payload);
+		writeInt(payload, 1024);
+		writeColorLookupTable(payload);
+		writeEmfPlusRecord(comment, 0x4038, 0, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, 0x0000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private void writeColorLookupTableEffectGuid(ByteArrayOutputStream out) {
+		int[] guid = {0xA9, 0x72, 0xCE, 0xA7, 0x7F, 0x0F, 0xD7, 0x40, 0xB3, 0xCC, 0xD0, 0xC0, 0x2D, 0x5C, 0x32, 0x12};
+		for (int value : guid) {
+			out.write(value);
+		}
+	}
+
+	private void writeColorLookupTable(ByteArrayOutputStream out) {
+		byte[] blue = createIdentityColorLookupTable();
+		byte[] green = createIdentityColorLookupTable();
+		byte[] red = createIdentityColorLookupTable();
+		byte[] alpha = createIdentityColorLookupTable();
+		blue[0] = 0x33;
+		green[255] = 0x22;
+		red[255] = 0x11;
+		out.write(blue, 0, blue.length);
+		out.write(green, 0, green.length);
+		out.write(red, 0, red.length);
+		out.write(alpha, 0, alpha.length);
+	}
+
+	private byte[] createIdentityColorLookupTable() {
+		byte[] table = new byte[256];
+		for (int i = 0; i < table.length; i++) {
+			table[i] = (byte) i;
+		}
+		return table;
 	}
 
 	private byte[] createEmfPlusTiledSourceDrawImageComment() throws IOException {
@@ -1695,6 +1837,45 @@ public class AwtGdiTest {
 		writeFloat(payload, 10);
 		writeFloat(payload, 20);
 		writeFloat(payload, 30);
+		writeFloat(payload, 20);
+		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusCustomArrowStartCapPenComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00000800);
+		writeInt(payload, 2);
+		writeFloat(payload, 2);
+		writeInt(payload, 60);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeFloat(payload, 4);
+		writeFloat(payload, 6);
+		writeFloat(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 10);
+		writeFloat(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 2);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeFloat(payload, 40);
 		writeFloat(payload, 20);
 		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
 		return comment.toByteArray();

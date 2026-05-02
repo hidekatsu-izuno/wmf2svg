@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.AttributedString;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -588,7 +589,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
-		floodFill(x, y, color);
+		floodFill(x, y, color, type == 1);
 	}
 
 	public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData) {
@@ -643,11 +644,42 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void floodFill(int x, int y, int color) {
+		floodFill(x, y, color, false);
+	}
+
+	private void floodFill(int x, int y, int color, boolean surfaceFill) {
 		ensureGraphics();
-		Paint old = graphics.getPaint();
-		graphics.setPaint(toPaint(dc.getBrush()));
-		graphics.fill(toRectangle(x, y, 1, 1));
-		graphics.setPaint(old);
+		int seedX = (int) Math.round(tx(x));
+		int seedY = (int) Math.round(ty(y));
+		if (!isCanvasPixel(seedX, seedY) || !isInClip(seedX, seedY)) {
+			return;
+		}
+		int targetRgb = toColor(color).getRGB() & 0x00FFFFFF;
+		boolean seedMatches = isOpaqueColorMatch(seedX, seedY, targetRgb);
+		if (surfaceFill && !seedMatches || !surfaceFill && seedMatches) {
+			return;
+		}
+
+		boolean[] visited = new boolean[canvasWidth * canvasHeight];
+		ArrayDeque<Integer> queue = new ArrayDeque<Integer>();
+		queue.add(Integer.valueOf(seedY * canvasWidth + seedX));
+		while (!queue.isEmpty()) {
+			int index = queue.removeFirst().intValue();
+			if (visited[index]) {
+				continue;
+			}
+			visited[index] = true;
+			int px = index % canvasWidth;
+			int py = index / canvasWidth;
+			if (!isInClip(px, py) || !isFloodFillTarget(px, py, targetRgb, surfaceFill)) {
+				continue;
+			}
+			fillDevicePixel(px, py, dc.getBrush());
+			addFloodFillNeighbor(queue, visited, px - 1, py);
+			addFloodFillNeighbor(queue, visited, px + 1, py);
+			addFloodFillNeighbor(queue, visited, px, py - 1);
+			addFloodFillNeighbor(queue, visited, px, py + 1);
+		}
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
@@ -742,18 +774,30 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	public void patBlt(int x, int y, int width, int height, long rop) {
 		ensureGraphics();
 		Rectangle2D rect = toRectangle(x, y, width, height);
-		if (rop == Gdi.BLACKNESS) {
-			graphics.setPaint(Color.BLACK);
-			graphics.fill(rect);
-		} else if (rop == Gdi.WHITENESS) {
-			graphics.setPaint(Color.WHITE);
-			graphics.fill(rect);
-		} else if (rop == Gdi.PATCOPY || rop == Gdi.SRCCOPY) {
-			fillShape(rect, dc.getBrush());
-		} else if (rop == Gdi.DSTINVERT) {
-			xorFill(rect, Color.WHITE);
-		} else if (rop == Gdi.PATINVERT) {
-			xorFill(rect, toColor(dc.getBrush() != null ? dc.getBrush().getColor() : 0x00FFFFFF));
+		ensureCanvasContains(rect);
+		int left = Math.max(0, (int) Math.floor(rect.getMinX()));
+		int top = Math.max(0, (int) Math.floor(rect.getMinY()));
+		int right = Math.min(canvasWidth, (int) Math.ceil(rect.getMaxX()));
+		int bottom = Math.min(canvasHeight, (int) Math.ceil(rect.getMaxY()));
+		if (left >= right || top >= bottom) {
+			return;
+		}
+
+		int rop3 = getBitmapRop3(rop);
+		boolean needsPattern = usesPattern(rop3);
+		if (needsPattern && isNullBrush(dc.getBrush())) {
+			return;
+		}
+		BufferedImage pattern = needsPattern ? createPatternImage(left, top, right - left, bottom - top) : null;
+		for (int py = top; py < bottom; py++) {
+			for (int px = left; px < right; px++) {
+				if (!isInClip(px, py)) {
+					continue;
+				}
+				int p = pattern != null ? pattern.getRGB(px - left, py - top) & 0x00FFFFFF : 0;
+				int d = image.getRGB(px, py) & 0x00FFFFFF;
+				image.setRGB(px, py, 0xFF000000 | applyBitmapRop(0, d, p, rop3));
+			}
 		}
 	}
 
@@ -3064,7 +3108,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				drawY += metrics.getAscent();
 			}
 		}
-
 		AttributedString attributed = new AttributedString(text);
 		attributed.addAttribute(TextAttribute.FONT, font);
 		if (gdiFont != null && gdiFont.isUnderlined()) {
@@ -3077,6 +3120,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (gdiFont != null && gdiFont.getEscapement() != 0) {
 			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), drawX, drawY);
 		}
+		fillTextBackground(drawX, drawY, textWidth, metrics);
 		if (advances != null) {
 			drawAttributedTextWithAdvances(text, gdiFont, advances, drawX, drawY);
 		} else {
@@ -3086,6 +3130,19 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if ((align & (Gdi.TA_NOUPDATECP | Gdi.TA_UPDATECP)) == Gdi.TA_UPDATECP) {
 			dc.moveToEx(x + toLogicalTextAdvance(textWidth), y, null);
 		}
+	}
+
+	private void fillTextBackground(int drawX, int baselineY, double textWidth, FontMetrics metrics) {
+		if (dc.getBkMode() != Gdi.OPAQUE || textWidth <= 0.0) {
+			return;
+		}
+		Rectangle2D bounds = new Rectangle2D.Double(drawX, baselineY - metrics.getAscent(), textWidth,
+				metrics.getAscent() + metrics.getDescent());
+		ensureCanvasContains(graphics.getTransform().createTransformedShape(bounds));
+		Paint old = graphics.getPaint();
+		graphics.setPaint(toColor(dc.getBkColor()));
+		graphics.fill(bounds);
+		graphics.setPaint(old);
 	}
 
 	private double[] createTextAdvances(String text, int[] lpdx, FontMetrics metrics) {
@@ -3565,6 +3622,63 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return (rop3 & 0x0F) != ((rop3 >>> 4) & 0x0F);
 	}
 
+	private BufferedImage createPatternImage(int left, int top, int width, int height) {
+		BufferedImage pattern = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D pg = pattern.createGraphics();
+		try {
+			configureGraphics(pg);
+			pg.translate(-left, -top);
+			pg.setPaint(toPaint(dc.getBrush()));
+			pg.fillRect(left, top, width, height);
+		} finally {
+			pg.dispose();
+		}
+		return pattern;
+	}
+
+	private boolean isCanvasPixel(int x, int y) {
+		return x >= 0 && y >= 0 && x < canvasWidth && y < canvasHeight;
+	}
+
+	private boolean isInClip(int x, int y) {
+		Shape clip = graphics.getClip();
+		return clip == null || clip.contains(x + 0.5, y + 0.5);
+	}
+
+	private boolean isFloodFillTarget(int x, int y, int targetRgb, boolean surfaceFill) {
+		boolean matches = isOpaqueColorMatch(x, y, targetRgb);
+		return surfaceFill ? matches : !matches;
+	}
+
+	private boolean isOpaqueColorMatch(int x, int y, int targetRgb) {
+		int argb = image.getRGB(x, y);
+		return ((argb >>> 24) & 0xFF) != 0 && (argb & 0x00FFFFFF) == targetRgb;
+	}
+
+	private void addFloodFillNeighbor(ArrayDeque<Integer> queue, boolean[] visited, int x, int y) {
+		if (!isCanvasPixel(x, y)) {
+			return;
+		}
+		int index = y * canvasWidth + x;
+		if (!visited[index]) {
+			queue.add(Integer.valueOf(index));
+		}
+	}
+
+	private void fillDevicePixel(int x, int y, GdiBrush brush) {
+		if (isNullBrush(brush)) {
+			return;
+		}
+		Paint old = graphics.getPaint();
+		graphics.setPaint(toPaint(brush));
+		graphics.fillRect(x, y, 1, 1);
+		graphics.setPaint(old);
+	}
+
+	private boolean isNullBrush(GdiBrush brush) {
+		return brush == null || brush.getStyle() == GdiBrush.BS_NULL || brush.getStyle() == GdiBrush.BS_HOLLOW;
+	}
+
 	private int applyBitmapRop(int s, int d, int p, int rop3) {
 		int rgb = 0;
 		for (int bit = 0; bit < 24; bit++) {
@@ -3747,7 +3861,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			Integer transparentColor, boolean preserveAlpha) {
 		if (bitCount == 1) {
 			int index = (data[row + x / 8] >>> (7 - (x % 8))) & 0x01;
-			return colors != null && index < colors.length ? colors[index] : index == 0 ? 0xFF000000 : 0xFFFFFFFF;
+			return colors != null && index < colors.length ? colors[index] : index == 0 ? 0xFFFFFFFF : 0xFF000000;
 		} else if (bitCount == 4) {
 			int value = data[row + x / 2] & 0xFF;
 			int index = x % 2 == 0 ? value >>> 4 : value & 0x0F;

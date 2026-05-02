@@ -199,6 +199,108 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testWmfMonoBitmapUsesWmfBlackWhiteBitOrder() {
+		AwtGdi gdi = createMappedGdi(2, 1);
+		gdi.bitBlt(createWmfMonoBitmap(0x80), 0, 0, 2, 1, 0, 0, Gdi.SRCCOPY);
+
+		assertEquals(0x000000, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+		assertEquals(0xFFFFFF, gdi.getImage().getRGB(1, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testPatBltUsesPatternRasterOpTruthTable() {
+		AwtGdi gdi = createOnePixelGdi();
+		gdi.setPixel(0, 0, 0x0000FF);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FF00, 0));
+		gdi.patBlt(0, 0, 1, 1, Gdi.PATPAINT);
+
+		assertEquals(0xFFFFFF, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testFloodFillFillsConnectedSurfaceOnly() {
+		AwtGdi gdi = createMappedGdi(5, 5);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.rectangle(0, 0, 5, 5);
+		for (int i = 0; i < 5; i++) {
+			gdi.setPixel(i, 0, 0);
+			gdi.setPixel(i, 4, 0);
+			gdi.setPixel(0, i, 0);
+			gdi.setPixel(4, i, 0);
+		}
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FF00, 0));
+		gdi.floodFill(2, 2, 0);
+
+		assertEquals(0x00FF00, gdi.getImage().getRGB(2, 2) & 0x00FFFFFF);
+		assertEquals(0x000000, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+		assertEquals(0x000000, gdi.getImage().getRGB(4, 2) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testFloodFillDoesNotTreatTransparentPixelsAsBlackBorder() {
+		AwtGdi gdi = createMappedGdi(3, 3);
+		for (int i = 0; i < 3; i++) {
+			gdi.setPixel(i, 0, 0);
+			gdi.setPixel(i, 2, 0);
+			gdi.setPixel(0, i, 0);
+			gdi.setPixel(2, i, 0);
+		}
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FF00, 0));
+		gdi.floodFill(1, 1, 0);
+
+		assertEquals(0x00FF00, gdi.getImage().getRGB(1, 1) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testExtFloodFillSurfaceFillsMatchingColorOnly() {
+		AwtGdi gdi = createMappedGdi(3, 1);
+		gdi.setPixel(0, 0, 0x0000FF);
+		gdi.setPixel(1, 0, 0x0000FF);
+		gdi.setPixel(2, 0, 0x00FF00);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0xFF0000, 0));
+		gdi.extFloodFill(0, 0, 0x000000FF, 1);
+
+		assertEquals(0x0000FF, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+		assertEquals(0x0000FF, gdi.getImage().getRGB(1, 0) & 0x00FFFFFF);
+		assertEquals(0x00FF00, gdi.getImage().getRGB(2, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testPatBltWithNullBrushDoesNotPaintPatternDependentRop() {
+		AwtGdi gdi = createOnePixelGdi();
+		gdi.setPixel(0, 0, 0xFF0000);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x00FF00, 0));
+		gdi.patBlt(0, 0, 1, 1, Gdi.PATCOPY);
+
+		assertEquals(0x0000FF, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testTextOutOpaqueBackgroundFillsTextBounds() {
+		AwtGdi gdi = createMappedGdi(80, 30);
+		gdi.selectObject(gdi.createFontIndirect(-12, 0, 0, 0, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'A', 'r', 'i', 'a', 'l', 0}));
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.setBkColor(0x0000FF00);
+		gdi.textOut(10, 5, new byte[]{'A', 'B'});
+
+		assertEquals(0x00FF00, gdi.getImage().getRGB(11, 7) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testTextOutTransparentBackgroundDoesNotFillTextBounds() {
+		AwtGdi gdi = createMappedGdi(80, 30);
+		gdi.selectObject(gdi.createFontIndirect(-12, 0, 0, 0, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'A', 'r', 'i', 'a', 'l', 0}));
+		gdi.setBkMode(Gdi.TRANSPARENT);
+		gdi.setBkColor(0x0000FF00);
+		gdi.textOut(10, 5, new byte[]{'A', 'B'});
+
+		assertEquals(0, (gdi.getImage().getRGB(11, 7) >>> 24) & 0xFF);
+	}
+
+	@Test
 	public void testEmfPlusSolidFillRecordsRenderBasicShapes() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -2259,6 +2361,18 @@ public class AwtGdiTest {
 			dib[offset + 2] = (byte) ((rgb >>> 16) & 0xFF);
 		}
 		return dib;
+	}
+
+	private byte[] createWmfMonoBitmap(int bits) {
+		byte[] bitmap = new byte[12];
+		writeUInt16(bitmap, 0, 0);
+		writeUInt16(bitmap, 2, 2);
+		writeUInt16(bitmap, 4, 1);
+		writeUInt16(bitmap, 6, 2);
+		bitmap[8] = 1;
+		bitmap[9] = 1;
+		bitmap[10] = (byte) bits;
+		return bitmap;
 	}
 
 	private void writeInt32(byte[] data, int offset, int value) {

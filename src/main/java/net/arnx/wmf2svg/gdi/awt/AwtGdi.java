@@ -2155,9 +2155,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			}
 			return;
 		}
-		Polygon polygon = toPolygon(points);
-		if (polygon != null) {
-			strokeShape(polygon, dc.getPen());
+		Path2D.Double path = toPolyline(points);
+		if (path != null) {
+			strokeShape(path, dc.getPen());
 			if (points.length > 0) {
 				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
 			}
@@ -3432,23 +3432,24 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			y = dc.getCurrentY();
 		}
 		AwtFont gdiFont = dc.getFont();
-		Font font = toFont(gdiFont);
+		Font advanceFont = toFont(gdiFont);
 		String mappedText = mapSymbolText(gdiFont, text);
 		if (mappedText != text) {
 			if (mappedText.length() != text.length()) {
 				lpdx = null;
 			}
 			text = mappedText;
-			font = toSymbolReplacementFont(font);
+			advanceFont = toSymbolReplacementFont(advanceFont);
 		}
+		Font font = advanceFont;
 		graphics.setFont(font);
 		graphics.setPaint(toColor(dc.getTextColor()));
-		FontMetrics metrics = graphics.getFontMetrics(font);
+		FontMetrics metrics = graphics.getFontMetrics(advanceFont);
 		boolean middleEasternText = isMiddleEasternFont(gdiFont);
 		boolean rightToLeft = middleEasternText
 				&& ((align & Gdi.TA_RTLREADING) != 0 || (options & Gdi.ETO_RTLREADING) != 0);
 		TextAdvances advances = createTextAdvances(text, lpdx, metrics, options, middleEasternText);
-		double textWidth = advances != null ? advances.sumX() : metrics.stringWidth(text);
+		double textWidth = advances != null ? advances.sumX() : getTextWidth(advanceFont, text);
 		int referenceX = (int) tx(x);
 		int referenceY = (int) ty(y);
 		int drawX = referenceX;
@@ -3477,14 +3478,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (gdiFont != null && gdiFont.isStrikedOut()) {
 			attributed.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
 		}
+		ensureTextCanvasContains(drawX, drawY, text, textWidth, font, metrics, advances, gdiFont, referenceX,
+				referenceY);
 		AffineTransform old = graphics.getTransform();
-		if (gdiFont != null && gdiFont.getEscapement() != 0) {
-			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), referenceX, referenceY);
+		int escapement = getTextEscapement(gdiFont);
+		if (escapement != 0) {
+			graphics.rotate(-Math.toRadians(escapement / 10.0), referenceX, referenceY);
 		}
-		ensureTextCanvasContains(drawX, drawY, text, textWidth, metrics, advances, gdiFont, referenceX, referenceY);
-		fillTextBackground(drawX, drawY, text, textWidth, metrics, advances);
+		fillTextBackground(drawX, drawY, text, textWidth, font, metrics, advances);
 		if (dc.getROP2() != Gdi.R2_COPYPEN) {
-			drawTextRop2(attributed, text, gdiFont, advances, rightToLeft, drawX, drawY, textWidth, metrics);
+			drawTextRop2(attributed, text, font, gdiFont, advances, rightToLeft, drawX, drawY, textWidth, metrics);
 		} else {
 			drawTextForeground(graphics, attributed, text, gdiFont, advances, rightToLeft, drawX, drawY);
 		}
@@ -3495,12 +3498,21 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private void ensureTextCanvasContains(int drawX, int baselineY, String text, double textWidth, FontMetrics metrics,
-			TextAdvances advances, AwtFont gdiFont, int referenceX, int referenceY) {
-		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
-		if (gdiFont != null && gdiFont.getEscapement() != 0) {
-			AffineTransform transform = AffineTransform
-					.getRotateInstance(-Math.toRadians(gdiFont.getEscapement() / 10.0), referenceX, referenceY);
+	private double getTextWidth(Font font, String text) {
+		return Math.max(font.getStringBounds(text, graphics.getFontRenderContext()).getWidth(), 1.0);
+	}
+
+	private int getTextEscapement(AwtFont gdiFont) {
+		return gdiFont != null ? gdiFont.getEscapement() : 0;
+	}
+
+	private void ensureTextCanvasContains(int drawX, int baselineY, String text, double textWidth, Font font,
+			FontMetrics metrics, TextAdvances advances, AwtFont gdiFont, int referenceX, int referenceY) {
+		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, font, metrics, advances);
+		int escapement = getTextEscapement(gdiFont);
+		if (escapement != 0) {
+			AffineTransform transform = AffineTransform.getRotateInstance(-Math.toRadians(escapement / 10.0),
+					referenceX, referenceY);
 			ensureTextCanvasContains(transform.createTransformedShape(bounds).getBounds2D());
 		} else {
 			ensureTextCanvasContains(bounds);
@@ -3517,30 +3529,44 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private Rectangle2D createTextLogicalBounds(int x, int baselineY, String text, double textWidth,
+	private Rectangle2D createTextLogicalBounds(int x, int baselineY, String text, double textWidth, Font font,
 			FontMetrics metrics, TextAdvances advances) {
 		Rectangle2D.Double bounds = new Rectangle2D.Double(x, baselineY - metrics.getAscent(), Math.max(textWidth, 1.0),
 				metrics.getAscent() + metrics.getDescent());
-		if (advances != null && advances.hasY()) {
+		if (advances != null) {
 			double ax = x;
 			double ay = baselineY;
 			for (int i = 0; i < text.length(); i++) {
-				bounds.add(new Rectangle2D.Double(ax, ay - metrics.getAscent(),
-						Math.max(metrics.charWidth(text.charAt(i)), 1), metrics.getAscent() + metrics.getDescent()));
+				addTextBounds(bounds, font, text.substring(i, i + 1), ax, ay);
+				if (advances.hasY()) {
+					bounds.add(new Rectangle2D.Double(ax, ay - metrics.getAscent(),
+							Math.max(metrics.charWidth(text.charAt(i)), 1),
+							metrics.getAscent() + metrics.getDescent()));
+				}
 				ax += advances.x[i];
-				ay += advances.y[i];
+				if (advances.y != null) {
+					ay += advances.y[i];
+				}
 			}
+		} else {
+			addTextBounds(bounds, font, text, x, baselineY);
 		}
 		return bounds;
 	}
 
-	private void drawTextRop2(AttributedString attributed, String text, AwtFont gdiFont, TextAdvances advances,
-			boolean rightToLeft, int x, int y, double textWidth, FontMetrics metrics) {
+	private void addTextBounds(Rectangle2D.Double bounds, Font font, String text, double x, double baselineY) {
+		Rectangle2D textBounds = font.getStringBounds(text, graphics.getFontRenderContext());
+		bounds.add(new Rectangle2D.Double(x + textBounds.getX(), baselineY + textBounds.getY(), textBounds.getWidth(),
+				textBounds.getHeight()));
+	}
+
+	private void drawTextRop2(AttributedString attributed, String text, Font font, AwtFont gdiFont,
+			TextAdvances advances, boolean rightToLeft, int x, int y, double textWidth, FontMetrics metrics) {
 		if (image == null || dc.getROP2() == Gdi.R2_COPYPEN || dc.getROP2() == Gdi.R2_NOP) {
 			return;
 		}
 
-		Rectangle2D logicalBounds = createTextLogicalBounds(x, y, text, textWidth, metrics, advances);
+		Rectangle2D logicalBounds = createTextLogicalBounds(x, y, text, textWidth, font, metrics, advances);
 		Rectangle2D bounds = graphics.getTransform().createTransformedShape(logicalBounds).getBounds2D();
 		int left = Math.max(0, (int) Math.floor(bounds.getMinX()));
 		int top = Math.max(0, (int) Math.floor(bounds.getMinY()));
@@ -3576,12 +3602,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private void fillTextBackground(int drawX, int baselineY, String text, double textWidth, FontMetrics metrics,
-			TextAdvances advances) {
+	private void fillTextBackground(int drawX, int baselineY, String text, double textWidth, Font font,
+			FontMetrics metrics, TextAdvances advances) {
 		if (dc.getBkMode() != Gdi.OPAQUE) {
 			return;
 		}
-		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
+		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, font, metrics, advances);
 		Paint old = graphics.getPaint();
 		graphics.setPaint(toColor(dc.getBkColor()));
 		graphics.fill(bounds);
@@ -4243,6 +4269,18 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			polygon.addPoint((int) tx(points[i].x), (int) ty(points[i].y));
 		}
 		return polygon;
+	}
+
+	private Path2D.Double toPolyline(Point[] points) {
+		if (points == null || points.length == 0) {
+			return null;
+		}
+		Path2D.Double path = new Path2D.Double();
+		path.moveTo(tx(points[0].x), ty(points[0].y));
+		for (int i = 1; i < points.length; i++) {
+			path.lineTo(tx(points[i].x), ty(points[i].y));
+		}
+		return path;
 	}
 
 	private double tx(double x) {

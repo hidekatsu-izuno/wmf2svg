@@ -129,6 +129,18 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testPolylineDoesNotCloseToFirstPoint() {
+		AwtGdi gdi = createMappedGdi(30, 30);
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0x0000FF));
+		gdi.polyline(new Point[]{new Point(2, 2), new Point(20, 2), new Point(20, 20)});
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(countPaintedPixels(image, 2, 2, 19, 2) > 0);
+		assertTrue(countPaintedPixels(image, 19, 2, 2, 19) > 0);
+		assertEquals(0, countPaintedPixels(image, 2, 18, 4, 4));
+	}
+
+	@Test
 	public void testFillPathUsesCurrentPolyFillMode() {
 		AwtGdi gdi = createMappedGdi(100, 100);
 		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0, 0));
@@ -741,6 +753,43 @@ public class AwtGdiTest {
 		assertEquals(330, image.getWidth());
 		assertEquals(460, image.getHeight());
 		assertTrue(countPaintedPixels(image, 320, 0, 10, 40) > 0);
+	}
+
+	@Test
+	public void testTextOutIgnoresOrientationWhenEscapementIsZero() {
+		AwtGdi horizontal = createMappedGdi(120, 120);
+		horizontal.setBkMode(Gdi.OPAQUE);
+		horizontal.setBkColor(0x0000FF);
+		horizontal.selectObject(horizontal.createFontIndirect(-24, 0, 0, 0, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'D', 'i', 'a', 'l', 'o', 'g', 0}));
+		horizontal.textOut(60, 60, new byte[]{'H', 'I'});
+
+		AwtGdi oriented = createMappedGdi(120, 120);
+		oriented.setBkMode(Gdi.OPAQUE);
+		oriented.setBkColor(0x0000FF);
+		oriented.selectObject(oriented.createFontIndirect(-24, 0, 0, 900, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'D', 'i', 'a', 'l', 'o', 'g', 0}));
+		oriented.textOut(60, 60, new byte[]{'H', 'I'});
+
+		assertFalse(imagesDiffer(horizontal.getImage(), oriented.getImage()));
+		assertTrue(countOpaqueColorPixels(oriented.getImage(), 0xFF0000) > 0);
+	}
+
+	@Test
+	public void testTextOutKeepsEscapementAfterCanvasGrowth() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.setBkMode(Gdi.OPAQUE);
+		gdi.setBkColor(0x0000FF);
+		gdi.setTextColor(0xFFFFFF);
+		gdi.setTextCharacterExtra(10);
+		gdi.selectObject(gdi.createFontIndirect(20, 0, 600, 0, 400, false, false, false, 0, 0, 0, 0, 0,
+				new byte[]{'D', 'i', 'a', 'l', 'o', 'g', 0}));
+		gdi.textOut(170, 120, new byte[]{'I', ' ', 'a', 'm', ' ', 't', 'h', 'e', ' ', 's', 't', 'r', 'i', 'n', 'g'});
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(countPaintedPixels(image, 170, 0, 160, 80) > 0);
 	}
 
 	@Test

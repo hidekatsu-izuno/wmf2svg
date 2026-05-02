@@ -33,6 +33,7 @@ import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.TexturePaint;
+import java.awt.font.GlyphVector;
 import java.awt.font.TextAttribute;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Arc2D;
@@ -137,6 +138,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private int emfPlusTextContrast = 0;
 	private int emfPlusRenderingOriginX = 0;
 	private int emfPlusRenderingOriginY = 0;
+	private double emfPlusPixelOffsetX = 0.0;
+	private double emfPlusPixelOffsetY = 0.0;
 	private LinkedList<double[]> emfPlusWorldTransformStack = new LinkedList<double[]>();
 	private LinkedList<double[]> emfPlusPageTransformStack = new LinkedList<double[]>();
 	private LinkedList<Shape> emfPlusClipStack = new LinkedList<Shape>();
@@ -936,10 +939,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		emfPlusWorldTransformStack.addFirst(emfPlusWorldTransform.clone());
 		emfPlusPageTransformStack.addFirst(new double[]{emfPlusPageScale, emfPlusPageUnitScale});
 		emfPlusClipStack.addFirst(graphics != null ? graphics.getClip() : null);
-		emfPlusRenderingStateStack
-				.addFirst(new EmfPlusRenderingState(emfPlusAntiAliasingHint, emfPlusTextAntiAliasingHint,
-						emfPlusInterpolationHint, emfPlusAlphaInterpolationHint, emfPlusStrokeControlHint,
-						emfPlusComposite, emfPlusTextContrast, emfPlusRenderingOriginX, emfPlusRenderingOriginY));
+		emfPlusRenderingStateStack.addFirst(new EmfPlusRenderingState(emfPlusAntiAliasingHint,
+				emfPlusTextAntiAliasingHint, emfPlusInterpolationHint, emfPlusAlphaInterpolationHint,
+				emfPlusStrokeControlHint, emfPlusComposite, emfPlusTextContrast, emfPlusRenderingOriginX,
+				emfPlusRenderingOriginY, emfPlusPixelOffsetX, emfPlusPixelOffsetY));
 	}
 
 	private void restoreEmfPlusState() {
@@ -968,6 +971,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			emfPlusTextContrast = state.textContrast;
 			emfPlusRenderingOriginX = state.renderingOriginX;
 			emfPlusRenderingOriginY = state.renderingOriginY;
+			emfPlusPixelOffsetX = state.pixelOffsetX;
+			emfPlusPixelOffsetY = state.pixelOffsetY;
 			if (graphics != null) {
 				configureGraphics(graphics);
 			}
@@ -1120,7 +1125,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (brush == null || points == null || points.length < 3) {
 			return;
 		}
-		fillEmfPlusShape(createEmfPlusPolyline(points, true, Path2D.WIND_NON_ZERO), brush);
+		fillEmfPlusShape(createEmfPlusPolyline(points, true, toEmfPlusFillWindingRule(flags)), brush);
 	}
 
 	private void handleEmfPlusDrawLines(int flags, byte[] payload) {
@@ -1260,7 +1265,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int count = readInt32(payload, fill ? 8 : 4);
 		double[][] points = readEmfPlusDrawingPoints(payload, dataOffset, count, flags);
 		Path2D.Double path = points != null && points.length >= 3
-				? createEmfPlusClosedCurvePath(points, tension)
+				? createEmfPlusClosedCurvePath(points, tension,
+						fill ? toEmfPlusFillWindingRule(flags) : Path2D.WIND_NON_ZERO)
 				: null;
 		if (path == null) {
 			return;
@@ -1310,11 +1316,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		EmfPlusText textRun = createEmfPlusTextRun(text, format);
+		EmfPlusText textRun = createEmfPlusTextRun(text, format, emfPlusFont);
 		double[] p = toEmfPlusLogicalPoint(rects[0][0], rects[0][1]);
 		Font font = createEmfPlusFont(emfPlusFont);
 		ensureGraphics();
-		ensureCanvasContains(createEmfPlusRect(rects[0]));
 		Font oldFont = graphics.getFont();
 		Paint oldPaint = graphics.getPaint();
 		graphics.setFont(font);
@@ -1322,11 +1327,15 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		FontMetrics metrics = graphics.getFontMetrics(font);
 		float x = (float) toEmfPlusStringX(p[0], rects[0][2], textRun.text, metrics, format);
 		float y = (float) toEmfPlusStringY(p[1], rects[0][3], metrics, format);
+		boolean noClip = format != null && (format.flags & EMF_PLUS_STRING_FORMAT_NO_CLIP) != 0;
+		boolean vertical = format != null && (format.flags & EMF_PLUS_STRING_FORMAT_DIRECTION_VERTICAL) != 0;
+		Shape layoutBounds = createEmfPlusRect(rects[0]);
+		ensureCanvasContains(noClip ? createEmfPlusTextBounds(x, y, textRun.text, metrics, vertical) : layoutBounds);
 		Shape oldClip = graphics.getClip();
-		if (format == null || (format.flags & EMF_PLUS_STRING_FORMAT_NO_CLIP) == 0) {
-			graphics.clip(createEmfPlusRect(rects[0]));
+		if (!noClip) {
+			graphics.clip(layoutBounds);
 		}
-		if (format != null && (format.flags & EMF_PLUS_STRING_FORMAT_DIRECTION_VERTICAL) != 0) {
+		if (vertical) {
 			AffineTransform oldTransform = graphics.getTransform();
 			graphics.rotate(Math.PI / 2.0, x, y);
 			graphics.drawString(textRun.attributed.getIterator(), x, y);
@@ -1354,11 +1363,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int options = readInt32(payload, 4);
 		int matrixPresent = readInt32(payload, 8);
 		int glyphCount = readInt32(payload, 12);
-		if (glyphCount <= 0 || (options & EMF_PLUS_DRIVER_STRING_CMAP_LOOKUP) == 0) {
+		if (glyphCount <= 0) {
 			return;
 		}
-		String text = readUtf16Le(payload, 16, glyphCount);
-		if (text == null) {
+		boolean cmapLookup = (options & EMF_PLUS_DRIVER_STRING_CMAP_LOOKUP) != 0;
+		String text = cmapLookup ? readUtf16Le(payload, 16, glyphCount) : null;
+		int[] glyphCodes = cmapLookup ? null : readEmfPlusGlyphCodes(payload, 16, glyphCount);
+		if (cmapLookup && text == null || !cmapLookup && glyphCodes == null) {
 			return;
 		}
 
@@ -1387,32 +1398,76 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setFont(font);
 		graphics.setPaint(paint);
 		FontMetrics metrics = graphics.getFontMetrics(font);
+		boolean transformed = matrix != null;
 		if ((options & EMF_PLUS_DRIVER_STRING_REALIZED_ADVANCE) != 0) {
-			double[] point = toEmfPlusDriverStringPoint(points[0], matrix);
+			double[] point = transformed ? points[0] : toEmfPlusDriverStringPoint(points[0], null);
 			if ((options & EMF_PLUS_DRIVER_STRING_VERTICAL) != 0) {
-				ensureCanvasContains(new Rectangle2D.Double(point[0], point[1], Math.max(1, font.getSize2D()),
-						Math.max(1, text.length() * metrics.getHeight())));
+				ensureCanvasContains(createEmfPlusDriverStringBounds(point[0], point[1], Math.max(1, font.getSize2D()),
+						Math.max(1, glyphCount * metrics.getHeight()), matrix));
+				graphics.setFont(font);
+				graphics.setPaint(paint);
+				AffineTransform oldTransform = applyEmfPlusDriverStringTransform(matrix);
 				for (int i = 0; i < glyphCount; i++) {
-					graphics.drawString(text.substring(i, i + 1), (float) point[0],
-							(float) (point[1] + metrics.getAscent() + i * metrics.getHeight()));
+					drawEmfPlusDriverGlyph(font, text, glyphCodes, i, point[0],
+							point[1] + metrics.getAscent() + i * metrics.getHeight());
 				}
+				restoreEmfPlusDriverStringTransform(oldTransform);
 			} else {
-				ensureCanvasContains(new Rectangle2D.Double(point[0], point[1],
-						Math.max(1, text.length() * font.getSize2D()), Math.max(1, font.getSize2D())));
-				graphics.drawString(text, (float) point[0], (float) (point[1] + font.getSize2D()));
+				ensureCanvasContains(createEmfPlusDriverStringBounds(point[0], point[1],
+						Math.max(1, glyphCount * font.getSize2D()), Math.max(1, font.getSize2D()), matrix));
+				graphics.setFont(font);
+				graphics.setPaint(paint);
+				AffineTransform oldTransform = applyEmfPlusDriverStringTransform(matrix);
+				if (cmapLookup) {
+					graphics.drawString(text, (float) point[0], (float) (point[1] + font.getSize2D()));
+				} else {
+					GlyphVector glyphs = font.createGlyphVector(graphics.getFontRenderContext(), glyphCodes);
+					graphics.drawGlyphVector(glyphs, (float) point[0], (float) (point[1] + font.getSize2D()));
+				}
+				restoreEmfPlusDriverStringTransform(oldTransform);
 			}
 		} else {
 			for (int i = 0; i < glyphCount; i++) {
-				double[] point = toEmfPlusDriverStringPoint(points[i], matrix);
-				ensureCanvasContains(new Rectangle2D.Double(point[0], point[1], Math.max(1, font.getSize2D()),
-						Math.max(1, font.getSize2D())));
-				graphics.drawString(text.substring(i, i + 1), (float) point[0],
-						(float) (point[1] + metrics.getAscent()));
+				double[] point = transformed ? points[i] : toEmfPlusDriverStringPoint(points[i], null);
+				ensureCanvasContains(createEmfPlusDriverStringBounds(point[0], point[1], Math.max(1, font.getSize2D()),
+						Math.max(1, font.getSize2D()), matrix));
 			}
+			graphics.setFont(font);
+			graphics.setPaint(paint);
+			AffineTransform oldTransform = applyEmfPlusDriverStringTransform(matrix);
+			for (int i = 0; i < glyphCount; i++) {
+				double[] point = transformed ? points[i] : toEmfPlusDriverStringPoint(points[i], null);
+				drawEmfPlusDriverGlyph(font, text, glyphCodes, i, point[0], point[1] + metrics.getAscent());
+			}
+			restoreEmfPlusDriverStringTransform(oldTransform);
 		}
 		graphics.setPaint(oldPaint);
 		graphics.setFont(oldFont);
 		suppressEmfPlusFallback = true;
+	}
+
+	private AffineTransform applyEmfPlusDriverStringTransform(double[] matrix) {
+		if (matrix == null) {
+			return null;
+		}
+		AffineTransform oldTransform = graphics.getTransform();
+		graphics.transform(createEmfPlusDriverStringTransform(matrix));
+		return oldTransform;
+	}
+
+	private void restoreEmfPlusDriverStringTransform(AffineTransform oldTransform) {
+		if (oldTransform != null) {
+			graphics.setTransform(oldTransform);
+		}
+	}
+
+	private void drawEmfPlusDriverGlyph(Font font, String text, int[] glyphCodes, int index, double x, double y) {
+		if (text != null) {
+			graphics.drawString(text.substring(index, index + 1), (float) x, (float) y);
+			return;
+		}
+		GlyphVector glyph = font.createGlyphVector(graphics.getFontRenderContext(), new int[]{glyphCodes[index]});
+		graphics.drawGlyphVector(glyph, (float) x, (float) y);
 	}
 
 	private void setEmfPlusAntiAliasMode(int flags) {
@@ -1427,10 +1482,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void setEmfPlusTextRenderingHint(int flags) {
 		int hint = flags & 0xFF;
-		emfPlusTextAntiAliasingHint = hint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL
-				|| hint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL_GRID_FIT
-						? RenderingHints.VALUE_TEXT_ANTIALIAS_OFF
-						: RenderingHints.VALUE_TEXT_ANTIALIAS_ON;
+		if (hint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL
+				|| hint == EMF_PLUS_TEXT_RENDERING_HINT_SINGLE_BIT_PER_PIXEL_GRID_FIT) {
+			emfPlusTextAntiAliasingHint = RenderingHints.VALUE_TEXT_ANTIALIAS_OFF;
+		} else if (hint == EMF_PLUS_TEXT_RENDERING_HINT_ANTIALIAS_GRID_FIT) {
+			emfPlusTextAntiAliasingHint = RenderingHints.VALUE_TEXT_ANTIALIAS_GASP;
+		} else if (hint == EMF_PLUS_TEXT_RENDERING_HINT_CLEAR_TYPE_GRID_FIT) {
+			emfPlusTextAntiAliasingHint = RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB;
+		} else {
+			emfPlusTextAntiAliasingHint = RenderingHints.VALUE_TEXT_ANTIALIAS_ON;
+		}
 		if (graphics != null) {
 			graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, emfPlusTextAntiAliasingHint);
 		}
@@ -1481,6 +1542,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				|| mode == EMF_PLUS_PIXEL_OFFSET_MODE_HALF
 						? RenderingHints.VALUE_STROKE_PURE
 						: RenderingHints.VALUE_STROKE_DEFAULT;
+		emfPlusPixelOffsetX = mode == EMF_PLUS_PIXEL_OFFSET_MODE_HIGH_QUALITY || mode == EMF_PLUS_PIXEL_OFFSET_MODE_HALF
+				? 0.5
+				: 0.0;
+		emfPlusPixelOffsetY = emfPlusPixelOffsetX;
 		if (graphics != null) {
 			graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, emfPlusStrokeControlHint);
 		}
@@ -1498,6 +1563,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int quality = flags & 0xFF;
 		emfPlusAlphaInterpolationHint = quality == EMF_PLUS_COMPOSITING_QUALITY_HIGH_QUALITY
 				|| quality == EMF_PLUS_COMPOSITING_QUALITY_GAMMA_CORRECTED
+				|| quality == EMF_PLUS_COMPOSITING_QUALITY_ASSUME_LINEAR
 						? RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY
 						: RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED;
 		if (graphics != null) {
@@ -1694,29 +1760,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (metafileImage == null) {
 			return;
 		}
-
-		double[] p0 = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
-		double[] p1 = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
-		double[] p2 = toEmfPlusLogicalPoint(points[2][0], points[2][1]);
-		if (normalizeUnit) {
-			double[] unit = getEmfPlusImageUnitScale(p0, p1, p2, srcWidth, srcHeight);
-			p0 = normalizeEmfPlusImagePoint(p0, unit);
-			p1 = normalizeEmfPlusImagePoint(p1, unit);
-			p2 = normalizeEmfPlusImagePoint(p2, unit);
-		}
-
-		double a = (p1[0] - p0[0]) / srcWidth;
-		double b = (p1[1] - p0[1]) / srcWidth;
-		double c = (p2[0] - p0[0]) / srcHeight;
-		double d = (p2[1] - p0[1]) / srcHeight;
-		double e = p0[0];
-		double f = p0[1];
-
-		ensureGraphics();
-		AffineTransform old = graphics.getTransform();
-		graphics.drawImage(metafileImage, new AffineTransform(a, b, c, d, e, f), null);
-		graphics.setTransform(old);
-		suppressEmfPlusFallback = true;
+		drawEmfPlusBitmapImage(metafileImage, attributes, srcX, srcY, srcWidth, srcHeight, points, normalizeUnit);
 	}
 
 	private void drawEmfPlusBitmapImage(BufferedImage bitmapImage, EmfPlusImageAttributes attributes, double srcX,
@@ -1764,22 +1808,64 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				graphics.setTransform(old);
 			}
 		} else {
-			if (attributes != null && attributes.wrapMode == EMF_PLUS_WRAP_MODE_CLAMP) {
-				Paint oldPaint = graphics.getPaint();
-				graphics.setPaint(toEmfPlusColor(attributes.clampColor));
-				graphics.fill(destination);
-				graphics.setPaint(oldPaint);
-			}
-			if (intersectsBitmap) {
-				double e = p0[0] - srcX * a - srcY * c;
-				double f = p0[1] - srcX * b - srcY * d;
-				AffineTransform old = graphics.getTransform();
-				graphics.drawImage(bitmapImage, new AffineTransform(a, b, c, d, e, f), null);
-				graphics.setTransform(old);
+			if (attributes != null && attributes.wrapMode == EMF_PLUS_WRAP_MODE_CLAMP
+					&& attributes.objectClamp == EMF_PLUS_OBJECT_CLAMP_BITMAP) {
+				BufferedImage source = createEmfPlusClampedBitmap(bitmapImage, srcX, srcY, srcWidth, srcHeight);
+				if (source != null) {
+					AffineTransform old = graphics.getTransform();
+					graphics.drawImage(source,
+							new AffineTransform((p1[0] - p0[0]) / source.getWidth(),
+									(p1[1] - p0[1]) / source.getWidth(), (p2[0] - p0[0]) / source.getHeight(),
+									(p2[1] - p0[1]) / source.getHeight(), p0[0], p0[1]),
+							null);
+					graphics.setTransform(old);
+				}
+			} else {
+				if (attributes != null && attributes.wrapMode == EMF_PLUS_WRAP_MODE_CLAMP) {
+					Paint oldPaint = graphics.getPaint();
+					graphics.setPaint(toEmfPlusColor(attributes.clampColor));
+					graphics.fill(destination);
+					graphics.setPaint(oldPaint);
+				}
+				if (intersectsBitmap) {
+					double e = p0[0] - srcX * a - srcY * c;
+					double f = p0[1] - srcX * b - srcY * d;
+					AffineTransform old = graphics.getTransform();
+					graphics.drawImage(bitmapImage, new AffineTransform(a, b, c, d, e, f), null);
+					graphics.setTransform(old);
+				}
 			}
 		}
 		graphics.setClip(oldClip);
 		suppressEmfPlusFallback = true;
+	}
+
+	private BufferedImage createEmfPlusClampedBitmap(BufferedImage image, double srcX, double srcY, double srcWidth,
+			double srcHeight) {
+		int width = Math.max(1, (int) Math.ceil(Math.abs(srcWidth)));
+		int height = Math.max(1, (int) Math.ceil(Math.abs(srcHeight)));
+		if (image.getWidth() <= 0 || image.getHeight() <= 0) {
+			return null;
+		}
+		BufferedImage clamped = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+		for (int y = 0; y < height; y++) {
+			int sourceY = clampIndex((int) Math.floor(srcHeight >= 0 ? srcY + y : srcY - y), image.getHeight());
+			for (int x = 0; x < width; x++) {
+				int sourceX = clampIndex((int) Math.floor(srcWidth >= 0 ? srcX + x : srcX - x), image.getWidth());
+				clamped.setRGB(x, y, image.getRGB(sourceX, sourceY));
+			}
+		}
+		return clamped;
+	}
+
+	private int clampIndex(int value, int size) {
+		if (value < 0) {
+			return 0;
+		}
+		if (value >= size) {
+			return size - 1;
+		}
+		return value;
 	}
 
 	private boolean isEmfPlusTileWrapMode(int wrapMode) {
@@ -4581,7 +4667,18 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if ((emfPlusFont.styleFlags & EMF_PLUS_FONT_STYLE_ITALIC) != 0) {
 			style |= Font.ITALIC;
 		}
-		return new Font(emfPlusFont.familyName, style, Math.max(1, (int) Math.round(fontSize)));
+		Font font = new Font(emfPlusFont.familyName, style, Math.max(1, (int) Math.round(fontSize)));
+		if ((emfPlusFont.styleFlags & (EMF_PLUS_FONT_STYLE_UNDERLINE | EMF_PLUS_FONT_STYLE_STRIKEOUT)) == 0) {
+			return font;
+		}
+		Map<TextAttribute, Object> attributes = new HashMap<TextAttribute, Object>();
+		if ((emfPlusFont.styleFlags & EMF_PLUS_FONT_STYLE_UNDERLINE) != 0) {
+			attributes.put(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
+		}
+		if ((emfPlusFont.styleFlags & EMF_PLUS_FONT_STYLE_STRIKEOUT) != 0) {
+			attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
+		}
+		return font.deriveFont(attributes);
 	}
 
 	private double toEmfPlusStringX(double x, double rectWidth, String text, FontMetrics metrics,
@@ -4610,7 +4707,17 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return y + metrics.getAscent();
 	}
 
-	private EmfPlusText createEmfPlusTextRun(String text, EmfPlusStringFormat format) {
+	private Shape createEmfPlusTextBounds(float x, float y, String text, FontMetrics metrics, boolean vertical) {
+		Shape bounds = new Rectangle2D.Double(x, y - metrics.getAscent(), Math.max(1, metrics.stringWidth(text)),
+				Math.max(1, metrics.getHeight()));
+		if (!vertical) {
+			return bounds;
+		}
+		AffineTransform transform = AffineTransform.getRotateInstance(Math.PI / 2.0, x, y);
+		return transform.createTransformedShape(bounds);
+	}
+
+	private EmfPlusText createEmfPlusTextRun(String text, EmfPlusStringFormat format, EmfPlusFont font) {
 		StringBuilder plain = new StringBuilder();
 		ArrayList<Integer> underlineIndexes = new ArrayList<Integer>();
 		int hotkeyPrefix = format != null ? format.hotkeyPrefix : 0;
@@ -4636,6 +4743,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		AttributedString attributed = new AttributedString(display);
 		if (format != null && format.tracking != 0.0 && Math.abs(format.tracking - 1.0) >= 0.000001) {
 			attributed.addAttribute(TextAttribute.TRACKING, Float.valueOf((float) (format.tracking - 1.0)));
+		}
+		if (font != null && (font.styleFlags & EMF_PLUS_FONT_STYLE_UNDERLINE) != 0) {
+			attributed.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
+		}
+		if (font != null && (font.styleFlags & EMF_PLUS_FONT_STYLE_STRIKEOUT) != 0) {
+			attributed.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
 		}
 		for (int i = 0; i < underlineIndexes.size(); i++) {
 			int index = underlineIndexes.get(i).intValue();
@@ -4734,6 +4847,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			dash[i] = (float) Math.max(1.0, source[i] * width);
 		}
 		return dash;
+	}
+
+	private int toEmfPlusFillWindingRule(int flags) {
+		return (flags & EMF_PLUS_FLAG_WINDING_FILL) != 0 ? Path2D.WIND_NON_ZERO : Path2D.WIND_EVEN_ODD;
 	}
 
 	private Shape createEmfPlusRect(double[] rect) {
@@ -4893,8 +5010,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return path;
 	}
 
-	private Path2D.Double createEmfPlusClosedCurvePath(double[][] points, double tension) {
-		Path2D.Double path = new Path2D.Double();
+	private Path2D.Double createEmfPlusClosedCurvePath(double[][] points, double tension, int windingRule) {
+		Path2D.Double path = new Path2D.Double(windingRule);
 		double[] first = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
 		path.moveTo(first[0], first[1]);
 		double factor = tension / 3.0;
@@ -5071,11 +5188,22 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return points;
 	}
 
+	private int[] readEmfPlusGlyphCodes(byte[] payload, int offset, int count) {
+		if (count < 0 || payload.length < offset || payload.length - offset < count * 2) {
+			return null;
+		}
+		int[] glyphCodes = new int[count];
+		for (int i = 0; i < count; i++) {
+			glyphCodes[i] = readUInt16(payload, offset + i * 2);
+		}
+		return glyphCodes;
+	}
+
 	private double[] toEmfPlusLogicalPoint(double x, double y) {
 		double scale = emfPlusPageScale * emfPlusPageUnitScale;
 		double tx = emfPlusWorldTransform[0] * x + emfPlusWorldTransform[2] * y + emfPlusWorldTransform[4];
 		double ty = emfPlusWorldTransform[1] * x + emfPlusWorldTransform[3] * y + emfPlusWorldTransform[5];
-		return new double[]{tx * scale, ty * scale};
+		return new double[]{tx * scale + emfPlusPixelOffsetX, ty * scale + emfPlusPixelOffsetY};
 	}
 
 	private double[] toEmfPlusLogicalSize(double width, double height) {
@@ -5112,6 +5240,21 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			y = ty;
 		}
 		return toEmfPlusLogicalPoint(x, y);
+	}
+
+	private Shape createEmfPlusDriverStringBounds(double x, double y, double width, double height, double[] matrix) {
+		Shape bounds = new Rectangle2D.Double(x, y, width, height);
+		if (matrix == null) {
+			return bounds;
+		}
+		return createEmfPlusDriverStringTransform(matrix).createTransformedShape(bounds);
+	}
+
+	private AffineTransform createEmfPlusDriverStringTransform(double[] matrix) {
+		double scale = emfPlusPageScale * emfPlusPageUnitScale;
+		double[] combined = multiplyEmfPlusMatrix(matrix, emfPlusWorldTransform);
+		return new AffineTransform(combined[0] * scale, combined[1] * scale, combined[2] * scale, combined[3] * scale,
+				combined[4] * scale + emfPlusPixelOffsetX, combined[5] * scale + emfPlusPixelOffsetY);
 	}
 
 	private double[] getEmfPlusImageUnitScale(double[] p0, double[] p1, double[] p2, double srcWidth,
@@ -5265,10 +5408,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		private final int textContrast;
 		private final int renderingOriginX;
 		private final int renderingOriginY;
+		private final double pixelOffsetX;
+		private final double pixelOffsetY;
 
 		private EmfPlusRenderingState(Object antiAliasingHint, Object textAntiAliasingHint, Object interpolationHint,
 				Object alphaInterpolationHint, Object strokeControlHint, Composite composite, int textContrast,
-				int renderingOriginX, int renderingOriginY) {
+				int renderingOriginX, int renderingOriginY, double pixelOffsetX, double pixelOffsetY) {
 			this.antiAliasingHint = antiAliasingHint;
 			this.textAntiAliasingHint = textAntiAliasingHint;
 			this.interpolationHint = interpolationHint;
@@ -5278,6 +5423,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			this.textContrast = textContrast;
 			this.renderingOriginX = renderingOriginX;
 			this.renderingOriginY = renderingOriginY;
+			this.pixelOffsetX = pixelOffsetX;
+			this.pixelOffsetY = pixelOffsetY;
 		}
 	}
 

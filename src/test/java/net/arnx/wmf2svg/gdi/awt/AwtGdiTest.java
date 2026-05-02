@@ -4,8 +4,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -232,6 +234,39 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusFillPolygonUsesWindingFillFlag() {
+		AwtGdi alternate = new AwtGdi();
+		alternate.header();
+		alternate.comment(createEmfPlusStarFillPolygonComment(false));
+		alternate.footer();
+
+		AwtGdi winding = new AwtGdi();
+		winding.header();
+		winding.comment(createEmfPlusStarFillPolygonComment(true));
+		winding.footer();
+
+		assertEquals(0, (alternate.getImage().getRGB(20, 20) >>> 24) & 0xFF);
+		assertEquals(0x336699, winding.getImage().getRGB(20, 20) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testEmfPlusFontUnderlineAndStrikeoutDecorateDrawString() {
+		AwtGdi plain = new AwtGdi();
+		plain.header();
+		plain.comment(createEmfPlusDecoratedFontDrawStringComment(0));
+		plain.footer();
+
+		AwtGdi decorated = new AwtGdi();
+		decorated.header();
+		decorated.comment(createEmfPlusDecoratedFontDrawStringComment(0x0000000C));
+		decorated.footer();
+
+		int plainPixels = countPaintedPixels(plain.getImage());
+		int decoratedPixels = countPaintedPixels(decorated.getImage());
+		assertTrue("plain=" + plainPixels + ", decorated=" + decoratedPixels, decoratedPixels > plainPixels);
+	}
+
+	@Test
 	public void testEmfPlusBitmapDrawImageRendersPixels() throws Exception {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -265,6 +300,18 @@ public class AwtGdiTest {
 		BufferedImage image = gdi.getImage();
 		assertEquals(0x00FF00, image.getRGB(12, 15) & 0x00FFFFFF);
 		assertEquals(0x0000FF, image.getRGB(25, 15) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testEmfPlusDrawImageUsesBitmapClampObjectClamp() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusBitmapClampedSourceDrawImageComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0x00FF00, image.getRGB(12, 15) & 0x00FFFFFF);
+		assertEquals(0x00FF00, image.getRGB(25, 15) & 0x00FFFFFF);
 	}
 
 	@Test
@@ -333,6 +380,19 @@ public class AwtGdiTest {
 		BufferedImage image = gdi.getImage();
 		assertEquals(0xFF0000, image.getRGB(12, 15) & 0x00FFFFFF);
 		assertEquals(0x00FF00, image.getRGB(25, 15) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testEmfPlusMetafileDrawImageExpandsCanvas() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusMetafileDrawImageComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(image.getWidth() >= 140);
+		assertTrue(image.getHeight() >= 140);
+		assertTrue(countPaintedPixels(image, 108, 108, 36, 36) > 0);
 	}
 
 	@Test
@@ -579,6 +639,19 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusPixelOffsetHalfShiftsDrawing() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusPixelOffsetFillRectComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(image.getWidth() >= 2);
+		assertTrue(image.getHeight() >= 2);
+		assertTrue(countPaintedPixels(image) > 0);
+	}
+
+	@Test
 	public void testEmfPlusSetTextContrastUpdatesRenderingHint() {
 		BufferedImage canvas = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D graphics = canvas.createGraphics();
@@ -611,6 +684,57 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusClearTypeTextRenderingHintUsesLcdAntialiasing() {
+		BufferedImage canvas = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = canvas.createGraphics();
+		try {
+			AwtGdi gdi = new AwtGdi(graphics, canvas.getWidth(), canvas.getHeight());
+			gdi.header();
+			gdi.comment(createEmfPlusTextRenderingHintComment(5));
+
+			assertEquals(RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB,
+					graphics.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING));
+			gdi.footer();
+		} finally {
+			graphics.dispose();
+		}
+	}
+
+	@Test
+	public void testEmfPlusGridFitTextRenderingHintUsesGaspAntialiasing() {
+		BufferedImage canvas = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = canvas.createGraphics();
+		try {
+			AwtGdi gdi = new AwtGdi(graphics, canvas.getWidth(), canvas.getHeight());
+			gdi.header();
+			gdi.comment(createEmfPlusTextRenderingHintComment(3));
+
+			assertEquals(RenderingHints.VALUE_TEXT_ANTIALIAS_GASP,
+					graphics.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING));
+			gdi.footer();
+		} finally {
+			graphics.dispose();
+		}
+	}
+
+	@Test
+	public void testEmfPlusAssumeLinearCompositingQualityUsesQualityInterpolation() {
+		BufferedImage canvas = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = canvas.createGraphics();
+		try {
+			AwtGdi gdi = new AwtGdi(graphics, canvas.getWidth(), canvas.getHeight());
+			gdi.header();
+			gdi.comment(createEmfPlusCompositingQualityComment(5));
+
+			assertEquals(RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY,
+					graphics.getRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION));
+			gdi.footer();
+		} finally {
+			graphics.dispose();
+		}
+	}
+
+	@Test
 	public void testEmfPlusDrawDriverStringRendersText() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -618,6 +742,27 @@ public class AwtGdiTest {
 		gdi.footer();
 
 		assertTrue(countPaintedPixels(gdi.getImage(), 4, 6, 50, 20) > 0);
+	}
+
+	@Test
+	public void testEmfPlusDrawDriverStringRendersGlyphIndices() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusGlyphIndexDriverStringComment());
+		gdi.footer();
+
+		assertTrue(countPaintedPixels(gdi.getImage(), 4, 6, 50, 20) > 0);
+	}
+
+	@Test
+	public void testEmfPlusDrawDriverStringAppliesRecordMatrixToGlyphs() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusTransformedDrawDriverStringComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(countPaintedPixels(image, 5, 28, 90, 24) > 0);
 	}
 
 	@Test
@@ -667,6 +812,16 @@ public class AwtGdiTest {
 		BufferedImage image = gdi.getImage();
 		assertTrue(countPaintedPixels(image, 0, 0, 8, 25) > 0);
 		assertEquals(0, countPaintedPixels(image, 14, 0, 40, 25));
+	}
+
+	@Test
+	public void testEmfPlusNoClipDrawStringExpandsCanvasPastLayoutRect() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusNoClipExpandingDrawStringComment());
+		gdi.footer();
+
+		assertTrue(gdi.getImage().getWidth() > 330);
 	}
 
 	private byte[] createLineEmf() throws IOException {
@@ -806,6 +961,50 @@ public class AwtGdiTest {
 		return comment.toByteArray();
 	}
 
+	private byte[] createEmfPlusStarFillPolygonComment(boolean winding) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 5);
+		writeFloat(payload, 20);
+		writeFloat(payload, 2);
+		writeFloat(payload, 30);
+		writeFloat(payload, 35);
+		writeFloat(payload, 2);
+		writeFloat(payload, 14);
+		writeFloat(payload, 38);
+		writeFloat(payload, 14);
+		writeFloat(payload, 10);
+		writeFloat(payload, 35);
+		writeEmfPlusRecord(comment, 0x400C, winding ? 0xA000 : 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDecoratedFontDrawStringComment(int styleFlags) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeFloat(payload, 24);
+		writeInt(payload, 2);
+		writeInt(payload, styleFlags);
+		writeInt(payload, 0);
+		writeInt(payload, "Arial".length());
+		writeUtf16Le(payload, "Arial");
+		writeEmfPlusRecord(comment, 0x4008, 0x0600, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 0);
+		writeInt(payload, "Decorate".length());
+		writeFloat(payload, 5);
+		writeFloat(payload, 5);
+		writeFloat(payload, 180);
+		writeFloat(payload, 40);
+		writeUtf16Le(payload, "Decorate");
+		writeEmfPlusRecord(comment, 0x401C, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
 	private byte[] createEmfPlusBitmapDrawImageComment() throws IOException {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -831,14 +1030,19 @@ public class AwtGdiTest {
 	}
 
 	private byte[] createEmfPlusOversizedSourceDrawImageComment(boolean clamp) throws IOException {
-		return createEmfPlusOversizedSourceDrawImageComment(clamp ? 4 : -1, 0xFF0000FF);
+		return createEmfPlusOversizedSourceDrawImageComment(clamp ? 4 : -1, 0xFF0000FF, 0);
 	}
 
 	private byte[] createEmfPlusTiledSourceDrawImageComment() throws IOException {
-		return createEmfPlusOversizedSourceDrawImageComment(0, 0);
+		return createEmfPlusOversizedSourceDrawImageComment(0, 0, 0);
 	}
 
-	private byte[] createEmfPlusOversizedSourceDrawImageComment(int wrapMode, int clampColor) throws IOException {
+	private byte[] createEmfPlusBitmapClampedSourceDrawImageComment() throws IOException {
+		return createEmfPlusOversizedSourceDrawImageComment(4, 0xFF0000FF, 1);
+	}
+
+	private byte[] createEmfPlusOversizedSourceDrawImageComment(int wrapMode, int clampColor, int objectClamp)
+			throws IOException {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		byte[] png = createTwoPixelPng();
@@ -853,7 +1057,7 @@ public class AwtGdiTest {
 			writeInt(payload, 0);
 			writeInt(payload, wrapMode);
 			writeInt(payload, clampColor);
-			writeInt(payload, 1);
+			writeInt(payload, objectClamp);
 			writeInt(payload, 0);
 			writeEmfPlusRecord(comment, 0x4008, 0x0801, payload.toByteArray());
 		}
@@ -893,6 +1097,32 @@ public class AwtGdiTest {
 		writeFloat(payload, 10);
 		writeFloat(payload, 20);
 		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401A, 0x0000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusMetafileDrawImageComment() throws IOException {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		byte[] emf = createLineEmf();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeInt(payload, emf.length);
+		payload.write(emf, 0, emf.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 60);
+		writeFloat(payload, 60);
+		writeFloat(payload, 110);
+		writeFloat(payload, 110);
+		writeFloat(payload, 30);
+		writeFloat(payload, 30);
 		writeEmfPlusRecord(comment, 0x401A, 0x0000, payload.toByteArray());
 		return comment.toByteArray();
 	}
@@ -1396,6 +1626,18 @@ public class AwtGdiTest {
 		return comment.toByteArray();
 	}
 
+	private byte[] createEmfPlusTextRenderingHintComment(int hint) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		writeEmfPlusRecord(comment, 0x401F, hint, new byte[0]);
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusCompositingQualityComment(int quality) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		writeEmfPlusRecord(comment, 0x4024, quality, new byte[0]);
+		return comment.toByteArray();
+	}
+
 	private byte[] createEmfPlusRoundDashCapPenComment() {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -1462,15 +1704,88 @@ public class AwtGdiTest {
 		return comment.toByteArray();
 	}
 
+	private byte[] createEmfPlusPixelOffsetFillRectComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeEmfPlusRecord(comment, 0x4022, 4, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 1);
+		writeFloat(payload, 1);
+		writeEmfPlusRecord(comment, 0x400A, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
 	private byte[] createEmfPlusDrawDriverStringComment() {
 		return createEmfPlusDrawDriverStringComment(1, new double[][]{{5, 6}, {18, 6}, {31, 6}});
+	}
+
+	private byte[] createEmfPlusGlyphIndexDriverStringComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeFloat(payload, 12);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, "Dialog".length());
+		writeUtf16Le(payload, "Dialog");
+		writeEmfPlusRecord(comment, 0x4008, 0x0600, payload.toByteArray());
+
+		int[] glyphCodes = createGlyphCodes("Dialog", "ABC");
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, glyphCodes.length);
+		for (int i = 0; i < glyphCodes.length; i++) {
+			writeShort(payload, glyphCodes[i]);
+		}
+		writeShort(payload, 0);
+		writeFloat(payload, 5);
+		writeFloat(payload, 6);
+		writeFloat(payload, 18);
+		writeFloat(payload, 6);
+		writeFloat(payload, 31);
+		writeFloat(payload, 6);
+		writeEmfPlusRecord(comment, 0x4036, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private int[] createGlyphCodes(String familyName, String text) {
+		BufferedImage canvas = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = canvas.createGraphics();
+		try {
+			GlyphVector glyphs = new Font(familyName, Font.PLAIN, 12).createGlyphVector(graphics.getFontRenderContext(),
+					text);
+			int[] codes = new int[glyphs.getNumGlyphs()];
+			for (int i = 0; i < codes.length; i++) {
+				codes[i] = glyphs.getGlyphCode(i);
+			}
+			return codes;
+		} finally {
+			graphics.dispose();
+		}
 	}
 
 	private byte[] createEmfPlusVerticalDrawDriverStringComment() {
 		return createEmfPlusDrawDriverStringComment(7, new double[][]{{5, 6}});
 	}
 
+	private byte[] createEmfPlusTransformedDrawDriverStringComment() {
+		return createEmfPlusDrawDriverStringComment(1, new double[][]{{5, 6}, {18, 6}, {31, 6}},
+				new double[]{2, 0, 0, 2, 0, 0});
+	}
+
 	private byte[] createEmfPlusDrawDriverStringComment(int options, double[][] positions) {
+		return createEmfPlusDrawDriverStringComment(options, positions, null);
+	}
+
+	private byte[] createEmfPlusDrawDriverStringComment(int options, double[][] positions, double[] matrix) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
 		writeInt(payload, 0);
@@ -1485,13 +1800,18 @@ public class AwtGdiTest {
 		payload.reset();
 		writeInt(payload, 0xFF336699);
 		writeInt(payload, options);
-		writeInt(payload, 0);
+		writeInt(payload, matrix != null ? 1 : 0);
 		writeInt(payload, 3);
 		writeUtf16Le(payload, "ABC");
 		writeShort(payload, 0);
 		for (int i = 0; i < positions.length; i++) {
 			writeFloat(payload, (float) positions[i][0]);
 			writeFloat(payload, (float) positions[i][1]);
+		}
+		if (matrix != null) {
+			for (int i = 0; i < matrix.length; i++) {
+				writeFloat(payload, (float) matrix[i]);
+			}
 		}
 		writeEmfPlusRecord(comment, 0x4036, 0x8000, payload.toByteArray());
 		return comment.toByteArray();
@@ -1507,6 +1827,49 @@ public class AwtGdiTest {
 
 	private byte[] createEmfPlusClippedDrawStringComment() {
 		return createEmfPlusFormattedDrawStringComment("MMMM", 0, 0, 8, 60);
+	}
+
+	private byte[] createEmfPlusNoClipExpandingDrawStringComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeFloat(payload, 12);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, "Arial".length());
+		writeUtf16Le(payload, "Arial");
+		writeEmfPlusRecord(comment, 0x4008, 0x0600, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0x00004000);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeEmfPlusRecord(comment, 0x4008, 0x0701, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 1);
+		writeInt(payload, "Overflow text".length());
+		writeFloat(payload, 320);
+		writeFloat(payload, 0);
+		writeFloat(payload, 4);
+		writeFloat(payload, 20);
+		writeUtf16Le(payload, "Overflow text");
+		writeEmfPlusRecord(comment, 0x401C, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
 	}
 
 	private byte[] createEmfPlusFormattedDrawStringComment(String text, int hotkeyPrefix, float tracking,

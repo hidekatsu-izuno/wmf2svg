@@ -628,6 +628,18 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusDrawLinesUsesSeparateStartAndEndCaps() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusSquareStartFlatEndPenComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue((image.getRGB(8, 20) >>> 24) != 0);
+		assertEquals(0, (image.getRGB(33, 20) >>> 24) & 0xFF);
+	}
+
+	@Test
 	public void testEmfPlusPenTransformScalesStrokeWidth() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -1659,6 +1671,31 @@ public class AwtGdiTest {
 		writeFloat(payload, 10);
 		writeFloat(payload, 30);
 		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusSquareStartFlatEndPenComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00000006);
+		writeInt(payload, 2);
+		writeFloat(payload, 6);
+		writeInt(payload, 1);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 2);
+		writeFloat(payload, 10);
+		writeFloat(payload, 20);
+		writeFloat(payload, 30);
+		writeFloat(payload, 20);
 		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
 		return comment.toByteArray();
 	}

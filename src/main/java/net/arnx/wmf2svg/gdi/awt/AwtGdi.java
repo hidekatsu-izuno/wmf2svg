@@ -1138,8 +1138,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (points == null || points.length < 2) {
 			return;
 		}
-		strokeEmfPlusShape(createEmfPlusPolyline(points, (flags & EMF_PLUS_FLAG_CLOSE) != 0, Path2D.WIND_NON_ZERO),
-				pen);
+		strokeEmfPlusPolyline(points, (flags & EMF_PLUS_FLAG_CLOSE) != 0, pen);
 	}
 
 	private void handleEmfPlusFillPath(int flags, byte[] payload) {
@@ -4793,14 +4792,92 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		suppressEmfPlusFallback = true;
 	}
 
+	private void strokeEmfPlusPolyline(double[][] points, boolean closed, EmfPlusPen pen) {
+		if (closed || !hasDistinctSolidLineCaps(pen)) {
+			strokeEmfPlusShape(createEmfPlusPolyline(points, closed, Path2D.WIND_NON_ZERO), pen);
+			return;
+		}
+		Paint paint = pen != null ? toEmfPlusPaint(pen.brush) : null;
+		if (paint == null) {
+			return;
+		}
+
+		Shape line = createEmfPlusPolyline(points, false, Path2D.WIND_NON_ZERO);
+		float width = (float) Math.max(1.0, pen.width * getEmfPlusPenScale(pen));
+		Shape startCap = createEmfPlusLineCapShape(pen.startCap, points[0], points[1], width);
+		Shape endCap = createEmfPlusLineCapShape(pen.endCap, points[points.length - 1], points[points.length - 2],
+				width);
+
+		ensureGraphics();
+		ensureCanvasContains(line);
+		ensureCanvasContains(startCap);
+		ensureCanvasContains(endCap);
+		Paint oldPaint = graphics.getPaint();
+		java.awt.Stroke oldStroke = graphics.getStroke();
+		graphics.setPaint(paint);
+		graphics.setStroke(toEmfPlusStroke(pen, BasicStroke.CAP_BUTT));
+		graphics.draw(line);
+		if (startCap != null) {
+			graphics.fill(startCap);
+		}
+		if (endCap != null) {
+			graphics.fill(endCap);
+		}
+		graphics.setStroke(oldStroke);
+		graphics.setPaint(oldPaint);
+		suppressEmfPlusFallback = true;
+	}
+
+	private boolean hasDistinctSolidLineCaps(EmfPlusPen pen) {
+		return pen != null && !hasEmfPlusDash(pen) && pen.startCap != pen.endCap
+				&& (isSupportedEmfPlusLineCap(pen.startCap) || isSupportedEmfPlusLineCap(pen.endCap));
+	}
+
+	private boolean hasEmfPlusDash(EmfPlusPen pen) {
+		return pen.dashPattern != null || pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH
+				|| pen.lineStyle == EMF_PLUS_LINE_STYLE_DOT || pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH_DOT
+				|| pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH_DOT_DOT || pen.lineStyle == EMF_PLUS_LINE_STYLE_CUSTOM;
+	}
+
+	private boolean isSupportedEmfPlusLineCap(int cap) {
+		return cap == EMF_PLUS_LINE_CAP_FLAT || cap == EMF_PLUS_LINE_CAP_SQUARE || cap == EMF_PLUS_LINE_CAP_ROUND;
+	}
+
+	private Shape createEmfPlusLineCapShape(int cap, double[] end, double[] adjacent, float width) {
+		if (cap == EMF_PLUS_LINE_CAP_FLAT || !isSupportedEmfPlusLineCap(cap)) {
+			return null;
+		}
+		double dx = end[0] - adjacent[0];
+		double dy = end[1] - adjacent[1];
+		double length = Math.hypot(dx, dy);
+		if (length <= 0.0 || Double.isNaN(length) || Double.isInfinite(length)) {
+			return null;
+		}
+		double half = width / 2.0;
+		if (cap == EMF_PLUS_LINE_CAP_ROUND) {
+			return new Ellipse2D.Double(end[0] - half, end[1] - half, width, width);
+		}
+
+		double ux = dx / length * half;
+		double uy = dy / length * half;
+		double nx = -dy / length * half;
+		double ny = dx / length * half;
+		Path2D path = new Path2D.Double();
+		path.moveTo(end[0] - ux - nx, end[1] - uy - ny);
+		path.lineTo(end[0] + ux - nx, end[1] + uy - ny);
+		path.lineTo(end[0] + ux + nx, end[1] + uy + ny);
+		path.lineTo(end[0] - ux + nx, end[1] - uy + ny);
+		path.closePath();
+		return path;
+	}
+
 	private BasicStroke toEmfPlusStroke(EmfPlusPen pen) {
+		return toEmfPlusStroke(pen, toEmfPlusStrokeCap(pen));
+	}
+
+	private BasicStroke toEmfPlusStroke(EmfPlusPen pen, int cap) {
 		float width = (float) Math.max(1.0, pen.width * getEmfPlusPenScale(pen));
 		float[] dash = toEmfPlusDash(pen, width);
-		int cap = pen.startCap == EMF_PLUS_LINE_CAP_SQUARE || pen.endCap == EMF_PLUS_LINE_CAP_SQUARE
-				? BasicStroke.CAP_SQUARE
-				: pen.startCap == EMF_PLUS_LINE_CAP_ROUND || pen.endCap == EMF_PLUS_LINE_CAP_ROUND
-						? BasicStroke.CAP_ROUND
-						: BasicStroke.CAP_BUTT;
 		if (dash != null && pen.dashCap == EMF_PLUS_DASH_CAP_ROUND) {
 			cap = BasicStroke.CAP_ROUND;
 		}
@@ -4811,6 +4888,14 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return dash != null
 				? new BasicStroke(width, cap, join, miterLimit, dash, (float) (pen.dashOffset * width))
 				: new BasicStroke(width, cap, join, miterLimit);
+	}
+
+	private int toEmfPlusStrokeCap(EmfPlusPen pen) {
+		return pen.startCap == EMF_PLUS_LINE_CAP_SQUARE || pen.endCap == EMF_PLUS_LINE_CAP_SQUARE
+				? BasicStroke.CAP_SQUARE
+				: pen.startCap == EMF_PLUS_LINE_CAP_ROUND || pen.endCap == EMF_PLUS_LINE_CAP_ROUND
+						? BasicStroke.CAP_ROUND
+						: BasicStroke.CAP_BUTT;
 	}
 
 	private double getEmfPlusPenScale(EmfPlusPen pen) {

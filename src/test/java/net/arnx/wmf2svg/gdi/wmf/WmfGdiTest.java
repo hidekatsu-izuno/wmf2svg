@@ -1,6 +1,7 @@
 package net.arnx.wmf2svg.gdi.wmf;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedOutputStream;
@@ -17,9 +18,73 @@ import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.gdi.Point;
+import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.svg.SvgGdi;
 
 public class WmfGdiTest {
+	@Test
+	public void testCommentWritesEscapeRecord() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.header();
+		byte[] escape = new byte[]{0x0F, 0x00, 0x04, 0x00, 't', 'e', 's', 't'};
+		gdi.comment(escape);
+
+		byte[] record = findRecord(write(gdi), WmfConstants.META_ESCAPE);
+
+		assertEquals(WmfConstants.META_ESCAPE, readUint16(record, 4));
+		assertEquals(0x000F, readUint16(record, 6));
+		assertEquals(4, readUint16(record, 8));
+		assertEquals('t', record[10] & 0xFF);
+		assertEquals('e', record[11] & 0xFF);
+		assertEquals('s', record[12] & 0xFF);
+		assertEquals('t', record[13] & 0xFF);
+	}
+
+	@Test
+	public void testSelectClipRgnAcceptsNull() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.header();
+		gdi.selectClipRgn(null);
+
+		byte[] record = findRecord(write(gdi), WmfConstants.META_SELECTCLIPREGION);
+
+		assertEquals(0, readUint16(record, 6));
+	}
+
+	@Test
+	public void testRestoreDcRestoresWriterState() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.setTextAlign(WmfGdi.TA_RIGHT | WmfGdi.TA_UPDATECP);
+		gdi.seveDC();
+		gdi.setTextAlign(WmfGdi.TA_LEFT | WmfGdi.TA_UPDATECP);
+		gdi.restoreDC(-1);
+		gdi.extTextOut(100, 20, 0, null, new byte[]{'A', 'B'}, new int[]{10, 10});
+
+		Point old = new Point(0, 0);
+		gdi.moveToEx(0, 0, old);
+
+		assertEquals(110, old.x);
+		assertEquals(20, old.y);
+	}
+
+	@Test
+	public void testViewportAndWindowOldValuesAreUpdated() {
+		WmfGdi gdi = new WmfGdi();
+		Point oldPoint = new Point(0, 0);
+		Size oldSize = new Size(0, 0);
+
+		gdi.setWindowOrgEx(10, 20, null);
+		gdi.setWindowOrgEx(30, 40, oldPoint);
+		assertEquals(10, oldPoint.x);
+		assertEquals(20, oldPoint.y);
+
+		gdi.setViewportExtEx(100, 200, null);
+		gdi.setViewportExtEx(300, 400, oldSize);
+		assertEquals(100, oldSize.width);
+		assertEquals(200, oldSize.height);
+	}
+
 	@Test
 	public void testPlaceableViewportScalesChangedWindowExt() throws Exception {
 		WmfGdi gdi = new WmfGdi();
@@ -142,6 +207,37 @@ public class WmfGdiTest {
 		name = name.substring(0, name.length() - 4);
 		System.out.println(name + " transforming...");
 		Main.main(new String[]{"-debug", name + ".wmf", name + ".svg"});
+	}
+
+	private byte[] write(WmfGdi gdi) throws IOException {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		return out.toByteArray();
+	}
+
+	private byte[] findRecord(byte[] wmf, int function) {
+		int pos = 18;
+		while (pos + 6 <= wmf.length) {
+			int recordSize = readUint32(wmf, pos) * 2;
+			if (recordSize < 6 || pos + recordSize > wmf.length) {
+				break;
+			}
+			if (readUint16(wmf, pos + 4) == function) {
+				byte[] record = new byte[recordSize];
+				System.arraycopy(wmf, pos, record, 0, record.length);
+				return record;
+			}
+			pos += recordSize;
+		}
+		throw new AssertionError("WMF record not found: " + function);
+	}
+
+	private int readUint16(byte[] data, int pos) {
+		return (data[pos] & 0xFF) | ((data[pos + 1] & 0xFF) << 8);
+	}
+
+	private int readUint32(byte[] data, int pos) {
+		return readUint16(data, pos) | (readUint16(data, pos + 2) << 16);
 	}
 
 	@Test

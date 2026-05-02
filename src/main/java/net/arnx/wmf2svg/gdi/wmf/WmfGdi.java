@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 import net.arnx.wmf2svg.gdi.Gdi;
@@ -30,6 +31,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	private List<byte[]> records = new ArrayList<byte[]>();
 
 	private WmfDc dc = new WmfDc();
+	private LinkedList<WmfDc> saveDC = new LinkedList<WmfDc>();
 
 	private WmfBrush defaultBrush;
 
@@ -437,7 +439,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 	}
 
 	public void comment(byte[] data) {
-		throw new UnsupportedOperationException();
+		escape(data);
 	}
 
 	public int excludeClipRect(int left, int top, int right, int bottom) {
@@ -780,6 +782,11 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint16(record, pos, META_RESTOREDC);
 		pos = setInt16(record, pos, savedDC);
 		records.add(record);
+
+		int limit = (savedDC < 0) ? -savedDC : saveDC.size() - savedDC;
+		for (int i = 0; i < limit && !saveDC.isEmpty(); i++) {
+			dc = saveDC.removeLast();
+		}
 	}
 
 	public void rectangle(int sx, int sy, int ex, int ey) {
@@ -823,6 +830,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setUint32(record, pos, record.length / 2);
 		pos = setUint16(record, pos, META_SAVEDC);
 		records.add(record);
+
+		saveDC.add((WmfDc) dc.clone());
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
@@ -858,7 +867,7 @@ public class WmfGdi implements Gdi, WmfConstants {
 		int pos = 0;
 		pos = setUint32(record, pos, record.length / 2);
 		pos = setUint16(record, pos, META_SELECTCLIPREGION);
-		pos = setUint16(record, pos, ((WmfRegion) rgn).getID());
+		pos = setUint16(record, pos, (rgn != null) ? ((WmfRegion) rgn).getID() : 0);
 		records.add(record);
 	}
 
@@ -1103,6 +1112,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
+
+		dc.setViewportExtEx(x, y, old);
 	}
 
 	public void setViewportOrgEx(int x, int y, Point old) {
@@ -1113,6 +1124,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
+
+		dc.setViewportOrgEx(x, y, old);
 	}
 
 	public void setWindowExtEx(int width, int height, Size old) {
@@ -1123,6 +1136,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, height);
 		pos = setInt16(record, pos, width);
 		records.add(record);
+
+		dc.setWindowExtEx(width, height, old);
 	}
 
 	public void setWindowOrgEx(int x, int y, Point old) {
@@ -1133,6 +1148,8 @@ public class WmfGdi implements Gdi, WmfConstants {
 		pos = setInt16(record, pos, y);
 		pos = setInt16(record, pos, x);
 		records.add(record);
+
+		dc.setWindowOrgEx(x, y, old);
 	}
 
 	public void stretchBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop) {

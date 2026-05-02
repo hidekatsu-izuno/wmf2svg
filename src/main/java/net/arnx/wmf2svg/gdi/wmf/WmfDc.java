@@ -28,6 +28,10 @@ public class WmfDc implements Cloneable {
 	private int wox = 0;
 	private int woy = 0;
 
+	// window
+	private int ww = 0;
+	private int wh = 0;
+
 	// window scale
 	private double wsx = 1.0;
 	private double wsy = 1.0;
@@ -55,6 +59,32 @@ public class WmfDc implements Cloneable {
 	private WmfBrush brush = null;
 	private WmfFont font = null;
 	private WmfPen pen = null;
+
+	public Object clone() {
+		try {
+			return super.clone();
+		} catch (CloneNotSupportedException e) {
+			throw new InternalError(e.toString());
+		}
+	}
+
+	public void setWindowOrgEx(int x, int y, Point old) {
+		if (old != null) {
+			old.x = wox;
+			old.y = woy;
+		}
+		wox = x;
+		woy = y;
+	}
+
+	public void setWindowExtEx(int width, int height, Size old) {
+		if (old != null) {
+			old.width = ww;
+			old.height = wh;
+		}
+		ww = width;
+		wh = height;
+	}
 
 	public void offsetWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
@@ -91,11 +121,11 @@ public class WmfDc implements Cloneable {
 
 	public void offsetViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = vox;
-			old.y = voy;
+			old.x = vx;
+			old.y = vy;
 		}
-		vox = x;
-		voy = y;
+		vx += x;
+		vy += y;
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {

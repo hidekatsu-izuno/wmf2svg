@@ -77,9 +77,9 @@ class SvgFont extends SvgObject implements GdiFont {
 
 		String emheight = gdi.getProperty("font-emheight." + this.faceName);
 		if (emheight == null) {
-			String alter = gdi.getProperty("alternative-font." + this.faceName);
-			if (alter != null) {
-				emheight = gdi.getProperty("font-emheight." + alter);
+			List<String> alternatives = getAlternativeFonts(this.faceName);
+			if (!alternatives.isEmpty()) {
+				emheight = gdi.getProperty("font-emheight." + alternatives.get(0));
 			}
 		}
 
@@ -254,11 +254,7 @@ class SvgFont extends SvgObject implements GdiFont {
 			if (faceName.charAt(0) == '@')
 				fontFamily = faceName.substring(1);
 			fontList.add(fontFamily);
-
-			String altfont = getGDI().getProperty("alternative-font." + fontFamily);
-			if (altfont != null && altfont.length() != 0) {
-				fontList.add(altfont);
-			}
+			fontList.addAll(getAlternativeFonts(fontFamily));
 		}
 
 		// int pitch = pitchAndFamily & 0x00000003;
@@ -313,5 +309,22 @@ class SvgFont extends SvgObject implements GdiFont {
 		if (buffer.length() > 0)
 			buffer.setLength(buffer.length() - 1);
 		return buffer.toString();
+	}
+
+	private List<String> getAlternativeFonts(String fontFamily) {
+		List<String> alternatives = new ArrayList<String>();
+		String altfont = getGDI().getProperty("alternative-font." + fontFamily);
+		if (altfont == null || altfont.length() == 0) {
+			return alternatives;
+		}
+
+		String[] names = altfont.split(",");
+		for (int i = 0; i < names.length; i++) {
+			String name = names[i].trim();
+			if (name.length() != 0) {
+				alternatives.add(name);
+			}
+		}
+		return alternatives;
 	}
 }

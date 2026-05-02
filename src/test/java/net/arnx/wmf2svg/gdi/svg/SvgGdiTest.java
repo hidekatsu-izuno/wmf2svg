@@ -16,10 +16,24 @@ import org.junit.Test;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
+import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiPen;
 
 public class SvgGdiTest {
 	private static final Pattern PNG_DATA_PATTERN = Pattern.compile("xlink:href=\"data:image/png;base64,([^\"]+)\"");
+
+	@Test
+	public void testLogicalFontFallbackFamilies() throws Exception {
+		assertFontFamily("Fixedsys", "font-family: Fixedsys, Consolas, monospace;");
+		assertFontFamily("Modern", "font-family: Modern, \"Courier New\", monospace;");
+		assertFontFamily("MS Sans Serif", "font-family: \"MS Sans Serif\", \"Microsoft Sans Serif\", monospace;");
+		assertFontFamily("MS Serif", "font-family: \"MS Serif\", \"Times New Roman\", serif;");
+		assertFontFamily("Roman", "font-family: Roman, \"Times New Roman\", serif;");
+		assertFontFamily("Script", "font-family: Script, \"Segoe Script\", cursive;");
+		assertFontFamily("Small Fonts", "font-family: \"Small Fonts\", \"Segoe UI\", sans-serif;");
+		assertFontFamily("System", "font-family: System, \"Segoe UI\", sans-serif;");
+		assertFontFamily("Terminal", "font-family: Terminal, \"Cascadia Mono\", monospace;");
+	}
 
 	@Test
 	public void testPie() throws Exception {
@@ -4472,6 +4486,22 @@ public class SvgGdiTest {
 			offset += token.length();
 		}
 		return count;
+	}
+
+	private void assertFontFamily(String faceName, String expectedFontFamily) throws Exception {
+		Assert.assertTrue(renderFontStyle(faceName).contains(expectedFontFamily));
+	}
+
+	private String renderFontStyle(String faceName) throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.createFontIndirect(-12, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false, GdiFont.ANSI_CHARSET, 0, 0, 0, 0,
+				faceName.getBytes("US-ASCII"));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		return out.toString("UTF-8");
 	}
 
 	private void setUInt16(byte[] data, int pos, int value) {

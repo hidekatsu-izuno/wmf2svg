@@ -18,18 +18,20 @@ package net.arnx.wmf2svg.gdi.awt;
 import net.arnx.wmf2svg.gdi.GdiPalette;
 
 class AwtPalette implements GdiPalette {
+	private final int version;
 	private int[] entries;
 
-	AwtPalette(int[] entries) {
+	AwtPalette(int version, int[] entries) {
+		this.version = version;
 		this.entries = entries != null ? entries.clone() : new int[0];
 	}
 
 	public int getVersion() {
-		return 0x300;
+		return version;
 	}
 
 	public int[] getEntries() {
-		return entries;
+		return entries.clone();
 	}
 
 	void setEntries(int startIndex, int[] entries) {

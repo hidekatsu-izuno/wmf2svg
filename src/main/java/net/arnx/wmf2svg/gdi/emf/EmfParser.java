@@ -1069,15 +1069,17 @@ public class EmfParser implements Parser, EmfConstants {
 
 		byte[] text;
 		int[] dx = null;
+		boolean pdy = (options & Gdi.ETO_PDY) != 0;
+		int dxValuesPerChar = pdy ? 2 : 1;
 		if (unicode) {
 			text = readUtf16StringBytes(data, stringOffset, count, charset);
-			if (dxOffset >= 0 && dxOffset + count * 4 <= data.length) {
-				dx = readUtf16Dx(data, stringOffset, count, charset, dxOffset);
+			if (dxOffset >= 0 && dxOffset + count * dxValuesPerChar * 4 <= data.length) {
+				dx = readUtf16Dx(data, stringOffset, count, charset, dxOffset, pdy);
 			}
 		} else {
 			text = copyRange(data, stringOffset, count);
-			if (dxOffset >= 0 && dxOffset + count * 4 <= data.length) {
-				dx = new int[count];
+			if (dxOffset >= 0 && dxOffset + count * dxValuesPerChar * 4 <= data.length) {
+				dx = new int[count * dxValuesPerChar];
 				for (int i = 0; i < dx.length; i++) {
 					dx[i] = readInt32(data, dxOffset + i * 4);
 				}
@@ -1128,7 +1130,7 @@ public class EmfParser implements Parser, EmfConstants {
 		}
 	}
 
-	private static int[] readUtf16Dx(byte[] data, int textOffset, int chars, int charset, int dxOffset) {
+	private static int[] readUtf16Dx(byte[] data, int textOffset, int chars, int charset, int dxOffset, boolean pdy) {
 		if (textOffset < 0 || chars <= 0 || textOffset + chars * 2 > data.length) {
 			return null;
 		}
@@ -1148,7 +1150,8 @@ public class EmfParser implements Parser, EmfConstants {
 				dxLength += ch.getBytes(charsetName).length;
 			}
 
-			int[] dx = new int[dxLength];
+			int valuesPerChar = pdy ? 2 : 1;
+			int[] dx = new int[dxLength * valuesPerChar];
 			int pos = 0;
 			for (int i = 0; i < length; i++) {
 				String ch = new String(data, textOffset + i * 2, 2, "UTF-16LE");
@@ -1156,9 +1159,15 @@ public class EmfParser implements Parser, EmfConstants {
 				if (bytes == 0) {
 					continue;
 				}
-				dx[pos++] = readInt32(data, dxOffset + i * 4);
+				dx[pos++] = readInt32(data, dxOffset + i * valuesPerChar * 4);
+				if (pdy) {
+					dx[pos++] = readInt32(data, dxOffset + (i * valuesPerChar + 1) * 4);
+				}
 				for (int j = 1; j < bytes; j++) {
 					dx[pos++] = 0;
+					if (pdy) {
+						dx[pos++] = 0;
+					}
 				}
 			}
 			return dx;

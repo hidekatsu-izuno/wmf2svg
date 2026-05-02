@@ -24,11 +24,11 @@ class AwtPatternBrush extends AwtBrush implements GdiPatternBrush {
 
 	AwtPatternBrush(byte[] image, int usage) {
 		super(GdiBrush.BS_PATTERN, 0, 0);
-		this.image = image;
+		this.image = image != null ? image.clone() : new byte[0];
 		this.usage = usage;
 	}
 
 	public byte[] getPattern() {
-		return image;
+		return image.clone();
 	}
 }

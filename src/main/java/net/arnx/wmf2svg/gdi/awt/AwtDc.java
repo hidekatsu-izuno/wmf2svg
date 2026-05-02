@@ -60,6 +60,9 @@ class AwtDc implements Cloneable {
 	private float miterLimit = 10.0f;
 	private long layout;
 	private long mapperFlags;
+	private int icmMode;
+	private byte[] colorAdjustment;
+	private byte[] icmProfile;
 	private AwtBrush brush;
 	private AwtPen pen;
 	private AwtFont font;
@@ -94,19 +97,21 @@ class AwtDc implements Cloneable {
 
 	public void setWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = wx;
-			old.y = wy;
+			old.x = effectiveWindowX();
+			old.y = effectiveWindowY();
 		}
 		wx = x;
 		wy = y;
+		wox = 0;
+		woy = 0;
 	}
 
 	public int getWindowX() {
-		return wx;
+		return effectiveWindowX();
 	}
 
 	public int getWindowY() {
-		return wy;
+		return effectiveWindowY();
 	}
 
 	public int getWindowWidth() {
@@ -128,25 +133,47 @@ class AwtDc implements Cloneable {
 
 	public void offsetWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = wox;
-			old.y = woy;
+			old.x = effectiveWindowX();
+			old.y = effectiveWindowY();
 		}
 		wox += x;
 		woy += y;
 	}
 
 	public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old) {
+		if (old != null) {
+			old.width = effectiveWindowWidth();
+			old.height = effectiveWindowHeight();
+		}
 		wsx = (wsx * x) / xd;
 		wsy = (wsy * y) / yd;
 	}
 
+	private int effectiveWindowX() {
+		return wx + wox;
+	}
+
+	private int effectiveWindowY() {
+		return wy + woy;
+	}
+
+	private int effectiveWindowWidth() {
+		return (int) Math.round(ww * wsx);
+	}
+
+	private int effectiveWindowHeight() {
+		return (int) Math.round(wh * wsy);
+	}
+
 	public void setViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = vx;
-			old.y = vy;
+			old.x = effectiveViewportX();
+			old.y = effectiveViewportY();
 		}
 		vx = x;
 		vy = y;
+		vox = 0;
+		voy = 0;
 	}
 
 	public int getViewportWidth() {
@@ -168,16 +195,36 @@ class AwtDc implements Cloneable {
 
 	public void offsetViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = vox;
-			old.y = voy;
+			old.x = effectiveViewportX();
+			old.y = effectiveViewportY();
 		}
 		vox += x;
 		voy += y;
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
+		if (old != null) {
+			old.width = effectiveViewportWidth();
+			old.height = effectiveViewportHeight();
+		}
 		vsx = (vsx * x) / xd;
 		vsy = (vsy * y) / yd;
+	}
+
+	private int effectiveViewportX() {
+		return vx + vox;
+	}
+
+	private int effectiveViewportY() {
+		return vy + voy;
+	}
+
+	private int effectiveViewportWidth() {
+		return (int) Math.round(vw * vsx);
+	}
+
+	private int effectiveViewportHeight() {
+		return (int) Math.round(vh * vsy);
 	}
 
 	public void setMapMode(int mode) {
@@ -231,10 +278,22 @@ class AwtDc implements Cloneable {
 
 	public Object clone() {
 		try {
-			return super.clone();
+			AwtDc clone = (AwtDc) super.clone();
+			clone.colorAdjustment = copy(colorAdjustment);
+			clone.icmProfile = copy(icmProfile);
+			return clone;
 		} catch (CloneNotSupportedException e) {
 			throw new AssertionError(e);
 		}
+	}
+
+	private byte[] copy(byte[] bytes) {
+		if (bytes == null) {
+			return null;
+		}
+		byte[] copy = new byte[bytes.length];
+		System.arraycopy(bytes, 0, copy, 0, bytes.length);
+		return copy;
 	}
 
 	public int getCurrentX() {
@@ -305,6 +364,10 @@ class AwtDc implements Cloneable {
 		relAbsMode = mode;
 	}
 
+	public int getRelAbs() {
+		return relAbsMode;
+	}
+
 	public void setROP2(int mode) {
 		rop2Mode = mode;
 	}
@@ -315,6 +378,10 @@ class AwtDc implements Cloneable {
 
 	public void setStretchBltMode(int mode) {
 		stretchBltMode = mode;
+	}
+
+	public int getStretchBltMode() {
+		return stretchBltMode;
 	}
 
 	public void setArcDirection(int direction) {
@@ -337,8 +404,42 @@ class AwtDc implements Cloneable {
 		this.layout = layout;
 	}
 
+	public long getLayout() {
+		return layout;
+	}
+
 	public void setMapperFlags(long mapperFlags) {
 		this.mapperFlags = mapperFlags;
+	}
+
+	public long getMapperFlags() {
+		return mapperFlags;
+	}
+
+	public int setICMMode(int mode) {
+		int old = icmMode;
+		icmMode = mode;
+		return old;
+	}
+
+	public int getICMMode() {
+		return icmMode;
+	}
+
+	public void setColorAdjustment(byte[] colorAdjustment) {
+		this.colorAdjustment = copy(colorAdjustment);
+	}
+
+	public byte[] getColorAdjustment() {
+		return copy(colorAdjustment);
+	}
+
+	public void setICMProfile(byte[] profileName) {
+		icmProfile = copy(profileName);
+	}
+
+	public byte[] getICMProfile() {
+		return copy(icmProfile);
 	}
 
 	public void setTextJustification(int breakExtra, int breakCount) {

@@ -105,8 +105,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private AwtBrush defaultBrush;
 	private AwtPen defaultPen;
 	private AwtFont defaultFont;
-	private GdiPalette selectedPalette;
+	private AwtPalette selectedPalette;
 	private GdiColorSpace selectedColorSpace;
+	private byte[] lastDibPatternBrushImage;
+	private int lastDibPatternBrushUsage = Gdi.DIB_RGB_COLORS;
 	private Path2D.Double currentPath;
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
@@ -365,9 +367,15 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		Point start = circlePoint(x, y, radius, startAngle);
 		Point end = circlePoint(x, y, radius, startAngle + sweepAngle);
 		lineTo(start.x, start.y);
-		strokeShape(
-				createArc(x - radius, y - radius, x + radius, y + radius, start.x, start.y, end.x, end.y, Arc2D.OPEN),
-				dc.getPen());
+		Arc2D arc = createArc(x - radius, y - radius, x + radius, y + radius, start.x, start.y, end.x, end.y,
+				Arc2D.OPEN);
+		if (arc != null) {
+			if (currentPath != null) {
+				currentPath.append(arc, true);
+			} else {
+				strokeShape(arc, dc.getPen());
+			}
+		}
 		dc.moveToEx(end.x, end.y, null);
 	}
 
@@ -466,10 +474,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public GdiPalette createPalette(int version, int[] palEntry) {
-		return new AwtPalette(palEntry);
+		return new AwtPalette(version, palEntry);
 	}
 
 	public GdiPatternBrush createPatternBrush(byte[] image) {
+		if (isMonochromeWmfBitmap(image) && lastDibPatternBrushImage != null) {
+			return new AwtPatternBrush(lastDibPatternBrushImage, lastDibPatternBrushUsage);
+		}
 		return new AwtPatternBrush(image, Gdi.DIB_RGB_COLORS);
 	}
 
@@ -490,7 +501,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (selectedColorSpace == colorSpace) {
 			selectedColorSpace = null;
 		}
-		return true;
+		return colorSpace instanceof AwtColorSpace;
 	}
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
@@ -502,6 +513,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public GdiPatternBrush dibCreatePatternBrush(byte[] image, int usage) {
+		lastDibPatternBrushImage = image != null ? image.clone() : null;
+		lastDibPatternBrushUsage = usage;
 		return new AwtPatternBrush(image, usage);
 	}
 
@@ -585,7 +598,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				: new Area(new Rectangle2D.Double(0, 0, canvasWidth, canvasHeight));
 		area.subtract(new Area(toRectangle(left, top, right - left, bottom - top)));
 		graphics.setClip(area);
-		return GdiRegion.SIMPLEREGION;
+		return getClipRegionType();
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
@@ -593,32 +606,40 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public GdiRegion extCreateRegion(float[] xform, int count, byte[] rgnData) {
-		Area area = createRegionArea(rgnData, count);
+		Area area = createRegionArea(rgnData, count, xform);
 		return area != null ? new AwtRegion(area) : null;
 	}
 
 	public int extSelectClipRgn(GdiRegion rgn, int mode) {
 		ensureGraphics();
 		applyClip(rgn instanceof AwtRegion ? ((AwtRegion) rgn).shape : null, mode);
-		return GdiRegion.SIMPLEREGION;
+		return getClipRegionType();
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] lpdx) {
 		ensureGraphics();
 		if (rect != null && (options & Gdi.ETO_OPAQUE) != 0) {
+			Shape background = toRectangle(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]);
+			ensureCanvasContains(background);
 			Paint old = graphics.getPaint();
 			graphics.setPaint(toColor(dc.getBkColor()));
-			graphics.fill(toRectangle(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]));
+			graphics.fill(background);
 			graphics.setPaint(old);
 		}
 		Shape oldClip = null;
+		boolean clipped = false;
 		if (rect != null && (options & Gdi.ETO_CLIPPED) != 0) {
 			oldClip = graphics.getClip();
 			graphics.clip(toRectangle(rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]));
+			clipped = true;
 		}
-		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), lpdx);
-		if (oldClip != null) {
-			graphics.setClip(oldClip);
+		try {
+			drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), lpdx,
+					options);
+		} finally {
+			if (clipped) {
+				graphics.setClip(oldClip);
+			}
 		}
 	}
 
@@ -1760,8 +1781,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		double[] rect = rects[0];
+		EmfPlusImageEffect effect = pendingEmfPlusImageEffect;
+		pendingEmfPlusImageEffect = null;
 		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight,
-				new double[][]{{rect[0], rect[1]}, {rect[0] + rect[2], rect[1]}, {rect[0], rect[1] + rect[3]}}, false);
+				new double[][]{{rect[0], rect[1]}, {rect[0] + rect[2], rect[1]}, {rect[0], rect[1] + rect[3]}}, false,
+				effect);
 	}
 
 	private void handleEmfPlusDrawImagePoints(int flags, byte[] payload) {
@@ -2134,7 +2158,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void fillPath() {
 		if (currentPath != null) {
-			fillShape(currentPath, dc.getBrush());
+			fillShape(currentPathWithPolyFillMode(), dc.getBrush());
 			currentPath = null;
 		}
 	}
@@ -2148,7 +2172,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void strokeAndFillPath() {
 		if (currentPath != null) {
-			fillShape(currentPath, dc.getBrush());
+			fillShape(currentPathWithPolyFillMode(), dc.getBrush());
 			strokeShape(currentPath, dc.getPen());
 			currentPath = null;
 		}
@@ -2177,6 +2201,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private void restoreLastDC() {
 		AwtSavedDc saved = saveDC.removeLast();
 		dc = saved.dc;
+		selectedPalette = saved.selectedPalette;
+		selectedColorSpace = saved.selectedColorSpace;
 		if (graphics != null) {
 			graphics.setClip(saved.clip);
 		}
@@ -2208,7 +2234,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void seveDC() {
-		saveDC.add(new AwtSavedDc((AwtDc) dc.clone(), graphics != null ? graphics.getClip() : null));
+		saveDC.add(new AwtSavedDc((AwtDc) dc.clone(), graphics != null ? graphics.getClip() : null, selectedPalette,
+				selectedColorSpace));
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
@@ -2231,7 +2258,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	public void selectClipPath(int mode) {
 		if (currentPath != null) {
 			ensureGraphics();
-			applyClip(currentPath, mode);
+			applyClip(currentPathWithPolyFillMode(), mode);
 			currentPath = null;
 		}
 	}
@@ -2249,15 +2276,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			dc.setPen((AwtPen) obj);
 		} else if (obj instanceof AwtFont) {
 			dc.setFont((AwtFont) obj);
-		} else if (obj instanceof AwtPatternBrush) {
-			dc.setBrush((AwtPatternBrush) obj);
 		} else if (obj instanceof AwtRegion) {
 			selectClipRgn((AwtRegion) obj);
 		}
 	}
 
 	public void selectPalette(GdiPalette palette, boolean mode) {
-		selectedPalette = palette;
+		selectedPalette = palette instanceof AwtPalette ? (AwtPalette) palette : null;
 	}
 
 	public void setBkColor(int color) {
@@ -2269,8 +2294,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void setColorAdjustment(byte[] colorAdjustment) {
-		// Color adjustment records are currently not mapped to a Graphics2D color
-		// transform.
+		dc.setColorAdjustment(colorAdjustment);
 	}
 
 	public void setArcDirection(int direction) {
@@ -2299,19 +2323,122 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public int setICMMode(int mode) {
-		return mode;
+		return dc.setICMMode(mode);
 	}
 
 	public boolean setICMProfile(byte[] profileName) {
+		dc.setICMProfile(profileName);
 		return true;
 	}
 
 	public boolean colorMatchToTarget(int action, int flags, byte[] targetProfile) {
+		dc.setICMProfile(targetProfile);
 		return true;
 	}
 
+	int getICMMode() {
+		return dc.getICMMode();
+	}
+
+	byte[] getICMProfile() {
+		return dc.getICMProfile();
+	}
+
+	byte[] getColorAdjustment() {
+		return dc.getColorAdjustment();
+	}
+
+	long getLayout() {
+		return dc.getLayout();
+	}
+
+	long getMapperFlags() {
+		return dc.getMapperFlags();
+	}
+
+	int getRelAbs() {
+		return dc.getRelAbs();
+	}
+
+	int getCurrentX() {
+		return dc.getCurrentX();
+	}
+
+	int getCurrentY() {
+		return dc.getCurrentY();
+	}
+
+	int getBrushOrgX() {
+		return dc.getBrushOrgX();
+	}
+
+	int getBrushOrgY() {
+		return dc.getBrushOrgY();
+	}
+
+	int getTextJustificationExtra() {
+		return dc.getTextJustificationExtra();
+	}
+
+	int getTextJustificationCount() {
+		return dc.getTextJustificationCount();
+	}
+
+	int getBkColor() {
+		return dc.getBkColor();
+	}
+
+	int getBkMode() {
+		return dc.getBkMode();
+	}
+
+	int getTextColor() {
+		return dc.getTextColor();
+	}
+
+	int getTextAlign() {
+		return dc.getTextAlign();
+	}
+
+	int getTextCharacterExtra() {
+		return dc.getTextCharacterExtra();
+	}
+
+	int getPolyFillMode() {
+		return dc.getPolyFillMode();
+	}
+
+	int getROP2() {
+		return dc.getROP2();
+	}
+
+	int getStretchBltMode() {
+		return dc.getStretchBltMode();
+	}
+
+	int getArcDirection() {
+		return dc.getArcDirection();
+	}
+
+	float getMiterLimit() {
+		return dc.getMiterLimit();
+	}
+
+	AwtBrush getSelectedBrush() {
+		return dc.getBrush();
+	}
+
+	AwtPen getSelectedPen() {
+		return dc.getPen();
+	}
+
+	AwtFont getSelectedFont() {
+		return dc.getFont();
+	}
+
 	public int setMetaRgn() {
-		return GdiRegion.SIMPLEREGION;
+		ensureGraphics();
+		return getClipRegionType();
 	}
 
 	public void setMiterLimit(float limit) {
@@ -2326,8 +2453,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void setPixel(int x, int y, int color) {
 		ensureGraphics();
+		Rectangle2D rect = toRectangle(x, y, 1, 1);
+		ensureCanvasContains(rect);
 		graphics.setPaint(toColor(color));
-		graphics.fill(toRectangle(x, y, 1, 1));
+		graphics.fill(rect);
 	}
 
 	public void setPolyFillMode(int mode) {
@@ -2397,7 +2526,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		dc.setWindowExtEx(width, height, old);
 		if (!replayingPendingEmf && !placeableHeader && width != 0 && height != 0) {
-			growCanvas = dc.getWindowX() == 0 && dc.getWindowY() == 0;
+			growCanvas = false;
 			if (image == null) {
 				canvasWidth = windowExtentToCanvasSize(width, dc.getWindowX());
 				canvasHeight = windowExtentToCanvasSize(height, dc.getWindowY());
@@ -2438,7 +2567,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void textOut(int x, int y, byte[] text) {
-		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), null);
+		drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), null, 0);
 	}
 
 	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
@@ -2598,10 +2727,47 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private static class AwtSavedDc {
 		private final AwtDc dc;
 		private final Shape clip;
+		private final AwtPalette selectedPalette;
+		private final GdiColorSpace selectedColorSpace;
 
-		private AwtSavedDc(AwtDc dc, Shape clip) {
+		private AwtSavedDc(AwtDc dc, Shape clip, AwtPalette selectedPalette, GdiColorSpace selectedColorSpace) {
 			this.dc = dc;
 			this.clip = clip;
+			this.selectedPalette = selectedPalette;
+			this.selectedColorSpace = selectedColorSpace;
+		}
+	}
+
+	private static class TextAdvances {
+		private final double[] x;
+		private final double[] y;
+
+		private TextAdvances(double[] x, double[] y) {
+			this.x = x;
+			this.y = y;
+		}
+
+		private double sumX() {
+			double width = 0.0;
+			for (int i = 0; i < x.length; i++) {
+				width += x[i];
+			}
+			return width;
+		}
+
+		private double sumY() {
+			if (y == null) {
+				return 0.0;
+			}
+			double height = 0.0;
+			for (int i = 0; i < y.length; i++) {
+				height += y[i];
+			}
+			return height;
+		}
+
+		private boolean hasY() {
+			return y != null;
 		}
 	}
 
@@ -2653,10 +2819,15 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private Area createRegionArea(byte[] rgnData, int count) {
+		return createRegionArea(rgnData, count, null);
+	}
+
+	private Area createRegionArea(byte[] rgnData, int count, float[] xform) {
 		if (rgnData == null || rgnData.length < 32) {
 			return null;
 		}
 		int rectCount = Math.min(count > 0 ? count : readInt32(rgnData, 8), Math.max(0, (rgnData.length - 32) / 16));
+		AffineTransform transform = toRegionTransform(xform);
 		Area area = new Area();
 		for (int i = 0; i < rectCount; i++) {
 			int offset = 32 + i * 16;
@@ -2664,9 +2835,45 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			int top = readInt32(rgnData, offset + 4);
 			int right = readInt32(rgnData, offset + 8);
 			int bottom = readInt32(rgnData, offset + 12);
-			area.add(new Area(toRectangle(left, top, right - left, bottom - top)));
+			area.add(new Area(transform != null
+					? toTransformedRectangle(left, top, right, bottom, transform)
+					: toRectangle(left, top, right - left, bottom - top)));
 		}
 		return area;
+	}
+
+	private AffineTransform toRegionTransform(float[] xform) {
+		if (xform == null || xform.length < 6) {
+			return null;
+		}
+		if (xform[0] == 1.0f && xform[1] == 0.0f && xform[2] == 0.0f && xform[3] == 1.0f && xform[4] == 0.0f
+				&& xform[5] == 0.0f) {
+			return null;
+		}
+		return new AffineTransform(xform[0], xform[1], xform[2], xform[3], xform[4], xform[5]);
+	}
+
+	private Shape toTransformedRectangle(int left, int top, int right, int bottom, AffineTransform transform) {
+		Path2D.Double path = new Path2D.Double();
+		appendTransformedRegionPoint(path, transform, left, top, true);
+		appendTransformedRegionPoint(path, transform, right, top, false);
+		appendTransformedRegionPoint(path, transform, right, bottom, false);
+		appendTransformedRegionPoint(path, transform, left, bottom, false);
+		path.closePath();
+		return path;
+	}
+
+	private void appendTransformedRegionPoint(Path2D.Double path, AffineTransform transform, int x, int y,
+			boolean move) {
+		Point2D.Double point = new Point2D.Double(x, y);
+		transform.transform(point, point);
+		double px = tx(point.x);
+		double py = ty(point.y);
+		if (move) {
+			path.moveTo(px, py);
+		} else {
+			path.lineTo(px, py);
+		}
 	}
 
 	private boolean isValidVertex(Trivertex[] vertex, int index) {
@@ -2760,14 +2967,34 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void xorFill(Shape shape, Color xorColor) {
 		ensureGraphics();
-		Color oldColor = graphics.getColor();
-		Paint oldPaint = graphics.getPaint();
-		graphics.setXORMode(xorColor);
-		graphics.setColor(Color.WHITE);
-		graphics.fill(shape);
-		graphics.setPaintMode();
-		graphics.setPaint(oldPaint);
-		graphics.setColor(oldColor);
+		ensureCanvasContains(shape);
+
+		BufferedImage mask = new BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_BYTE_BINARY);
+		Graphics2D mg = mask.createGraphics();
+		try {
+			configureGraphics(mg);
+			mg.setClip(graphics.getClip());
+			mg.setColor(Color.WHITE);
+			mg.fill(shape);
+		} finally {
+			mg.dispose();
+		}
+
+		Rectangle2D bounds = shape.getBounds2D();
+		int left = Math.max(0, (int) Math.floor(bounds.getMinX()));
+		int top = Math.max(0, (int) Math.floor(bounds.getMinY()));
+		int right = Math.min(canvasWidth, (int) Math.ceil(bounds.getMaxX()));
+		int bottom = Math.min(canvasHeight, (int) Math.ceil(bounds.getMaxY()));
+		int xorRgb = xorColor.getRGB() & 0x00FFFFFF;
+		for (int y = top; y < bottom; y++) {
+			for (int x = left; x < right; x++) {
+				if ((mask.getRGB(x, y) & 0x00FFFFFF) == 0) {
+					continue;
+				}
+				int rgb = (image.getRGB(x, y) & 0x00FFFFFF) ^ xorRgb;
+				image.setRGB(x, y, 0xFF000000 | rgb);
+			}
+		}
 	}
 
 	private void drawShape(Shape shape) {
@@ -2846,13 +3073,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		Area newArea = new Area(shape);
 		Shape oldClip = graphics.getClip();
 		if (oldClip == null || mode == GdiRegion.RGN_COPY) {
-			graphics.setClip(newArea);
+			graphics.setClip(shape);
 			return;
 		}
 
+		Area newArea = new Area(shape);
 		Area oldArea = new Area(oldClip);
 		if (mode == GdiRegion.RGN_OR) {
 			oldArea.add(newArea);
@@ -2866,6 +3093,27 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setClip(oldArea);
 	}
 
+	private int getClipRegionType() {
+		Shape clip = graphics.getClip();
+		if (clip == null || clip.getBounds2D().isEmpty()) {
+			return GdiRegion.NULLREGION;
+		}
+		if (clip instanceof Area && ((Area) clip).isRectangular()) {
+			return GdiRegion.SIMPLEREGION;
+		}
+		if (clip instanceof Rectangle2D || clip instanceof java.awt.Rectangle) {
+			return GdiRegion.SIMPLEREGION;
+		}
+		return GdiRegion.COMPLEXREGION;
+	}
+
+	private Path2D.Double currentPathWithPolyFillMode() {
+		Path2D.Double path = new Path2D.Double(
+				dc.getPolyFillMode() == Gdi.WINDING ? Path2D.WIND_NON_ZERO : Path2D.WIND_EVEN_ODD);
+		path.append(currentPath.getPathIterator(null), false);
+		return path;
+	}
+
 	private void fillShape(Shape shape, GdiBrush brush) {
 		ensureGraphics();
 		if (shouldSuppressEmfPlusFallback()) {
@@ -2875,10 +3123,66 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		ensureCanvasContains(shape);
+		if (dc.getROP2() != Gdi.R2_COPYPEN) {
+			fillShapeRop2(shape, brush);
+			return;
+		}
 		Paint old = graphics.getPaint();
 		graphics.setPaint(toPaint(brush));
 		graphics.fill(shape);
 		graphics.setPaint(old);
+	}
+
+	private void fillShapeRop2(Shape shape, GdiBrush brush) {
+		if (image == null || dc.getROP2() == Gdi.R2_COPYPEN) {
+			return;
+		}
+		if (dc.getROP2() == Gdi.R2_NOP) {
+			return;
+		}
+
+		BufferedImage mask = new BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_BYTE_BINARY);
+		Graphics2D mg = mask.createGraphics();
+		try {
+			configureGraphics(mg);
+			mg.setClip(graphics.getClip());
+			mg.setColor(Color.WHITE);
+			mg.fill(shape);
+		} finally {
+			mg.dispose();
+		}
+
+		Rectangle2D bounds = shape.getBounds2D();
+		int left = Math.max(0, (int) Math.floor(bounds.getMinX()));
+		int top = Math.max(0, (int) Math.floor(bounds.getMinY()));
+		int right = Math.min(canvasWidth, (int) Math.ceil(bounds.getMaxX()));
+		int bottom = Math.min(canvasHeight, (int) Math.ceil(bounds.getMaxY()));
+		if (left >= right || top >= bottom) {
+			return;
+		}
+
+		BufferedImage source = new BufferedImage(right - left, bottom - top, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D sg = source.createGraphics();
+		try {
+			configureGraphics(sg);
+			sg.translate(-left, -top);
+			sg.setPaint(toPaint(brush));
+			sg.fill(shape);
+		} finally {
+			sg.dispose();
+		}
+
+		for (int y = top; y < bottom; y++) {
+			for (int x = left; x < right; x++) {
+				if ((mask.getRGB(x, y) & 0x00FFFFFF) == 0) {
+					continue;
+				}
+				int brushRgb = source.getRGB(x - left, y - top) & 0x00FFFFFF;
+				int dest = image.getRGB(x, y) & 0x00FFFFFF;
+				int rgb = applyRop2(brushRgb, dest, dc.getROP2());
+				image.setRGB(x, y, 0xFF000000 | rgb);
+			}
+		}
 	}
 
 	private void strokeShape(Shape shape, GdiPen pen) {
@@ -2890,7 +3194,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		BasicStroke stroke = toStroke(pen);
-		ensureCanvasContains(shape);
+		ensureCanvasContains(stroke.createStrokedShape(shape));
 		if (dc.getROP2() != Gdi.R2_COPYPEN) {
 			strokeShapeRop2(shape, stroke, pen.getColor());
 			return;
@@ -3066,7 +3370,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return new Color(red, green, blue);
 	}
 
-	private void drawText(int x, int y, String text, int[] lpdx) {
+	private void drawText(int x, int y, String text, int[] lpdx, int options) {
 		ensureGraphics();
 		if (shouldSuppressEmfPlusFallback()) {
 			return;
@@ -3092,8 +3396,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setFont(font);
 		graphics.setPaint(toColor(dc.getTextColor()));
 		FontMetrics metrics = graphics.getFontMetrics(font);
-		double[] advances = createTextAdvances(text, lpdx, metrics);
-		double textWidth = advances != null ? sumAdvances(advances) : metrics.stringWidth(text);
+		boolean middleEasternText = isMiddleEasternFont(gdiFont);
+		boolean rightToLeft = middleEasternText
+				&& ((align & Gdi.TA_RTLREADING) != 0 || (options & Gdi.ETO_RTLREADING) != 0);
+		TextAdvances advances = createTextAdvances(text, lpdx, metrics, options, middleEasternText);
+		double textWidth = advances != null ? advances.sumX() : metrics.stringWidth(text);
 		int drawX = (int) tx(x);
 		int drawY = (int) ty(y);
 		if ((align & Gdi.TA_CENTER) == Gdi.TA_CENTER) {
@@ -3110,6 +3417,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		AttributedString attributed = new AttributedString(text);
 		attributed.addAttribute(TextAttribute.FONT, font);
+		Object runDirection = getTextRunDirection(gdiFont, align, options);
+		if (runDirection != null) {
+			attributed.addAttribute(TextAttribute.RUN_DIRECTION, runDirection);
+		}
 		if (gdiFont != null && gdiFont.isUnderlined()) {
 			attributed.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
 		}
@@ -3120,24 +3431,91 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (gdiFont != null && gdiFont.getEscapement() != 0) {
 			graphics.rotate(-Math.toRadians(gdiFont.getEscapement() / 10.0), drawX, drawY);
 		}
-		fillTextBackground(drawX, drawY, textWidth, metrics);
-		if (advances != null) {
-			drawAttributedTextWithAdvances(text, gdiFont, advances, drawX, drawY);
+		ensureTextCanvasContains(drawX, drawY, text, textWidth, metrics, advances);
+		fillTextBackground(drawX, drawY, text, textWidth, metrics, advances);
+		if (dc.getROP2() != Gdi.R2_COPYPEN) {
+			drawTextRop2(attributed, text, gdiFont, advances, rightToLeft, drawX, drawY, textWidth, metrics);
 		} else {
-			graphics.drawString(attributed.getIterator(), drawX, drawY);
+			drawTextForeground(graphics, attributed, text, gdiFont, advances, rightToLeft, drawX, drawY);
 		}
 		graphics.setTransform(old);
 		if ((align & (Gdi.TA_NOUPDATECP | Gdi.TA_UPDATECP)) == Gdi.TA_UPDATECP) {
-			dc.moveToEx(x + toLogicalTextAdvance(textWidth), y, null);
+			dc.moveToEx(x + toLogicalTextAdvanceX(textWidth),
+					y + toLogicalTextAdvanceY(advances != null ? advances.sumY() : 0.0), null);
 		}
 	}
 
-	private void fillTextBackground(int drawX, int baselineY, double textWidth, FontMetrics metrics) {
-		if (dc.getBkMode() != Gdi.OPAQUE || textWidth <= 0.0) {
+	private void ensureTextCanvasContains(int drawX, int baselineY, String text, double textWidth, FontMetrics metrics,
+			TextAdvances advances) {
+		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
+		ensureCanvasContains(graphics.getTransform().createTransformedShape(bounds));
+	}
+
+	private Rectangle2D createTextLogicalBounds(int x, int baselineY, String text, double textWidth,
+			FontMetrics metrics, TextAdvances advances) {
+		Rectangle2D.Double bounds = new Rectangle2D.Double(x, baselineY - metrics.getAscent(), Math.max(textWidth, 1.0),
+				metrics.getAscent() + metrics.getDescent());
+		if (advances != null && advances.hasY()) {
+			double ax = x;
+			double ay = baselineY;
+			for (int i = 0; i < text.length(); i++) {
+				bounds.add(new Rectangle2D.Double(ax, ay - metrics.getAscent(),
+						Math.max(metrics.charWidth(text.charAt(i)), 1), metrics.getAscent() + metrics.getDescent()));
+				ax += advances.x[i];
+				ay += advances.y[i];
+			}
+		}
+		return bounds;
+	}
+
+	private void drawTextRop2(AttributedString attributed, String text, AwtFont gdiFont, TextAdvances advances,
+			boolean rightToLeft, int x, int y, double textWidth, FontMetrics metrics) {
+		if (image == null || dc.getROP2() == Gdi.R2_COPYPEN || dc.getROP2() == Gdi.R2_NOP) {
 			return;
 		}
-		Rectangle2D bounds = new Rectangle2D.Double(drawX, baselineY - metrics.getAscent(), textWidth,
-				metrics.getAscent() + metrics.getDescent());
+
+		Rectangle2D logicalBounds = createTextLogicalBounds(x, y, text, textWidth, metrics, advances);
+		Rectangle2D bounds = graphics.getTransform().createTransformedShape(logicalBounds).getBounds2D();
+		int left = Math.max(0, (int) Math.floor(bounds.getMinX()));
+		int top = Math.max(0, (int) Math.floor(bounds.getMinY()));
+		int right = Math.min(canvasWidth, (int) Math.ceil(bounds.getMaxX()));
+		int bottom = Math.min(canvasHeight, (int) Math.ceil(bounds.getMaxY()));
+		if (left >= right || top >= bottom) {
+			return;
+		}
+
+		BufferedImage mask = new BufferedImage(canvasWidth, canvasHeight, BufferedImage.TYPE_BYTE_BINARY);
+		Graphics2D mg = mask.createGraphics();
+		try {
+			configureGraphics(mg);
+			mg.setTransform(graphics.getTransform());
+			mg.setClip(graphics.getClip());
+			mg.setColor(Color.WHITE);
+			mg.setFont(graphics.getFont());
+			drawTextForeground(mg, attributed, text, gdiFont, advances, rightToLeft, x, y);
+		} finally {
+			mg.dispose();
+		}
+
+		int textRgb = toColor(dc.getTextColor()).getRGB() & 0x00FFFFFF;
+		for (int py = top; py < bottom; py++) {
+			for (int px = left; px < right; px++) {
+				if ((mask.getRGB(px, py) & 0x00FFFFFF) == 0) {
+					continue;
+				}
+				int dest = image.getRGB(px, py) & 0x00FFFFFF;
+				int rgb = applyRop2(textRgb, dest, dc.getROP2());
+				image.setRGB(px, py, 0xFF000000 | rgb);
+			}
+		}
+	}
+
+	private void fillTextBackground(int drawX, int baselineY, String text, double textWidth, FontMetrics metrics,
+			TextAdvances advances) {
+		if (dc.getBkMode() != Gdi.OPAQUE) {
+			return;
+		}
+		Rectangle2D bounds = createTextLogicalBounds(drawX, baselineY, text, textWidth, metrics, advances);
 		ensureCanvasContains(graphics.getTransform().createTransformedShape(bounds));
 		Paint old = graphics.getPaint();
 		graphics.setPaint(toColor(dc.getBkColor()));
@@ -3145,57 +3523,97 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setPaint(old);
 	}
 
-	private double[] createTextAdvances(String text, int[] lpdx, FontMetrics metrics) {
-		if ((lpdx == null || lpdx.length == 0) && dc.getTextCharacterExtra() == 0
+	private TextAdvances createTextAdvances(String text, int[] lpdx, FontMetrics metrics, int options,
+			boolean forceCharacterAdvances) {
+		if (!forceCharacterAdvances && (lpdx == null || lpdx.length == 0) && dc.getTextCharacterExtra() == 0
 				&& dc.getTextJustificationExtra() == 0) {
 			return null;
 		}
 
-		double[] advances = new double[text.length()];
-		for (int i = 0; i < advances.length; i++) {
-			if (lpdx != null && i < lpdx.length) {
-				advances[i] = rx(lpdx[i]);
+		boolean pdy = (options & Gdi.ETO_PDY) != 0;
+		double[] xAdvances = new double[text.length()];
+		double[] yAdvances = pdy ? new double[text.length()] : null;
+		for (int i = 0; i < xAdvances.length; i++) {
+			if (pdy && lpdx != null && i * 2 + 1 < lpdx.length) {
+				xAdvances[i] = rx(lpdx[i * 2]);
+				yAdvances[i] = ry(lpdx[i * 2 + 1]);
+			} else if (!pdy && lpdx != null && i < lpdx.length) {
+				xAdvances[i] = rx(lpdx[i]);
 			} else {
-				advances[i] = metrics.charWidth(text.charAt(i));
+				xAdvances[i] = metrics.charWidth(text.charAt(i));
 			}
-			advances[i] += rx(dc.getTextCharacterExtra());
+			xAdvances[i] += rx(dc.getTextCharacterExtra());
 			if (text.charAt(i) == ' ' && dc.getTextJustificationCount() > 0) {
-				advances[i] += rx(dc.getTextJustificationExtra()) / dc.getTextJustificationCount();
+				xAdvances[i] += rx(dc.getTextJustificationExtra()) / dc.getTextJustificationCount();
 			}
 		}
-		return advances;
+		return new TextAdvances(xAdvances, yAdvances);
 	}
 
-	private double sumAdvances(double[] advances) {
-		double width = 0.0;
-		for (int i = 0; i < advances.length; i++) {
-			width += advances[i];
+	private void drawTextForeground(Graphics2D target, AttributedString attributed, String text, AwtFont gdiFont,
+			TextAdvances advances, boolean rightToLeft, int x, int y) {
+		if (advances != null) {
+			drawAttributedTextWithAdvances(target, text, gdiFont, advances, rightToLeft, x, y);
+		} else {
+			target.drawString(attributed.getIterator(), x, y);
 		}
-		return width;
 	}
 
-	private void drawAttributedTextWithAdvances(String text, AwtFont gdiFont, double[] advances, int x, int y) {
+	private void drawAttributedTextWithAdvances(Graphics2D target, String text, AwtFont gdiFont, TextAdvances advances,
+			boolean rightToLeft, int x, int y) {
 		double ax = x;
-		for (int i = 0; i < text.length(); i++) {
+		double ay = y;
+		int start = rightToLeft ? text.length() - 1 : 0;
+		int end = rightToLeft ? -1 : text.length();
+		int step = rightToLeft ? -1 : 1;
+		for (int i = start; i != end; i += step) {
 			AttributedString ch = new AttributedString(text.substring(i, i + 1));
-			ch.addAttribute(TextAttribute.FONT, graphics.getFont());
+			ch.addAttribute(TextAttribute.FONT, target.getFont());
 			if (gdiFont != null && gdiFont.isUnderlined()) {
 				ch.addAttribute(TextAttribute.UNDERLINE, TextAttribute.UNDERLINE_ON);
 			}
 			if (gdiFont != null && gdiFont.isStrikedOut()) {
 				ch.addAttribute(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
 			}
-			graphics.drawString(ch.getIterator(), (float) ax, (float) y);
-			ax += advances[i];
+			target.drawString(ch.getIterator(), (float) ax, (float) ay);
+			ax += advances.x[i];
+			if (advances.y != null) {
+				ay += advances.y[i];
+			}
 		}
 	}
 
-	private int toLogicalTextAdvance(double deviceWidth) {
+	private Object getTextRunDirection(AwtFont font, int align, int options) {
+		if (!isMiddleEasternFont(font)) {
+			return null;
+		}
+		return ((align & Gdi.TA_RTLREADING) != 0 || (options & Gdi.ETO_RTLREADING) != 0)
+				? TextAttribute.RUN_DIRECTION_RTL
+				: TextAttribute.RUN_DIRECTION_LTR;
+	}
+
+	private boolean isMiddleEasternFont(AwtFont font) {
+		if (font == null) {
+			return false;
+		}
+		int charset = font.getCharset();
+		return charset == GdiFont.HEBREW_CHARSET || charset == GdiFont.ARABIC_CHARSET;
+	}
+
+	private int toLogicalTextAdvanceX(double deviceWidth) {
 		double unit = rx(1.0);
 		if (unit == 0.0) {
 			return (int) Math.round(deviceWidth);
 		}
 		return (int) Math.round(deviceWidth / unit);
+	}
+
+	private int toLogicalTextAdvanceY(double deviceHeight) {
+		double unit = ry(1.0);
+		if (unit == 0.0) {
+			return (int) Math.round(deviceHeight);
+		}
+		return (int) Math.round(deviceHeight / unit);
 	}
 
 	private Font toFont(AwtFont gdiFont) {
@@ -3294,7 +3712,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int y2 = (int) ty(dy + dh);
 		ensureCanvasContains(x1, y1, x2, y2);
 		if (rop3 == getBitmapRop3(Gdi.SRCCOPY)) {
+			Object oldInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
 			graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
 		} else {
 			composeBitmapRop(subImage, x1, y1, x2, y2, rop3);
 		}
@@ -3339,6 +3760,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		Graphics2D bg = blended.createGraphics();
 		try {
 			configureGraphics(bg);
+			bg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
 			bg.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), x1 < x2 ? 0 : width, y1 < y2 ? 0 : height,
 					x1 < x2 ? width : 0, y1 < y2 ? height : 0, null);
 		} finally {
@@ -3381,7 +3803,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int x2 = (int) tx(dx + srcW);
 		int y2 = (int) ty(dy + srcH);
 		ensureCanvasContains(x1, y1, x2, y2);
-		graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+		Object oldInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+		try {
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
+			graphics.drawImage(subImage, x1, y1, x2, y2, 0, 0, srcW, srcH, null);
+		} finally {
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
+		}
 	}
 
 	private void drawPlgBlt(byte[] data, Point[] points, int sx, int sy, int sw, int sh, byte[] mask, int mx, int my) {
@@ -3423,10 +3851,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		ensureCanvasContains(bounds);
 
 		AffineTransform old = graphics.getTransform();
-		graphics.transform(
-				new AffineTransform((x1 - x0) / srcW, (y1 - y0) / srcW, (x2 - x0) / srcH, (y2 - y0) / srcH, x0, y0));
-		graphics.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), 0, 0, null);
-		graphics.setTransform(old);
+		Object oldInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+		try {
+			graphics.transform(new AffineTransform((x1 - x0) / srcW, (y1 - y0) / srcW, (x2 - x0) / srcH,
+					(y2 - y0) / srcH, x0, y0));
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
+			graphics.drawImage(source.getSubimage(srcX, srcY, srcW, srcH), 0, 0, null);
+		} finally {
+			graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
+			graphics.setTransform(old);
+		}
 	}
 
 	private void drawMaskedBitmapRop(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
@@ -3518,6 +3952,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		Graphics2D sg = src.createGraphics();
 		try {
 			configureGraphics(sg);
+			sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
 			sg.drawImage(source, x1 < x2 ? 0 : width, y1 < y2 ? 0 : height, x1 < x2 ? width : 0, y1 < y2 ? height : 0,
 					null);
 		} finally {
@@ -3544,6 +3979,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int clipBottom = Math.min(top + height, canvasHeight);
 		for (int y = clipTop; y < clipBottom; y++) {
 			for (int x = clipLeft; x < clipRight; x++) {
+				if (!isInClip(x, y)) {
+					continue;
+				}
 				int sx = x - left;
 				int sy = y - top;
 				int s = src.getRGB(sx, sy) & 0x00FFFFFF;
@@ -3568,6 +4006,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		Graphics2D sg = src.createGraphics();
 		try {
 			configureGraphics(sg);
+			sg.setRenderingHint(RenderingHints.KEY_INTERPOLATION, getStretchBltInterpolationHint());
 			sg.drawImage(source, x1 < x2 ? 0 : width, y1 < y2 ? 0 : height, x1 < x2 ? width : 0, y1 < y2 ? height : 0,
 					null);
 		} finally {
@@ -3594,6 +4033,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int clipBottom = Math.min(top + height, canvasHeight);
 		for (int y = clipTop; y < clipBottom; y++) {
 			for (int x = clipLeft; x < clipRight; x++) {
+				if (!isInClip(x, y)) {
+					continue;
+				}
 				int sx = x - left;
 				int sy = y - top;
 				int maskX = positiveModulo(mx + sx * maskImage.getWidth() / width, maskImage.getWidth());
@@ -3620,6 +4062,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private boolean usesPattern(int rop3) {
 		return (rop3 & 0x0F) != ((rop3 >>> 4) & 0x0F);
+	}
+
+	private Object getStretchBltInterpolationHint() {
+		return dc.getStretchBltMode() == Gdi.STRETCH_HALFTONE
+				? RenderingHints.VALUE_INTERPOLATION_BILINEAR
+				: RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
 	}
 
 	private BufferedImage createPatternImage(int left, int top, int width, int height) {
@@ -3695,7 +4143,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			boolean preserveAlpha) {
 		BufferedImage decoded = decodeWmfBitmap(data, reverse, transparentColor, preserveAlpha);
 		if (decoded == null) {
-			decoded = decodeDib(applyPaletteToDib(data, usage), reverse, transparentColor, preserveAlpha);
+			decoded = decodeDib(applyPaletteToDib(data, usage), reverse, transparentColor, preserveAlpha,
+					usage != Gdi.DIB_PAL_COLORS);
 		}
 		if (decoded != null) {
 			return decoded;
@@ -3799,7 +4248,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return image;
 	}
 
-	private BufferedImage decodeDib(byte[] dib, boolean reverse, Integer transparentColor, boolean preserveAlpha) {
+	private boolean isMonochromeWmfBitmap(byte[] bitmap) {
+		return bitmap != null && bitmap.length >= 10 && readUInt16(bitmap, 0) == 0 && (bitmap[8] & 0xFF) > 0
+				&& (bitmap[9] & 0xFF) == 1;
+	}
+
+	private BufferedImage decodeDib(byte[] dib, boolean reverse, Integer transparentColor, boolean preserveAlpha,
+			boolean useDefaultMissingColorTable) {
 		if (dib == null || dib.length < 40) {
 			return null;
 		}
@@ -3820,7 +4275,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int colorCount = getDibColorCount(dib, headerSize, bitCount);
 		int bitsOffset = headerSize + (compression == 3 && headerSize == 40 ? 12 : 0) + colorCount * 4;
 		int stride = ((width * bitCount + 31) / 32) * 4;
+		boolean missingColorTable = false;
 		if (colorCount > 0 && dib.length < bitsOffset + stride * height && dib.length >= headerSize + stride * height) {
+			missingColorTable = true;
 			colorCount = 0;
 			bitsOffset = headerSize;
 		}
@@ -3835,6 +4292,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				colors[i] = applyAlpha(dib[pos + 2] & 0xFF, dib[pos + 1] & 0xFF, dib[pos] & 0xFF, 0xFF,
 						transparentColor, preserveAlpha);
 			}
+		} else if (missingColorTable && bitCount == 1 && useDefaultMissingColorTable) {
+			colors = new int[]{0xFF000000, 0xFFFFFFFF};
 		}
 		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 		boolean bottomUp = heightValue > 0;

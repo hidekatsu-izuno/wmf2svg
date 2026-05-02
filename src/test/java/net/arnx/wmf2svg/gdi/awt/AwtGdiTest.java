@@ -33,6 +33,25 @@ import net.arnx.wmf2svg.gdi.emf.EmfGdi;
 
 public class AwtGdiTest {
 	@Test
+	public void testResolveFontFamilyKeepsRequestedInstalledFont() {
+		assertEquals("Fixedsys", AwtGdi.resolveFontFamily("Fixedsys", new String[]{"Consolas", "Fixedsys"}));
+	}
+
+	@Test
+	public void testResolveFontFamilyUsesFirstInstalledFallback() {
+		assertEquals("Consolas", AwtGdi.resolveFontFamily("Fixedsys", new String[]{"Consolas"}));
+		assertEquals("Courier New", AwtGdi.resolveFontFamily("Modern", new String[]{"Courier New"}));
+		assertEquals("Times New Roman", AwtGdi.resolveFontFamily("MS Serif", new String[]{"Times New Roman"}));
+		assertEquals("Cascadia Mono", AwtGdi.resolveFontFamily("@Terminal", new String[]{"Cascadia Mono"}));
+	}
+
+	@Test
+	public void testResolveFontFamilySkipsGenericFamilies() {
+		assertEquals(Font.SANS_SERIF, AwtGdi.resolveFontFamily("MS Serif", new String[]{"Serif"}));
+		assertEquals(Font.SANS_SERIF, AwtGdi.resolveFontFamily("serif", new String[]{"Serif"}));
+	}
+
+	@Test
 	public void testEscapeReplaysStandaloneEmfPayload() throws Exception {
 		AwtGdi gdi = new AwtGdi();
 		gdi.escape(createEscapeRecord(0x1234, createLineEmf()));

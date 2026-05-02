@@ -23,6 +23,7 @@ import org.w3c.dom.Text;
 
 import net.arnx.wmf2svg.gdi.GdiFont;
 import net.arnx.wmf2svg.gdi.GdiUtils;
+import net.arnx.wmf2svg.util.FontUtil;
 
 /**
  * @author Hidekatsu Izuno
@@ -65,7 +66,7 @@ class SvgFont extends SvgObject implements GdiFont {
 		this.pitchAndFamily = pitchAndFamily;
 		this.faceName = GdiUtils.convertString(faceName, charset);
 
-		String altCharset = gdi.getProperty("font-charset." + this.faceName);
+		String altCharset = FontUtil.fontCharset(this.faceName);
 		if (altCharset != null) {
 			this.charset = Integer.parseInt(altCharset);
 		} else {
@@ -75,11 +76,11 @@ class SvgFont extends SvgObject implements GdiFont {
 		// xml:lang
 		this.lang = GdiUtils.getLanguage(charset);
 
-		String emheight = gdi.getProperty("font-emheight." + this.faceName);
+		String emheight = FontUtil.fontEmHeight(this.faceName);
 		if (emheight == null) {
-			List<String> alternatives = getAlternativeFonts(this.faceName);
+			List<String> alternatives = FontUtil.alternativeFonts(this.faceName);
 			if (!alternatives.isEmpty()) {
-				emheight = gdi.getProperty("font-emheight." + alternatives.get(0));
+				emheight = FontUtil.fontEmHeight(alternatives.get(0));
 			}
 		}
 
@@ -254,7 +255,7 @@ class SvgFont extends SvgObject implements GdiFont {
 			if (faceName.charAt(0) == '@')
 				fontFamily = faceName.substring(1);
 			fontList.add(fontFamily);
-			fontList.addAll(getAlternativeFonts(fontFamily));
+			fontList.addAll(FontUtil.alternativeFonts(fontFamily));
 		}
 
 		// int pitch = pitchAndFamily & 0x00000003;
@@ -311,20 +312,4 @@ class SvgFont extends SvgObject implements GdiFont {
 		return buffer.toString();
 	}
 
-	private List<String> getAlternativeFonts(String fontFamily) {
-		List<String> alternatives = new ArrayList<String>();
-		String altfont = getGDI().getProperty("alternative-font." + fontFamily);
-		if (altfont == null || altfont.length() == 0) {
-			return alternatives;
-		}
-
-		String[] names = altfont.split(",");
-		for (int i = 0; i < names.length; i++) {
-			String name = names[i].trim();
-			if (name.length() != 0) {
-				alternatives.add(name);
-			}
-		}
-		return alternatives;
-	}
 }

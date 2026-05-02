@@ -77,6 +77,7 @@ import net.arnx.wmf2svg.gdi.emf.EmfPlusConstants;
 import net.arnx.wmf2svg.gdi.emf.EmfPlusParser;
 import net.arnx.wmf2svg.gdi.emf.EmfParseException;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
+import net.arnx.wmf2svg.util.FontUtil;
 import net.arnx.wmf2svg.util.SymbolFontMappings;
 
 public class AwtGdi implements Gdi, EmfPlusConstants {
@@ -3719,12 +3720,74 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			style |= Font.ITALIC;
 		}
 		int size = Math.max(1, (int) Math.round(Math.abs(ry(gdiFont.getHeight()))));
-		String name = gdiFont.getFaceName();
-		if (name == null || name.length() == 0) {
-			name = Font.SANS_SERIF;
-		}
+		String name = resolveFontFamily(gdiFont.getFaceName(),
+				GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
 		Font font = new Font(name, style, size);
 		return fitFontHeight(font, gdiFont.getHeight(), size);
+	}
+
+	static String resolveFontFamily(String requestedName, String[] availableFamilies) {
+		String name = normalizeFontFamilyName(requestedName);
+		if (name.length() == 0 || isLogicalFontFamily(name)) {
+			return Font.SANS_SERIF;
+		}
+
+		String available = findAvailableFontFamily(name, availableFamilies);
+		if (available != null) {
+			return available;
+		}
+
+		String[] alternatives = findLogicalFontFallbacks(name);
+		if (alternatives != null) {
+			for (int i = 0; i < alternatives.length; i++) {
+				if (isLogicalFontFamily(alternatives[i])) {
+					continue;
+				}
+				available = findAvailableFontFamily(alternatives[i], availableFamilies);
+				if (available != null) {
+					return available;
+				}
+			}
+		}
+		return Font.SANS_SERIF;
+	}
+
+	private static String normalizeFontFamilyName(String name) {
+		if (name == null) {
+			return "";
+		}
+		name = name.trim();
+		if (name.startsWith("@")) {
+			name = name.substring(1);
+		}
+		return name;
+	}
+
+	private static String findAvailableFontFamily(String name, String[] availableFamilies) {
+		if (availableFamilies == null) {
+			return null;
+		}
+		for (int i = 0; i < availableFamilies.length; i++) {
+			if (name.equalsIgnoreCase(availableFamilies[i])) {
+				return availableFamilies[i];
+			}
+		}
+		return null;
+	}
+
+	private static String[] findLogicalFontFallbacks(String name) {
+		ArrayList<String> alternatives = new ArrayList<String>(FontUtil.alternativeFonts(name));
+		if (alternatives.isEmpty()) {
+			return null;
+		}
+		return alternatives.toArray(new String[alternatives.size()]);
+	}
+
+	private static boolean isLogicalFontFamily(String name) {
+		return Font.SERIF.equalsIgnoreCase(name) || Font.SANS_SERIF.equalsIgnoreCase(name)
+				|| Font.MONOSPACED.equalsIgnoreCase(name) || "monospace".equalsIgnoreCase(name)
+				|| "sans-serif".equalsIgnoreCase(name) || "cursive".equalsIgnoreCase(name)
+				|| "fantasy".equalsIgnoreCase(name);
 	}
 
 	private Font fitFontHeight(Font font, int logicalHeight, int targetHeight) {

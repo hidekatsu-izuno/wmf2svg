@@ -3,6 +3,7 @@ package net.arnx.wmf2svg;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileNotFoundException;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -56,6 +57,18 @@ public class MainTest {
 		assertTrue(FontUtil.isFontFile(new File("font.otf")));
 		assertTrue(FontUtil.isFontFile(new File("font.pfb")));
 		assertFalse(FontUtil.isFontFile(new File("font.txt")));
+	}
+
+	@Test
+	public void testFontProperties() {
+		List<String> alternatives = FontUtil.alternativeFonts("Fixedsys");
+		assertEquals(2, alternatives.size());
+		assertEquals("Consolas", alternatives.get(0));
+		assertEquals("monospace", alternatives.get(1));
+		assertEquals(alternatives, FontUtil.alternativeFonts("fixedsys"));
+		assertEquals("2", FontUtil.fontCharset("Symbol"));
+		assertEquals("0.854045037531276", FontUtil.fontEmHeight("Consolas"));
+		assertTrue(FontUtil.alternativeFonts("No Such Font").isEmpty());
 	}
 
 	@Test

@@ -2,8 +2,14 @@ package net.arnx.wmf2svg;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileNotFoundException;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+
+import net.arnx.wmf2svg.util.FontUtil;
 
 public class MainTest {
 	@Test
@@ -41,5 +47,44 @@ public class MainTest {
 			Main.main(new String[]{"-debug", "-replace-symbol-font", wmf, svg});
 			Main.main(new String[]{"-replace-symbol-font", wmf, png});
 		}
+	}
+
+	@Test
+	public void testFontFileExtensionDetection() {
+		assertTrue(FontUtil.isFontFile(new File("Arial.ttf")));
+		assertTrue(FontUtil.isFontFile(new File("collection.TTC")));
+		assertTrue(FontUtil.isFontFile(new File("font.otf")));
+		assertTrue(FontUtil.isFontFile(new File("font.pfb")));
+		assertFalse(FontUtil.isFontFile(new File("font.txt")));
+	}
+
+	@Test
+	public void testRegisterFontsIgnoresNonFontFiles() throws Exception {
+		File dir = new File("target/test-fontdir-" + System.nanoTime());
+		assertTrue(dir.mkdirs());
+		try {
+			assertTrue(new File(dir, "readme.txt").createNewFile());
+			assertEquals(0, FontUtil.registerFonts(dir));
+		} finally {
+			deleteRecursively(dir);
+		}
+	}
+
+	@Test(expected = FileNotFoundException.class)
+	public void testRegisterFontsRejectsMissingDirectory() throws Exception {
+		FontUtil.registerFonts(new File("target/missing-fontdir-" + System.nanoTime()));
+	}
+
+	private void deleteRecursively(File file) {
+		if (file == null || !file.exists()) {
+			return;
+		}
+		File[] children = file.listFiles();
+		if (children != null) {
+			for (int i = 0; i < children.length; i++) {
+				deleteRecursively(children[i]);
+			}
+		}
+		file.delete();
 	}
 }

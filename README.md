@@ -19,11 +19,19 @@ The output format is selected by the output filename suffix.
 
 - -compatible: output IE9 compatible style. but it's dirty and approximative.
 - -replace-symbol-font: replace SYMBOL/Wingdings[23]? Font to serif Unicode symbols.
+- -fontdir <dir>: register font files in `<dir>` for PNG/JPEG rendering.
 
 If you render PNG/JPEG in a headless environment, specify Java's headless mode at runtime as needed:
 
 ```
 java -Djava.awt.headless=true -jar wmf2svg-[version].jar input.wmf output.png
+```
+
+To render with fonts that are not installed in the operating system, place `.ttf`, `.ttc`, `.otf`, `.pfa`, or `.pfb`
+files in a directory and pass it before the input/output filenames:
+
+```
+java -Djava.awt.headless=true -jar wmf2svg-[version].jar -fontdir /path/to/fonts input.wmf output.png
 ```
 
 It now requires Java 8.0 or later.

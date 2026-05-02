@@ -29,6 +29,7 @@ import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.svg.*;
 import net.arnx.wmf2svg.gdi.wmf.*;
 import net.arnx.wmf2svg.io.Parser;
+import net.arnx.wmf2svg.util.FontUtil;
 
 /**
  * @author Hidekatsu Izuno
@@ -43,6 +44,7 @@ public class Main {
 		boolean debug = false;
 		boolean compatible = false;
 		boolean replaceSymbolFont = false;
+		File fontDir = null;
 
 		for (int i = 0; i < args.length; i++) {
 			if (args[i].startsWith("-")) {
@@ -52,6 +54,12 @@ public class Main {
 					compatible = true;
 				} else if (args[i].equals("-replace-symbol-font")) {
 					replaceSymbolFont = true;
+				} else if (args[i].equals("-fontdir")) {
+					if (i + 1 >= args.length || args[i + 1].startsWith("-")) {
+						usage();
+						return;
+					}
+					fontDir = new File(args[++i]);
 				} else {
 					usage();
 					return;
@@ -72,8 +80,11 @@ public class Main {
 			InputStream in = new FileInputStream(src);
 			Parser parser = src.toLowerCase().endsWith(".emf") ? new EmfParser() : new WmfParser();
 			String destLower = dest.toLowerCase();
+			if (fontDir != null && isRasterOutput(destLower)) {
+				FontUtil.registerFonts(fontDir);
+			}
 			final Gdi gdi;
-			if (destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg")) {
+			if (isRasterOutput(destLower)) {
 				AwtGdi awtGdi = new AwtGdi();
 				awtGdi.setOpaqueBackground(src.toLowerCase().endsWith(".emf"));
 				awtGdi.setReplaceSymbolFont(replaceSymbolFont);
@@ -185,8 +196,17 @@ public class Main {
 		}
 	}
 
+	private static boolean isRasterOutput(String destLower) {
+		return destLower.endsWith(".png") || destLower.endsWith(".jpg") || destLower.endsWith(".jpeg");
+	}
+
 	private static void usage() {
-		System.out.println("java -jar wmf2svg.jar [wmf/emf filename] [output filename(svg/svgz/png/jpg)]");
+		System.out.println("java -jar wmf2svg.jar [options...] [wmf/emf filename] [output filename(svg/svgz/png/jpg)]");
+		System.out.println("Options:");
+		System.out.println("  -debug                  log replayed GDI calls");
+		System.out.println("  -compatible             output IE9-compatible SVG style");
+		System.out.println("  -replace-symbol-font    replace Symbol/Wingdings text with Unicode symbols");
+		System.out.println("  -fontdir <dir>          register fonts from dir for PNG/JPEG rendering");
 		System.exit(-1);
 	}
 }

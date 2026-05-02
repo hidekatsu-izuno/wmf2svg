@@ -72,6 +72,23 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testPendingEmfUsesCapturedOuterMappingWhenMappingPrecedesComment() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(-10, -20, null);
+		gdi.setWindowExtEx(100, 100, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setViewportExtEx(100, 100, null);
+		gdi.escape(createEscapeRecord(0x1234, createBackgroundEmf()));
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0, countPaintedPixels(image, 0, 0, 5, 5));
+		assertTrue(countPaintedPixels(image, 12, 22, 20, 20) > 0);
+	}
+
+	@Test
 	public void testPlaceableViewportExtRemainsScaledToCanvasPixels() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.placeableHeader(0, 0, 1000, 1000, 1000);
@@ -877,6 +894,37 @@ public class AwtGdiTest {
 		gdi.dibBitBlt(createRgbDib(0xFF00FF), 0, 0, 1, 1, 0, 0, 0xCCAA0029L);
 
 		assertEquals(0xFF00FF, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testDibBitBltWithoutSourceIgnoresSourceDependentRop() {
+		AwtGdi gdi = createMappedGdi(1, 1);
+		gdi.setPixel(0, 0, 0x00FF00);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.dibBitBlt(null, 0, 0, 1, 1, 0, 0, Gdi.SRCCOPY);
+
+		assertEquals(0x00FF00, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testDibBitBltWithoutSourceKeepsSourceIndependentRop() {
+		AwtGdi gdi = createMappedGdi(1, 1);
+		gdi.setPixel(0, 0, 0x00FF00);
+		gdi.dibBitBlt(null, 0, 0, 1, 1, 0, 0, Gdi.DSTINVERT);
+
+		assertEquals(0xFF00FF, gdi.getImage().getRGB(0, 0) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testHairlineStrokeDoesNotGrowCanvasPastShapeBounds() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.rectangle(0, 0, 700, 600);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(700, image.getWidth());
+		assertEquals(600, image.getHeight());
 	}
 
 	@Test

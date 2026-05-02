@@ -506,7 +506,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void dibBitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
 		if (image == null || image.length == 0) {
-			patBlt(dx, dy, dw, dh, rop);
+			if (canPatBltWithoutSource(rop)) {
+				patBlt(dx, dy, dw, dh, rop);
+			}
 			return;
 		}
 		drawBitmap(image, dx, dy, dw, dh, sx, sy, dw, dh, Gdi.DIB_RGB_COLORS, Long.valueOf(rop), false);
@@ -2492,6 +2494,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void setViewportExtEx(int x, int y, Size old) {
+		if (ignorePendingEmfHeaderMapping()) {
+			return;
+		}
 		if (placeableHeader && !replayingPendingEmf) {
 			x = placeableViewportX(x);
 			y = placeableViewportY(y);
@@ -2505,6 +2510,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void setViewportOrgEx(int x, int y, Point old) {
+		if (ignorePendingEmfHeaderMapping()) {
+			return;
+		}
 		if (placeableHeader && !replayingPendingEmf) {
 			x = placeableViewportX(x);
 			y = placeableViewportY(y);
@@ -2589,13 +2597,23 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		pendingEmfList = new ArrayList<PendingEmf>();
 		AwtDc savedDc = dc;
 		for (PendingEmf pendingEmf : list) {
+			Shape oldClip = null;
+			boolean restoreClip = false;
 			try {
-				boolean useOuterDc = placeableHeader && !pendingEmf.hasExplicitDc() && hasExplicitMapping(savedDc);
-				dc = (AwtDc) (useOuterDc ? savedDc : pendingEmf.dc).clone();
+				boolean useCapturedDc = pendingEmf.hasExplicitDc();
+				boolean useFooterDc = !useCapturedDc && hasExplicitMapping(savedDc);
+				AwtDc replayDc = useFooterDc ? savedDc : pendingEmf.dc;
+				dc = (AwtDc) replayDc.clone();
 				replayingPendingEmf = true;
-				ignoredPendingEmfHeaderMappings = useOuterDc ? 2 : 0;
-				if (!useOuterDc) {
+				ignoredPendingEmfHeaderMappings = useCapturedDc || useFooterDc ? 2 : 0;
+				if (!useCapturedDc && !useFooterDc) {
 					applyPendingEmfFrame(pendingEmf.header);
+				} else if (pendingEmf.header != null && (useCapturedDc || !placeableHeader)) {
+					ensureGraphics();
+					oldClip = graphics.getClip();
+					graphics.clip(toRectangle(pendingEmf.header.boundsLeft, pendingEmf.header.boundsTop,
+							pendingEmf.header.boundsWidth, pendingEmf.header.boundsHeight));
+					restoreClip = true;
 				}
 				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
 			} catch (IOException e) {
@@ -2603,6 +2621,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			} catch (EmfParseException e) {
 				throw new IllegalStateException(e);
 			} finally {
+				if (restoreClip && graphics != null) {
+					graphics.setClip(oldClip);
+				}
 				replayingPendingEmf = false;
 				ignoredPendingEmfHeaderMappings = 0;
 				dc = savedDc;
@@ -2617,7 +2638,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		initDc();
 		byte[] copy = new byte[data.length];
 		System.arraycopy(data, 0, copy, 0, data.length);
-		pendingEmfList.add(new PendingEmf(copy, (AwtDc) dc.clone(), readEmfHeader(copy), hasExplicitMapping()));
+		pendingEmfList.add(new PendingEmf(copy, (AwtDc) dc.clone(), readEmfHeader(copy),
+				hasExplicitMapping() && !placeableHeader));
 	}
 
 	private boolean hasExplicitMapping() {
@@ -3194,7 +3216,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		BasicStroke stroke = toStroke(pen);
-		ensureCanvasContains(stroke.createStrokedShape(shape));
+		ensureCanvasContains(stroke.getLineWidth() <= 1.0f ? shape : stroke.createStrokedShape(shape));
 		if (dc.getROP2() != Gdi.R2_COPYPEN) {
 			strokeShapeRop2(shape, stroke, pen.getColor());
 			return;
@@ -3937,6 +3959,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private boolean isMaskBltCopySourceOnZeroMask(long rop) {
 		return (rop & 0xFF000000L) == 0xCC000000L && (rop & 0x00FFFFFFL) == 0x00AA0029L;
+	}
+
+	private boolean canPatBltWithoutSource(long rop) {
+		return rop == Gdi.BLACKNESS || rop == Gdi.DSTINVERT || rop == Gdi.PATCOPY || rop == Gdi.PATINVERT
+				|| rop == Gdi.WHITENESS;
 	}
 
 	private void composeBitmapRop(Image source, int x1, int y1, int x2, int y2, int rop3) {

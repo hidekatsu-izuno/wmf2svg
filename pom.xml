@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>wmf2svg</name>
-    <description>WMF to SVG Converting Tool &amp; Library</description>
+    <description>WMF/EMF to SVG/PNG/JPEG Converting Tool &amp; Library</description>
     <url>http://hidekatsu-izuno.github.io/wmf2svg/</url>
 
     <licenses>

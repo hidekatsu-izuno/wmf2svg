@@ -10,10 +10,10 @@ class SvgRectRegion extends SvgRegion {
 
 	public SvgRectRegion(SvgGdi gdi, int left, int top, int right, int bottom) {
 		super(gdi);
-		this.left = left;
-		this.top = top;
-		this.right = right;
-		this.bottom = bottom;
+		this.left = Math.min(left, right);
+		this.top = Math.min(top, bottom);
+		this.right = Math.max(left, right);
+		this.bottom = Math.max(top, bottom);
 	}
 
 	public int getLeft() {

@@ -14,12 +14,12 @@ class SvgPatternBrush extends SvgBrush implements GdiPatternBrush {
 
 	public SvgPatternBrush(SvgGdi gdi, byte[] bmp, int usage) {
 		super(gdi, GdiBrush.BS_PATTERN, 0, 0);
-		this.bmp = bmp;
+		this.bmp = bmp != null ? bmp.clone() : new byte[0];
 		this.usage = usage;
 	}
 
 	public byte[] getPattern() {
-		return bmp;
+		return bmp.clone();
 	}
 
 	public int hashCode() {

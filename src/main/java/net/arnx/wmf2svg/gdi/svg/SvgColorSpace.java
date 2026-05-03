@@ -7,10 +7,10 @@ class SvgColorSpace extends SvgObject implements GdiColorSpace {
 
 	public SvgColorSpace(SvgGdi gdi, byte[] logColorSpace) {
 		super(gdi);
-		this.logColorSpace = logColorSpace;
+		this.logColorSpace = logColorSpace != null ? logColorSpace.clone() : new byte[0];
 	}
 
 	public byte[] getLogColorSpace() {
-		return logColorSpace;
+		return logColorSpace.clone();
 	}
 }

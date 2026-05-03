@@ -34,18 +34,18 @@ class SvgComplexRegion extends SvgRegion {
 	}
 
 	private static int[][] readRects(float[] xform, byte[] data, int count) {
-		if (data == null || count < 32 || count > data.length) {
+		if (data == null || data.length < 32) {
 			return new int[0][];
 		}
 
-		int headerSize = readInt32(data, 0);
-		int rectCount = readInt32(data, 8);
-		if (headerSize < 32 || rectCount <= 0 || headerSize + rectCount * 16 > count) {
+		int availableRectCount = (data.length - 32) / 16;
+		int rectCount = Math.min(count > 0 ? count : readInt32(data, 8), availableRectCount);
+		if (rectCount <= 0) {
 			return new int[0][];
 		}
 
 		int[][] rects = new int[rectCount][];
-		int offset = headerSize;
+		int offset = 32;
 		for (int i = 0; i < rects.length; i++) {
 			rects[i] = transformRect(xform, readInt32(data, offset), readInt32(data, offset + 4),
 					readInt32(data, offset + 8), readInt32(data, offset + 12));

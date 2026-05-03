@@ -77,7 +77,7 @@ public class SvgDc implements Cloneable {
 	private int bkColor = 0x00FFFFFF;
 	private int bkMode = Gdi.OPAQUE;
 	private int textColor = 0x00000000;
-	private int textSpace = 0;
+	private double textSpace = 0.0;
 	private int textAlign = Gdi.TA_TOP | Gdi.TA_LEFT;
 	private int textDx = 0;
 	private int polyFillMode = Gdi.ALTERNATE;
@@ -95,7 +95,7 @@ public class SvgDc implements Cloneable {
 	private SvgBrush brush = null;
 	private SvgFont font = null;
 	private SvgPen pen = null;
-	private SvgColorSpace colorSpace = null;
+	private GdiColorSpace colorSpace = null;
 
 	private Element mask = null;
 
@@ -109,11 +109,13 @@ public class SvgDc implements Cloneable {
 
 	public void setWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = wx;
-			old.y = wy;
+			old.x = effectiveWindowX();
+			old.y = effectiveWindowY();
 		}
 		wx = x;
 		wy = y;
+		wox = 0;
+		woy = 0;
 	}
 
 	public void setWindowExtEx(int width, int height, Size old) {
@@ -127,25 +129,28 @@ public class SvgDc implements Cloneable {
 
 	public void offsetWindowOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = wox;
-			old.y = woy;
+			old.x = effectiveWindowX();
+			old.y = effectiveWindowY();
 		}
 		wox += x;
 		woy += y;
 	}
 
 	public void scaleWindowExtEx(int x, int xd, int y, int yd, Size old) {
-		// TODO
+		if (old != null) {
+			old.width = effectiveWindowWidth();
+			old.height = effectiveWindowHeight();
+		}
 		wsx = (wsx * x) / xd;
 		wsy = (wsy * y) / yd;
 	}
 
 	public int getWindowX() {
-		return wx;
+		return effectiveWindowX();
 	}
 
 	public int getWindowY() {
-		return wy;
+		return effectiveWindowY();
 	}
 
 	public int getWindowWidth() {
@@ -156,13 +161,31 @@ public class SvgDc implements Cloneable {
 		return wh;
 	}
 
+	private int effectiveWindowX() {
+		return wx + wox;
+	}
+
+	private int effectiveWindowY() {
+		return wy + woy;
+	}
+
+	private int effectiveWindowWidth() {
+		return (int) Math.round(ww * wsx);
+	}
+
+	private int effectiveWindowHeight() {
+		return (int) Math.round(wh * wsy);
+	}
+
 	public void setViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = vx;
-			old.y = vy;
+			old.x = effectiveViewportX();
+			old.y = effectiveViewportY();
 		}
 		vx = x;
 		vy = y;
+		vox = 0;
+		voy = 0;
 	}
 
 	public void setViewportExtEx(int width, int height, Size old) {
@@ -175,11 +198,11 @@ public class SvgDc implements Cloneable {
 	}
 
 	public int getViewportX() {
-		return vx;
+		return effectiveViewportX();
 	}
 
 	public int getViewportY() {
-		return vy;
+		return effectiveViewportY();
 	}
 
 	public int getViewportWidth() {
@@ -192,22 +215,41 @@ public class SvgDc implements Cloneable {
 
 	public void offsetViewportOrgEx(int x, int y, Point old) {
 		if (old != null) {
-			old.x = vox;
-			old.y = voy;
+			old.x = effectiveViewportX();
+			old.y = effectiveViewportY();
 		}
 		vox += x;
 		voy += y;
 	}
 
 	public void scaleViewportExtEx(int x, int xd, int y, int yd, Size old) {
-		// TODO
+		if (old != null) {
+			old.width = effectiveViewportWidth();
+			old.height = effectiveViewportHeight();
+		}
 		vsx = (vsx * x) / xd;
 		vsy = (vsy * y) / yd;
 	}
 
+	private int effectiveViewportX() {
+		return vx + vox;
+	}
+
+	private int effectiveViewportY() {
+		return vy + voy;
+	}
+
+	private int effectiveViewportWidth() {
+		return (int) Math.round(vw * vsx);
+	}
+
+	private int effectiveViewportHeight() {
+		return (int) Math.round(vh * vsy);
+	}
+
 	public void offsetClipRgn(int x, int y) {
-		cox = x;
-		coy = y;
+		cox += x;
+		coy += y;
 	}
 
 	public int getMapMode() {
@@ -405,11 +447,11 @@ public class SvgDc implements Cloneable {
 		miterLimit = limit;
 	}
 
-	public int getTextSpace() {
+	public double getTextSpace() {
 		return textSpace;
 	}
 
-	public void setTextSpace(int space) {
+	public void setTextSpace(double space) {
 		textSpace = space;
 	}
 
@@ -499,13 +541,13 @@ public class SvgDc implements Cloneable {
 		this.brush = brush;
 	}
 
-	public SvgColorSpace setColorSpace(SvgColorSpace colorSpace) {
-		SvgColorSpace old = this.colorSpace;
+	public GdiColorSpace setColorSpace(GdiColorSpace colorSpace) {
+		GdiColorSpace old = this.colorSpace;
 		this.colorSpace = colorSpace;
 		return old;
 	}
 
-	public SvgColorSpace getColorSpace() {
+	public GdiColorSpace getColorSpace() {
 		return colorSpace;
 	}
 

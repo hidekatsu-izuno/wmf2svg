@@ -9,7 +9,7 @@ class SvgPalette extends SvgObject implements GdiPalette {
 	public SvgPalette(SvgGdi gdi, int version, int[] entries) {
 		super(gdi);
 		this.version = version;
-		this.entries = entries;
+		this.entries = entries != null ? entries.clone() : new int[0];
 	}
 
 	public int getVersion() {
@@ -17,7 +17,7 @@ class SvgPalette extends SvgObject implements GdiPalette {
 	}
 
 	public int[] getEntries() {
-		return entries;
+		return entries.clone();
 	}
 
 	public void setEntries(int startIndex, int[] entries) {
@@ -31,5 +31,14 @@ class SvgPalette extends SvgObject implements GdiPalette {
 			this.entries = newEntries;
 		}
 		System.arraycopy(entries, 0, this.entries, startIndex, entries.length);
+	}
+
+	public void resize(int size) {
+		if (size < 0 || size == entries.length) {
+			return;
+		}
+		int[] newEntries = new int[size];
+		System.arraycopy(entries, 0, newEntries, 0, Math.min(entries.length, newEntries.length));
+		entries = newEntries;
 	}
 }

@@ -16,8 +16,14 @@ import org.junit.Test;
 
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
+import net.arnx.wmf2svg.gdi.GdiColorSpace;
 import net.arnx.wmf2svg.gdi.GdiFont;
+import net.arnx.wmf2svg.gdi.GdiPalette;
+import net.arnx.wmf2svg.gdi.GdiPatternBrush;
 import net.arnx.wmf2svg.gdi.GdiPen;
+import net.arnx.wmf2svg.gdi.GdiRegion;
+import net.arnx.wmf2svg.gdi.Point;
+import net.arnx.wmf2svg.gdi.Size;
 
 public class SvgGdiTest {
 	private static final Pattern PNG_DATA_PATTERN = Pattern.compile("xlink:href=\"data:image/png;base64,([^\"]+)\"");
@@ -110,6 +116,209 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testTextOutUpdateCurrentPositionAdvancesByEstimatedWidth() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.moveToEx(5, 10, null);
+		gdi.textOut(99, 99, "AB".getBytes("US-ASCII"));
+		gdi.lineTo(40, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"5\""));
+		Assert.assertTrue(svg.contains("y=\"10\""));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"25\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"40\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testExtTextOutUpdateCurrentPositionAdvancesWithoutDx() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.moveToEx(5, 10, null);
+		gdi.extTextOut(99, 99, 0, null, "AB".getBytes("US-ASCII"), null);
+		gdi.lineTo(40, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"25\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"40\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testTextJustificationPreservesNegativeFractionalWordSpacing() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextJustification(-3, 2);
+		gdi.textOut(5, 10, "A B".getBytes("US-ASCII"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("word-spacing: -1.5;"));
+	}
+
+	@Test
+	public void testExtTextOutJustificationPreservesFractionalWordSpacing() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextJustification(5, 2);
+		gdi.extTextOut(5, 10, 0, null, "A B".getBytes("US-ASCII"), null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("word-spacing: 2.5;"));
+	}
+
+	@Test
+	public void testExtTextOutWithoutDxHonorsTextCharacterExtra() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextCharacterExtra(4);
+		gdi.moveToEx(5, 10, null);
+		gdi.extTextOut(99, 99, 0, null, "AB".getBytes("US-ASCII"), null);
+		gdi.lineTo(40, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("dx=\"4\""));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"29\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"40\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testExtTextOutDxCombinesTextCharacterExtra() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextCharacterExtra(4);
+		gdi.moveToEx(5, 10, null);
+		gdi.extTextOut(99, 99, 0, null, "AB".getBytes("US-ASCII"), new int[]{10, 20});
+		gdi.lineTo(60, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"5 19\""));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"43\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"60\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testTextJustificationAdvancesCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextJustification(6, 2);
+		gdi.moveToEx(5, 10, null);
+		gdi.textOut(99, 99, "A B".getBytes("US-ASCII"));
+		gdi.lineTo(60, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("word-spacing: 3;"));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"38\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"60\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testExtTextOutDxCombinesTextJustificationAdvance() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.setTextJustification(6, 2);
+		gdi.moveToEx(5, 10, null);
+		gdi.extTextOut(99, 99, 0, null, "A B".getBytes("US-ASCII"), new int[]{10, 10, 10});
+		gdi.lineTo(60, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("word-spacing: 3;"));
+		Assert.assertTrue(svg.contains("x=\"5 15 28\""));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"38\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"60\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
+	public void testExtTextOutPdyUsesSeparateXAndYAdvances() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.moveToEx(5, 10, null);
+		gdi.extTextOut(99, 99, Gdi.ETO_PDY, null, "AB".getBytes("US-ASCII"), new int[]{10, 3, 20, 4});
+		gdi.lineTo(60, 40);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"5 15\""));
+		Assert.assertTrue(svg.contains("y=\"10 13\""));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"35\""));
+		Assert.assertTrue(svg.contains("y1=\"17\""));
+		Assert.assertTrue(svg.contains("x2=\"60\""));
+		Assert.assertTrue(svg.contains("y2=\"40\""));
+	}
+
+	@Test
+	public void testExtTextOutDxUpdateCurrentPositionIgnoresRightAlignmentOffset() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_RIGHT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.moveToEx(100, 10, null);
+		gdi.extTextOut(99, 99, 0, null, "AB".getBytes("US-ASCII"), new int[]{10, 20});
+		gdi.lineTo(150, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"90 100\""));
+		Assert.assertFalse(svg.contains("text-anchor: end"));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"130\""));
+		Assert.assertTrue(svg.contains("y1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"150\""));
+		Assert.assertTrue(svg.contains("y2=\"10\""));
+	}
+
+	@Test
 	public void testPie() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 9000, 9000, 1440);
@@ -198,6 +407,112 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testAlphaBlendSkipsFullyTransparentSourceConstantAlpha() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.alphaBlend(createTopDown24BitDib(new int[]{0xFF0000}), 0, 0, 1, 1, 0, 0, 1, 1, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<image"));
+		Assert.assertFalse(svg.contains("opacity=\"0"));
+	}
+
+	@Test
+	public void testAlphaBlendKeepsNonTransparentSourceConstantAlpha() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.alphaBlend(createTopDown24BitDib(new int[]{0xFF0000}), 0, 0, 1, 1, 0, 0, 1, 1, 0x800000);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<image"));
+		Assert.assertTrue(svg.contains("opacity=\"0.5019608\""));
+	}
+
+	@Test
+	public void testBitmapOutputSkipsZeroDestinationExtent() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.stretchDIBits(0, 0, 0, 1, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.stretchDIBits(0, 0, 1, 0, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0x00FF00}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<image"));
+		Assert.assertFalse(svg.contains("width=\"0\""));
+		Assert.assertFalse(svg.contains("height=\"0\""));
+	}
+
+	@Test
+	public void testBitmapOutputSkipsZeroSourceExtent() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 0, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 0, createTopDown24BitDib(new int[]{0x00FF00}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<image"));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 0 1\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 1 0\""));
+	}
+
+	@Test
+	public void testBitmapOutputKeepsNonEmptyExtents() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<image"));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
+	}
+
+	@Test
+	public void testBitmapOutputSkipsSourceRectangleOutsideImage() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.stretchDIBits(0, 0, 1, 1, 2, 0, 1, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<image"));
+		Assert.assertFalse(svg.contains("viewBox=\"2 0 1 1\""));
+	}
+
+	@Test
+	public void testBitmapOutputClampsPartiallyOutsideSourceRectangle() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.stretchDIBits(0, 0, 2, 2, 1, 0, 3, 2,
+				createTopDown24BitDib(2, 2, new int[]{0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<svg "));
+		Assert.assertTrue(svg.contains("<image"));
+		Assert.assertTrue(svg.contains("viewBox=\"1 0 1 2\""));
+		Assert.assertFalse(svg.contains("viewBox=\"1 0 3 2\""));
+	}
+
+	@Test
 	public void testDibBitBltWithoutSourceUsesPatternForPatternOnlyRop() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -217,6 +532,131 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("x=\"1\""));
 		Assert.assertTrue(svg.contains("y=\"2\""));
 		Assert.assertFalse(svg.contains("<image"));
+	}
+
+	@Test
+	public void testDibBitBltWithoutSourceMergeCopyRendersBlack() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x454545, 0));
+
+		gdi.dibBitBlt(null, 1, 2, 3, 4, 0, 0, Gdi.MERGECOPY);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("height=\"4\""));
+		Assert.assertTrue(svg.contains("width=\"3\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"2\""));
+		Assert.assertTrue(svg.contains("BLACKNESS_FILTER"));
+		Assert.assertFalse(svg.contains("<image"));
+	}
+
+	@Test
+	public void testDibBitBltWithoutSourcePatPaintRendersWhite() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x454545, 0));
+
+		gdi.dibBitBlt(null, 1, 2, 3, 4, 0, 0, Gdi.PATPAINT);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("height=\"4\""));
+		Assert.assertTrue(svg.contains("width=\"3\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"2\""));
+		Assert.assertTrue(svg.contains("WHITENESS_FILTER"));
+		Assert.assertFalse(svg.contains("<image"));
+	}
+
+	@Test
+	public void testPatternBrushOwnsBitmapCopy() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		byte[] dib = createTopDown24BitDib(new int[]{0xFF0000});
+		GdiPatternBrush brush = gdi.dibCreatePatternBrush(dib, Gdi.DIB_RGB_COLORS);
+		byte original = brush.getPattern()[40];
+
+		dib[40] = (byte) 0x7F;
+		byte[] exposed = brush.getPattern();
+		exposed[40] = (byte) 0x55;
+
+		Assert.assertEquals(original, brush.getPattern()[40]);
+	}
+
+	@Test
+	public void testMonochromePatternBrushFallbackOwnsCachedDibCopy() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		byte[] dib = createTopDown24BitDib(new int[]{0xFF0000});
+		gdi.dibCreatePatternBrush(dib, Gdi.DIB_RGB_COLORS);
+		byte original = dib[40];
+		dib[40] = (byte) 0x7F;
+
+		GdiPatternBrush brush = gdi.createPatternBrush(createMonochromeDib(1, 1, new int[]{0x80}));
+
+		Assert.assertEquals(original, brush.getPattern()[40]);
+	}
+
+	@Test
+	public void testStretchBltModeDefaultsToPixelatedImageRendering() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+
+		gdi.stretchDIBits(0, 0, 4, 4, 0, 0, 2, 2,
+				createTopDown24BitDib(2, 2, new int[]{0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("image-rendering=\"pixelated\""));
+		Assert.assertFalse(svg.contains("image-rendering=\"optimizeQuality\""));
+	}
+
+	@Test
+	public void testStretchBltModeHalftoneUsesQualityImageRendering() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setStretchBltMode(Gdi.STRETCH_HALFTONE);
+
+		gdi.stretchDIBits(0, 0, 4, 4, 0, 0, 2, 2,
+				createTopDown24BitDib(2, 2, new int[]{0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("image-rendering=\"optimizeQuality\""));
+		Assert.assertFalse(svg.contains("image-rendering=\"pixelated\""));
+	}
+
+	@Test
+	public void testStretchBltModeAppliesToClippedSourceImageRendering() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(2, 2, null);
+		gdi.setStretchBltMode(Gdi.STRETCH_HALFTONE);
+
+		gdi.stretchDIBits(0, 0, 2, 2, 1, 0, 1, 2,
+				createTopDown24BitDib(2, 2, new int[]{0xFF0000, 0x00FF00, 0x0000FF, 0xFFFFFF}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<svg "));
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("viewBox=\"1 0 1 2\""));
+		Assert.assertTrue(svg.contains("image-rendering=\"optimizeQuality\""));
 	}
 
 	@Test
@@ -330,6 +770,1312 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("x2=\"0\""));
 		Assert.assertTrue(svg.contains("y2=\"10\""));
 		Assert.assertFalse(svg.contains("y2=\"-10\""));
+	}
+
+	@Test
+	public void testSetWindowOrgResetsPriorOffset() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(10, 20, null);
+		Point old = new Point(0, 0);
+		gdi.offsetWindowOrgEx(3, 4, old);
+		Assert.assertEquals(10, old.x);
+		Assert.assertEquals(20, old.y);
+		gdi.setWindowOrgEx(0, 0, old);
+		Assert.assertEquals(13, old.x);
+		Assert.assertEquals(24, old.y);
+
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x1=\"0\""));
+		Assert.assertTrue(svg.contains("y1=\"0\""));
+		Assert.assertTrue(svg.contains("x2=\"10\""));
+		Assert.assertFalse(svg.contains("x1=\"-3\""));
+	}
+
+	@Test
+	public void testSetViewportOrgResetsPriorOffset() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setViewportOrgEx(2, 3, null);
+		Point old = new Point(0, 0);
+		gdi.offsetViewportOrgEx(4, 5, old);
+		Assert.assertEquals(2, old.x);
+		Assert.assertEquals(3, old.y);
+		gdi.setViewportOrgEx(0, 0, old);
+		Assert.assertEquals(6, old.x);
+		Assert.assertEquals(8, old.y);
+
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x1=\"0\""));
+		Assert.assertTrue(svg.contains("y1=\"0\""));
+		Assert.assertTrue(svg.contains("x2=\"10\""));
+		Assert.assertFalse(svg.contains("x1=\"90\""));
+	}
+
+	@Test
+	public void testScaleExtReturnsEffectivePreviousExtents() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		Size old = new Size(0, 0);
+
+		gdi.setWindowExtEx(10, 20, null);
+		gdi.scaleWindowExtEx(2, 1, 3, 1, old);
+		Assert.assertEquals(10, old.width);
+		Assert.assertEquals(20, old.height);
+		gdi.scaleWindowExtEx(1, 1, 1, 1, old);
+		Assert.assertEquals(20, old.width);
+		Assert.assertEquals(60, old.height);
+
+		gdi.setViewportExtEx(10, 20, null);
+		gdi.scaleViewportExtEx(2, 1, 3, 1, old);
+		Assert.assertEquals(10, old.width);
+		Assert.assertEquals(20, old.height);
+		gdi.scaleViewportExtEx(1, 1, 1, 1, old);
+		Assert.assertEquals(20, old.width);
+		Assert.assertEquals(60, old.height);
+	}
+
+	@Test
+	public void testOffsetClipRgnAccumulatesOffsets() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.intersectClipRect(0, 0, 10, 10);
+		gdi.offsetClipRgn(2, 3);
+		gdi.offsetClipRgn(4, 5);
+		gdi.rectangle(0, 0, 20, 20);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("transform=\"translate(6,8)\""));
+		Assert.assertFalse(svg.contains("transform=\"translate(4,5)\""));
+	}
+
+	@Test
+	public void testSelectObjectWithRegionSelectsClipRegion() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiRegion region = gdi.createRectRgn(1, 2, 3, 4);
+		gdi.selectObject(region);
+		gdi.rectangle(0, 0, 10, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("mask=\"url(#mask"));
+		Assert.assertTrue(svg.contains("fill=\"white\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"2\""));
+		Assert.assertTrue(svg.contains("<rect "));
+	}
+
+	@Test
+	public void testRectRegionNormalizesReversedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiRegion region = gdi.createRectRgn(10, 20, 2, 5);
+		gdi.selectObject(region);
+		gdi.rectangle(0, 0, 12, 22);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("mask=\"url(#mask"));
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"5\""));
+		Assert.assertTrue(svg.contains("width=\"8\""));
+		Assert.assertTrue(svg.contains("height=\"15\""));
+		Assert.assertFalse(svg.contains("width=\"-"));
+		Assert.assertFalse(svg.contains("height=\"-"));
+	}
+
+	@Test
+	public void testRestoreDCWithoutSavedStateDoesNotThrow() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.restoreDC(-1);
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x1=\"0\""));
+		Assert.assertTrue(svg.contains("x2=\"10\""));
+	}
+
+	@Test
+	public void testRestoreDCOverDepthRestoresAvailableState() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.seveDC();
+		gdi.setWindowOrgEx(5, 0, null);
+		gdi.restoreDC(-5);
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x1=\"0\""));
+		Assert.assertTrue(svg.contains("x2=\"10\""));
+		Assert.assertFalse(svg.contains("x1=\"-5\""));
+	}
+
+	@Test
+	public void testRestoreDCRestoresSelectedPalette() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+		GdiPalette redPalette = gdi.createPalette(0x300, new int[]{0x000000FF});
+		GdiPalette bluePalette = gdi.createPalette(0x300, new int[]{0x00FF0000});
+		gdi.selectPalette(redPalette, false);
+		gdi.seveDC();
+		gdi.selectPalette(bluePalette, false);
+		gdi.restoreDC(-1);
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown8BitPalDib(0), Gdi.DIB_PAL_COLORS, Gdi.SRCCOPY);
+
+		BufferedImage image = readFirstPng(gdi);
+		Assert.assertEquals(0xFFFF0000, image.getRGB(0, 0));
+	}
+
+	@Test
+	public void testRestoreDCRestoresSelectedColorSpace() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiColorSpace colorSpace1 = gdi.createColorSpace(new byte[]{1});
+		GdiColorSpace colorSpace2 = gdi.createColorSpace(new byte[]{2});
+
+		gdi.setColorSpace(colorSpace1);
+		gdi.seveDC();
+		gdi.setColorSpace(colorSpace2);
+		gdi.restoreDC(-1);
+
+		Assert.assertSame(colorSpace1, gdi.setColorSpace(colorSpace2));
+	}
+
+	@Test
+	public void testForeignColorSpaceIsTracked() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiColorSpace foreignColorSpace = new GdiColorSpace() {
+		};
+		GdiColorSpace svgColorSpace = gdi.createColorSpace(new byte[]{1});
+
+		Assert.assertNull(gdi.setColorSpace(foreignColorSpace));
+
+		Assert.assertSame(foreignColorSpace, gdi.setColorSpace(svgColorSpace));
+	}
+
+	@Test
+	public void testDeleteColorSpaceOnlyAcceptsSvgColorSpace() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiColorSpace colorSpace1 = gdi.createColorSpace(new byte[]{1});
+		GdiColorSpace colorSpace2 = gdi.createColorSpace(new byte[]{2});
+		GdiColorSpace foreignColorSpace = new GdiColorSpace() {
+		};
+
+		gdi.setColorSpace(colorSpace1);
+
+		Assert.assertFalse(gdi.deleteColorSpace(foreignColorSpace));
+		Assert.assertSame(colorSpace1, gdi.setColorSpace(colorSpace2));
+		Assert.assertTrue(gdi.deleteColorSpace(colorSpace2));
+		Assert.assertNull(gdi.setColorSpace(colorSpace1));
+		Assert.assertFalse(gdi.deleteColorSpace(null));
+	}
+
+	@Test
+	public void testForeignPaletteDoesNotThrowAndClearsSelection() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+		gdi.selectPalette(gdi.createPalette(0x300, new int[]{0x000000FF}), false);
+		GdiPalette foreignPalette = new ForeignPalette(0x300, new int[]{0x000000FF});
+		gdi.selectPalette(foreignPalette, false);
+		gdi.setPaletteEntries(foreignPalette, 0, new int[]{0x00FF0000});
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown8BitPalDib(0), Gdi.DIB_PAL_COLORS, Gdi.SRCCOPY);
+
+		BufferedImage image = readFirstPng(gdi);
+		Assert.assertEquals(0xFF000000, image.getRGB(0, 0));
+	}
+
+	@Test
+	public void testPaletteOwnsEntryCopy() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		int[] entries = new int[]{0x000000FF};
+		GdiPalette palette = gdi.createPalette(0x300, entries);
+		int original = palette.getEntries()[0];
+
+		entries[0] = 0x0000FF00;
+		int[] exposed = palette.getEntries();
+		exposed[0] = 0x00FF0000;
+
+		Assert.assertEquals(original, palette.getEntries()[0]);
+	}
+
+	@Test
+	public void testColorSpaceOwnsLogColorSpaceCopy() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		byte[] logColorSpace = new byte[]{1, 2, 3};
+		SvgColorSpace colorSpace = (SvgColorSpace) gdi.createColorSpace(logColorSpace);
+		logColorSpace[0] = 9;
+
+		Assert.assertArrayEquals(new byte[]{1, 2, 3}, colorSpace.getLogColorSpace());
+
+		byte[] exposed = colorSpace.getLogColorSpace();
+		exposed[1] = 9;
+
+		Assert.assertArrayEquals(new byte[]{1, 2, 3}, colorSpace.getLogColorSpace());
+	}
+
+	@Test
+	public void testColorSpaceNullLogColorSpaceBecomesEmpty() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		SvgColorSpace colorSpace = (SvgColorSpace) gdi.createColorSpace(null);
+
+		Assert.assertArrayEquals(new byte[0], colorSpace.getLogColorSpace());
+	}
+
+	@Test
+	public void testResizePaletteTruncatesSelectedPaletteLookup() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+		GdiPalette palette = gdi.createPalette(0x300, new int[]{0x000000FF, 0x0000FF00});
+		gdi.selectPalette(palette, false);
+		gdi.resizePalette(palette, 1);
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown8BitPalDib(1), Gdi.DIB_PAL_COLORS, Gdi.SRCCOPY);
+
+		BufferedImage image = readFirstPng(gdi);
+		Assert.assertEquals(0xFF000000, image.getRGB(0, 0));
+	}
+
+	@Test
+	public void testResizePaletteExtendsWithBlackEntries() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+		GdiPalette palette = gdi.createPalette(0x300, new int[]{0x000000FF});
+		gdi.selectPalette(palette, false);
+		gdi.resizePalette(palette, 2);
+
+		gdi.stretchDIBits(0, 0, 1, 1, 0, 0, 1, 1, createTopDown8BitPalDib(1), Gdi.DIB_PAL_COLORS, Gdi.SRCCOPY);
+
+		BufferedImage image = readFirstPng(gdi);
+		Assert.assertEquals(0xFF000000, image.getRGB(0, 0));
+	}
+
+	@Test
+	public void testSetPixelUsesMappedLogicalPixelSize() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		gdi.setViewportExtEx(20, 30, null);
+		gdi.setPixel(1, 2, 0x0000FF);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"6\""));
+		Assert.assertTrue(svg.contains("width=\"2\""));
+		Assert.assertTrue(svg.contains("height=\"3\""));
+	}
+
+	@Test
+	public void testSetPixelPreservesSubpixelMappedLogicalSize() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+		gdi.setPixel(1, 1, 0x0000FF);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"0.5\""));
+		Assert.assertTrue(svg.contains("y=\"0.5\""));
+		Assert.assertTrue(svg.contains("width=\"0.5\""));
+		Assert.assertTrue(svg.contains("height=\"0.5\""));
+		Assert.assertFalse(svg.contains("width=\"0\""));
+		Assert.assertFalse(svg.contains("height=\"0\""));
+	}
+
+	@Test
+	public void testExtFloodFillSeedUsesMappedLogicalPixelSize() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		gdi.setViewportExtEx(20, 30, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.extFloodFill(1, 2, 0, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"6\""));
+		Assert.assertTrue(svg.contains("width=\"2\""));
+		Assert.assertTrue(svg.contains("height=\"3\""));
+	}
+
+	@Test
+	public void testExtFloodFillSeedPreservesSubpixelMappedLogicalSize() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.extFloodFill(1, 1, 0, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"0.5\""));
+		Assert.assertTrue(svg.contains("y=\"0.5\""));
+		Assert.assertTrue(svg.contains("width=\"0.5\""));
+		Assert.assertTrue(svg.contains("height=\"0.5\""));
+		Assert.assertFalse(svg.contains("width=\"0\""));
+		Assert.assertFalse(svg.contains("height=\"0\""));
+	}
+
+	@Test
+	public void testFloodFillSkipsNullBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x0000FF, 0));
+
+		gdi.floodFill(1, 2, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<rect x=\"1\""));
+	}
+
+	@Test
+	public void testExtFloodFillSkipsNullBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x0000FF, 0));
+
+		gdi.extFloodFill(1, 2, 0, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<rect x=\"1\""));
+	}
+
+	@Test
+	public void testSetDIBitsToDeviceHonorsStartScan() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1, 1, null);
+
+		gdi.setDIBitsToDevice(0, 0, 1, 1, 0, 0, 0, 1, createTopDown24BitDib(1, 2, new int[]{0xFF0000, 0x0000FF}),
+				Gdi.DIB_RGB_COLORS);
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<svg "));
+		Assert.assertTrue(svg.contains("viewBox=\"0 1 1 1\""));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
+	}
+
+	@Test
+	public void testLineToSkipsZeroLengthLine() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(5, 5, null);
+		gdi.lineTo(5, 5);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<line "));
+	}
+
+	@Test
+	public void testLineToSkipsNoOpPen() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.moveToEx(0, 0, null);
+
+		gdi.lineTo(10, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<line "));
+	}
+
+	@Test
+	public void testNoOpLineToStillUpdatesCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0));
+
+		gdi.lineTo(20, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"20\""));
+		Assert.assertFalse(svg.contains("x1=\"0\""));
+	}
+
+	@Test
+	public void testLineToPreservesSubpixelMappedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+		gdi.moveToEx(1, 1, null);
+
+		gdi.lineTo(3, 2);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"0.5\""));
+		Assert.assertTrue(svg.contains("y1=\"0.5\""));
+		Assert.assertTrue(svg.contains("x2=\"1.5\""));
+		Assert.assertTrue(svg.contains("y2=\"1\""));
+	}
+
+	@Test
+	public void testPolylineUpdatesCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(0, 0, null);
+		gdi.polyline(new Point[]{new Point(2, 0), new Point(4, 0)});
+		gdi.lineTo(6, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<polyline "));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"4\""));
+		Assert.assertTrue(svg.contains("x2=\"6\""));
+		Assert.assertFalse(svg.contains("x1=\"0\""));
+	}
+
+	@Test
+	public void testPathPolyBezierToUpdatesCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.polyBezierTo(new Point[]{new Point(2, 0), new Point(4, 0), new Point(6, 0)});
+		gdi.strokePath();
+		gdi.lineTo(8, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"6\""));
+		Assert.assertTrue(svg.contains("x2=\"8\""));
+		Assert.assertFalse(svg.contains("x1=\"0\""));
+	}
+
+	@Test
+	public void testIncompletePathPolyBezierMovesRecordedPathPoint() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.moveToEx(5, 0, null);
+		gdi.polyBezier(new Point[]{new Point(10, 0), new Point(12, 0)});
+		gdi.lineTo(20, 0);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("M 10,0 L 20,0"));
+		Assert.assertFalse(svg.contains("L 5,0"));
+	}
+
+	@Test
+	public void testIncompletePolyBezierToUpdatesCurrentPositionWithoutPath() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(0, 0, null);
+		gdi.polyBezierTo(new Point[]{new Point(4, 0), new Point(6, 0)});
+
+		gdi.lineTo(8, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"6\""));
+		Assert.assertTrue(svg.contains("x2=\"8\""));
+		Assert.assertFalse(svg.contains("<path "));
+		Assert.assertFalse(svg.contains("x1=\"0\""));
+	}
+
+	@Test
+	public void testPolygonStyleMethodsIgnoreNullAndEmptyInputs() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.polygon(null);
+		gdi.polygon(new Point[0]);
+		gdi.polyline(null);
+		gdi.polyline(new Point[0]);
+		gdi.polyPolygon(null);
+		gdi.polyPolygon(new Point[0][]);
+		gdi.polyPolygon(new Point[][]{null, new Point[0]});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<polygon "));
+		Assert.assertFalse(svg.contains("<polyline "));
+		Assert.assertFalse(svg.contains("<path d=\"\""));
+	}
+
+	@Test
+	public void testDegenerateArcToUsesFrameCenterForCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(0, 0, null);
+		gdi.arcTo(10, 10, 10, 20, 100, 100, 200, 200);
+		gdi.lineTo(30, 15);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(2, count(svg, "<line "));
+		Assert.assertTrue(svg.contains("x1=\"0\""));
+		Assert.assertTrue(svg.contains("y1=\"0\""));
+		Assert.assertTrue(svg.contains("x2=\"10\""));
+		Assert.assertTrue(svg.contains("y2=\"15\""));
+		Assert.assertTrue(svg.contains("x1=\"10\""));
+		Assert.assertTrue(svg.contains("y1=\"15\""));
+		Assert.assertFalse(svg.contains("x2=\"200\""));
+		Assert.assertFalse(svg.contains("y2=\"200\""));
+	}
+
+	@Test
+	public void testArcUsesTransformedRadiiForFullCircle() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(10, 10, null);
+		gdi.setViewportExtEx(20, 30, null);
+		gdi.arc(0, 0, 10, 10, 0, 0, 0, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<ellipse "));
+		Assert.assertTrue(svg.contains("cx=\"10.0\""));
+		Assert.assertTrue(svg.contains("cy=\"15.0\""));
+		Assert.assertTrue(svg.contains("rx=\"10.0\""));
+		Assert.assertTrue(svg.contains("ry=\"15.0\""));
+		Assert.assertFalse(svg.contains("<circle "));
+		Assert.assertFalse(svg.contains("rx=\"-"));
+		Assert.assertFalse(svg.contains("ry=\"-"));
+	}
+
+	@Test
+	public void testReversedShapeCoordinatesUsePositiveSvgDimensions() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.rectangle(10, 20, 2, 5);
+		gdi.ellipse(30, 40, 10, 20);
+		gdi.roundRect(50, 60, 20, 30, -6, -8);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"5\""));
+		Assert.assertTrue(svg.contains("width=\"8\""));
+		Assert.assertTrue(svg.contains("height=\"15\""));
+		Assert.assertTrue(svg.contains("cx=\"20\""));
+		Assert.assertTrue(svg.contains("cy=\"30\""));
+		Assert.assertTrue(svg.contains("rx=\"10\""));
+		Assert.assertTrue(svg.contains("ry=\"10\""));
+		Assert.assertTrue(svg.contains("x=\"20\""));
+		Assert.assertTrue(svg.contains("y=\"30\""));
+		Assert.assertTrue(svg.contains("width=\"30\""));
+		Assert.assertTrue(svg.contains("height=\"30\""));
+		Assert.assertTrue(svg.contains("rx=\"3\""));
+		Assert.assertTrue(svg.contains("ry=\"4\""));
+		Assert.assertFalse(svg.contains("width=\"-"));
+		Assert.assertFalse(svg.contains("height=\"-"));
+		Assert.assertFalse(svg.contains("rx=\"-"));
+		Assert.assertFalse(svg.contains("ry=\"-"));
+	}
+
+	@Test
+	public void testBasicShapesSkipNoOpPenAndBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+
+		gdi.rectangle(0, 0, 10, 10);
+		gdi.ellipse(20, 20, 30, 30);
+		gdi.roundRect(40, 40, 60, 60, 4, 4);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<rect x=\"0\""));
+		Assert.assertFalse(svg.contains("<ellipse "));
+		Assert.assertFalse(svg.contains("<rect x=\"40\""));
+	}
+
+	@Test
+	public void testStrokeOnlyShapesSkipNoOpPen() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+
+		gdi.arc(0, 0, 10, 10, 0, 5, 10, 5);
+		gdi.polyline(new Point[]{new Point(0, 0), new Point(10, 0)});
+		gdi.polyBezier(new Point[]{new Point(0, 0), new Point(0, 10), new Point(10, 10), new Point(10, 0)});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+		Assert.assertFalse(svg.contains("<polyline "));
+		Assert.assertFalse(svg.contains("<circle "));
+		Assert.assertFalse(svg.contains("<ellipse "));
+	}
+
+	@Test
+	public void testChordAndImmediatePieSkipNoOpPenAndBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+
+		gdi.chord(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.pie(30, 0, 50, 10, 50, 5, 40, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+		Assert.assertFalse(svg.contains("<circle "));
+		Assert.assertFalse(svg.contains("<ellipse "));
+	}
+
+	@Test
+	public void testChordAndImmediatePieKeepRenderableFillOnlyOutput() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+
+		gdi.chord(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.pie(30, 0, 50, 10, 50, 5, 40, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(2, count(svg, "<path "));
+	}
+
+	@Test
+	public void testNoOpPolylineStillUpdatesCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.polyline(new Point[]{new Point(0, 0), new Point(10, 0)});
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0));
+
+		gdi.lineTo(20, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"10\""));
+		Assert.assertTrue(svg.contains("x2=\"20\""));
+		Assert.assertFalse(svg.contains("x1=\"0\""));
+	}
+
+	@Test
+	public void testNoOpPolyBezierDoesNotUpdateCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(5, 0, null);
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.polyBezier(new Point[]{new Point(0, 0), new Point(0, 10), new Point(10, 10), new Point(10, 0)});
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0));
+
+		gdi.lineTo(20, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"5\""));
+		Assert.assertTrue(svg.contains("x2=\"20\""));
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testPolyBezierDoesNotUpdateCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.moveToEx(5, 0, null);
+		gdi.polyBezier(new Point[]{new Point(0, 0), new Point(0, 10), new Point(10, 10), new Point(10, 0)});
+
+		gdi.lineTo(20, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertTrue(svg.contains("x1=\"5\""));
+		Assert.assertTrue(svg.contains("x2=\"20\""));
+		Assert.assertFalse(svg.contains("x1=\"10\""));
+	}
+
+	@Test
+	public void testPolyBezierPreservesSubpixelMappedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+
+		gdi.polyBezier(new Point[]{new Point(1, 1), new Point(1, 3), new Point(3, 3), new Point(3, 1)});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 C 0.5,1.5 1.5,1.5 1.5,0.5 "));
+	}
+
+	@Test
+	public void testPolyBezierToPreservesSubpixelMappedCurrentPosition() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+		gdi.moveToEx(1, 1, null);
+
+		gdi.polyBezierTo(new Point[]{new Point(1, 3), new Point(3, 3), new Point(3, 1)});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 C 0.5,1.5 1.5,1.5 1.5,0.5 "));
+	}
+
+	@Test
+	public void testPolygonShapesSkipNoOpPenAndBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+
+		gdi.polygon(new Point[]{new Point(0, 0), new Point(10, 0), new Point(10, 10)});
+		gdi.polyPolygon(new Point[][]{new Point[]{new Point(20, 20), new Point(30, 20), new Point(30, 30)}});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<polygon "));
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testPolyPolygonUsesMappedIntegerCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.polyPolygon(new Point[][]{new Point[]{new Point(1, 1), new Point(10, 1), new Point(10, 8)}});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("M 1,1"));
+		Assert.assertTrue(svg.contains("L 10,1 10,8 z"));
+	}
+
+	@Test
+	public void testPolyPolygonPreservesSubpixelMappedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+
+		gdi.polyPolygon(new Point[][]{new Point[]{new Point(1, 1), new Point(3, 1), new Point(3, 3)}});
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("M 0.5,0.5"));
+		Assert.assertTrue(svg.contains("L 1.5,0.5 1.5,1.5 z"));
+	}
+
+	@Test
+	public void testPathRoundRectPreservesRoundedCorners() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.roundRect(0, 0, 20, 10, 8, 6);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains(" C "));
+		Assert.assertFalse(svg.contains("M 0,0 L 20,0 L 20,10 L 0,10 z"));
+	}
+
+	@Test
+	public void testPathArcPreservesCurvedGeometry() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.arc(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains(" C "));
+		Assert.assertTrue(svg.contains("L 20,5"));
+		Assert.assertFalse(svg.contains("M 0,0 L 10,0"));
+	}
+
+	@Test
+	public void testRecordedPathPreservesSubpixelMappedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(4, 4, null);
+		gdi.setViewportExtEx(2, 2, null);
+		gdi.beginPath();
+		gdi.moveToEx(1, 1, null);
+		gdi.lineTo(3, 1);
+		gdi.polyBezierTo(new Point[]{new Point(3, 3), new Point(1, 3), new Point(1, 1)});
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 L 1.5,0.5 C 1.5,1.5 0.5,1.5 0.5,0.5 "));
+	}
+
+	@Test
+	public void testFillPathSkipsNoOpBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+		gdi.beginPath();
+		gdi.rectangle(0, 0, 10, 10);
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testStrokePathSkipsNoOpPen() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testStrokeAndFillPathKeepsRenderableSideOnly() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.beginPath();
+		gdi.rectangle(0, 0, 10, 10);
+		gdi.strokeAndFillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("stroke=\"none\""));
+	}
+
+	@Test
+	public void testStrokeAndFillPathSkipsWhenPenAndBrushAreNoOp() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_HOLLOW, 0, 0));
+		gdi.beginPath();
+		gdi.rectangle(0, 0, 10, 10);
+		gdi.strokeAndFillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testWidenedFillPathSkipsNoOpBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 2, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(10, 0);
+		gdi.widenPath();
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+		Assert.assertFalse(svg.contains("stroke=\"none\""));
+	}
+
+	@Test
+	public void testPathPieIsEmittedByFillPath() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.pie(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("M 10,5"));
+		Assert.assertTrue(svg.contains("L 20,5"));
+		Assert.assertTrue(svg.contains(" C "));
+		Assert.assertTrue(svg.contains("z"));
+	}
+
+	@Test
+	public void testPathPieDoesNotEmitImmediateOutput() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.pie(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.abortPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<path "));
+		Assert.assertFalse(svg.contains("<circle "));
+		Assert.assertFalse(svg.contains("<ellipse "));
+	}
+
+	@Test
+	public void testPathPieRecordsDespiteNoOpSelectedStyles() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_NULL, 1, 0));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0, 0));
+		gdi.beginPath();
+		gdi.pie(0, 0, 20, 10, 20, 5, 10, 0);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains(" C "));
+		Assert.assertTrue(svg.contains("z"));
+	}
+
+	@Test
+	public void testFlattenPathConvertsBezierToLineSegments() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.polyBezier(new Point[]{new Point(0, 0), new Point(0, 10), new Point(10, 10), new Point(10, 0)});
+		gdi.flattenPath();
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains(" L "));
+		Assert.assertFalse(svg.contains(" C "));
+		Assert.assertTrue(svg.contains("10,0"));
+	}
+
+	@Test
+	public void testWidenPathPreservesDashStyleWhenFilled() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DASHDOT, 2, 0x000000));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(20, 0);
+		gdi.widenPath();
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("stroke-dasharray=\"18,6,6,6\""));
+	}
+
+	@Test
+	public void testWidenPathUsesPenSelectedAtWidenTimeWhenFilled() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DASHDOT, 2, 0x000000));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(20, 0);
+		gdi.widenPath();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DOT, 4, 0x000000));
+		gdi.fillPath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<path "));
+		Assert.assertTrue(svg.contains("stroke-width=\"2.0\""));
+		Assert.assertTrue(svg.contains("stroke-dasharray=\"18,6,6,6\""));
+		Assert.assertFalse(svg.contains("stroke-width=\"4.0\""));
+		Assert.assertFalse(svg.contains("stroke-dasharray=\"12,12\""));
+	}
+
+	@Test
+	public void testWidenPathPreservesDashStyleWhenClipped() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DOT, 2, 0x000000));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(20, 0);
+		gdi.widenPath();
+		gdi.selectClipPath(GdiRegion.RGN_COPY);
+		gdi.rectangle(0, 0, 20, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<mask "));
+		Assert.assertTrue(svg.contains("stroke-dasharray=\"6,6\""));
+	}
+
+	@Test
+	public void testWidenPathUsesPenSelectedAtWidenTimeWhenClipped() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DASH, 2, 0x000000));
+		gdi.beginPath();
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(20, 0);
+		gdi.widenPath();
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_DOT, 4, 0x000000));
+		gdi.selectClipPath(GdiRegion.RGN_COPY);
+		gdi.rectangle(0, 0, 20, 10);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<mask "));
+		Assert.assertTrue(svg.contains("stroke-width=\"2.0\""));
+		Assert.assertTrue(svg.contains("stroke-dasharray=\"36,12\""));
+		Assert.assertFalse(svg.contains("stroke-width=\"4.0\""));
+		Assert.assertFalse(svg.contains("stroke-dasharray=\"12,12\""));
+	}
+
+	@Test
+	public void testPatBltUsesPositiveSvgDimensionsForNegativeExtents() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.patBlt(10, 20, -8, -15, Gdi.PATCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<rect "));
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"5\""));
+		Assert.assertTrue(svg.contains("width=\"8\""));
+		Assert.assertTrue(svg.contains("height=\"15\""));
+		Assert.assertFalse(svg.contains("width=\"-"));
+		Assert.assertFalse(svg.contains("height=\"-"));
+	}
+
+	@Test
+	public void testPatBltPatternCopySkipsNullBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x0000FF, 0));
+
+		gdi.patBlt(1, 2, 3, 4, Gdi.PATCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<rect x=\"1\""));
+		Assert.assertFalse(svg.contains("PATCOPY"));
+	}
+
+	@Test
+	public void testPatBltPatternInvertSkipsNullBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_NULL, 0x0000FF, 0));
+
+		gdi.patBlt(1, 2, 3, 4, Gdi.PATINVERT);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<rect x=\"1\""));
+		Assert.assertFalse(svg.contains("PATINVERT_FILTER"));
+	}
+
+	@Test
+	public void testExtTextOutNormalizesOpaqueAndClipRectangles() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setBkColor(0x00FF00);
+		gdi.extTextOut(0, 0, Gdi.ETO_OPAQUE | Gdi.ETO_CLIPPED, new int[]{10, 20, 2, 5}, "AB".getBytes("US-ASCII"),
+				null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<clipPath "));
+		Assert.assertEquals(2, count(svg, "x=\"2\""));
+		Assert.assertEquals(2, count(svg, "y=\"5\""));
+		Assert.assertEquals(2, count(svg, "width=\"8\""));
+		Assert.assertEquals(2, count(svg, "height=\"15\""));
+		Assert.assertFalse(svg.contains("width=\"-"));
+		Assert.assertFalse(svg.contains("height=\"-"));
+	}
+
+	@Test
+	public void testExtTextOutCompatibleBottomAlignDoesNotRequireRect() throws Exception {
+		SvgGdi gdi = new SvgGdi(true);
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_BOTTOM);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.extTextOut(10, 20, 0, null, "AB".getBytes("US-ASCII"), null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(Pattern.compile("<text[^>]* y=\"18\"[^>]*>AB</text>").matcher(svg).find());
+	}
+
+	@Test
+	public void testExtTextOutBottomAlignUsesReferencePointWithoutRect() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setTextAlign(Gdi.TA_BOTTOM);
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Unknown".getBytes("US-ASCII")));
+		gdi.extTextOut(10, 20, 0, null, "AB".getBytes("US-ASCII"), null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(Pattern.compile("<text[^>]* y=\"0\"[^>]*>AB</text>").matcher(svg).find());
+	}
+
+	@Test
+	public void testClipRectsUsePositiveSvgDimensionsForReversedCoordinates() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.intersectClipRect(10, 20, 2, 5);
+		gdi.excludeClipRect(30, 40, 10, 25);
+		gdi.rectangle(0, 0, 50, 50);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"2\""));
+		Assert.assertTrue(svg.contains("y=\"5\""));
+		Assert.assertTrue(svg.contains("width=\"8\""));
+		Assert.assertTrue(svg.contains("height=\"15\""));
+		Assert.assertTrue(svg.contains("x=\"10\""));
+		Assert.assertTrue(svg.contains("y=\"25\""));
+		Assert.assertTrue(svg.contains("width=\"20\""));
+		Assert.assertFalse(svg.contains("width=\"-"));
+		Assert.assertFalse(svg.contains("height=\"-"));
+	}
+
+	@Test
+	public void testExtCreateRegionTreatsCountAsRectangleCount() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		SvgComplexRegion region = (SvgComplexRegion) gdi.extCreateRegion(new float[]{1, 0, 0, 1, 10, 5}, 1,
+				createRegionData(0, 0, 4, 4, 20, 20, 30, 30));
+
+		int[][] rects = region.getRects();
+		Assert.assertEquals(1, rects.length);
+		Assert.assertArrayEquals(new int[]{10, 5, 14, 9}, rects[0]);
+	}
+
+	@Test
+	public void testExtCreateRegionUsesHeaderCountWhenCountIsZero() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		SvgComplexRegion region = (SvgComplexRegion) gdi.extCreateRegion(null, 0,
+				createRegionData(0, 0, 4, 4, 20, 20, 30, 30));
+
+		int[][] rects = region.getRects();
+		Assert.assertEquals(2, rects.length);
+		Assert.assertArrayEquals(new int[]{0, 0, 4, 4}, rects[0]);
+		Assert.assertArrayEquals(new int[]{20, 20, 30, 30}, rects[1]);
+	}
+
+	@Test
+	public void testFillRgnSkipsNullAndHollowBrushes() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		GdiRegion region = gdi.createRectRgn(1, 2, 3, 4);
+
+		gdi.fillRgn(region, null);
+		gdi.fillRgn(region, new ForeignBrush(GdiBrush.BS_NULL, 0x0000FF, 0));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<use "));
+	}
+
+	@Test
+	public void testFillRgnSupportsForeignSolidBrush() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.fillRgn(gdi.createRectRgn(1, 2, 3, 4), new ForeignBrush(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("style=\"fill: rgb(255,0,0);\""));
 	}
 
 	@Test
@@ -1963,6 +3709,28 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testWindowOriginOffsetAfterWindowExtentDoesNotShiftRootViewBox() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(200, 200, null);
+		gdi.rectangle(0, 0, 100, 100);
+		gdi.offsetWindowOrgEx(25, 25, null);
+		gdi.rectangle(0, 0, 100, 100);
+		gdi.offsetWindowOrgEx(25, 25, null);
+		gdi.rectangle(0, 0, 100, 100);
+		gdi.offsetWindowOrgEx(25, 25, null);
+		gdi.rectangle(0, 0, 100, 100);
+		gdi.offsetWindowOrgEx(25, 25, null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 200 200\""));
+		Assert.assertFalse(svg.contains("viewBox=\"100 100 200 200\""));
+		Assert.assertTrue(svg.contains("x=\"-75\""));
+	}
+
+	@Test
 	public void testFooterKeepsTinyPlaceablePhysicalSize() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 718, 572, 1000);
@@ -2038,6 +3806,10 @@ public class SvgGdiTest {
 	private byte[] createTopDown24BitDib(int[] pixels) {
 		int width = pixels.length;
 		int height = 1;
+		return createTopDown24BitDib(width, height, pixels);
+	}
+
+	private byte[] createTopDown24BitDib(int width, int height, int[] pixels) {
 		int stride = ((width * 24 + 31) / 32) * 4;
 		byte[] dib = new byte[40 + stride * height];
 		setInt32(dib, 0, 40);
@@ -2046,14 +3818,84 @@ public class SvgGdiTest {
 		setUInt16(dib, 12, 1);
 		setUInt16(dib, 14, 24);
 		setInt32(dib, 20, stride * height);
-		for (int x = 0; x < width; x++) {
-			int rgb = pixels[x];
-			int pos = 40 + x * 3;
-			dib[pos] = (byte) (rgb & 0xFF);
-			dib[pos + 1] = (byte) ((rgb >>> 8) & 0xFF);
-			dib[pos + 2] = (byte) ((rgb >>> 16) & 0xFF);
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				int rgb = pixels[y * width + x];
+				int pos = 40 + y * stride + x * 3;
+				dib[pos] = (byte) (rgb & 0xFF);
+				dib[pos + 1] = (byte) ((rgb >>> 8) & 0xFF);
+				dib[pos + 2] = (byte) ((rgb >>> 16) & 0xFF);
+			}
 		}
 		return dib;
+	}
+
+	private byte[] createTopDown8BitPalDib(int paletteIndex) {
+		int width = 1;
+		int height = 1;
+		int stride = 4;
+		byte[] dib = new byte[40 + 2 + stride * height];
+		setInt32(dib, 0, 40);
+		setInt32(dib, 4, width);
+		setInt32(dib, 8, -height);
+		setUInt16(dib, 12, 1);
+		setUInt16(dib, 14, 8);
+		setInt32(dib, 20, stride * height);
+		setInt32(dib, 32, 1);
+		setUInt16(dib, 40, paletteIndex);
+		dib[42] = 0;
+		return dib;
+	}
+
+	private byte[] createRegionData(int... rects) {
+		byte[] data = new byte[32 + rects.length * 4];
+		setInt32(data, 8, rects.length / 4);
+		for (int i = 0; i < rects.length; i++) {
+			setInt32(data, 32 + i * 4, rects[i]);
+		}
+		return data;
+	}
+
+	private static class ForeignPalette implements GdiPalette {
+		private final int version;
+		private final int[] entries;
+
+		private ForeignPalette(int version, int[] entries) {
+			this.version = version;
+			this.entries = entries;
+		}
+
+		public int getVersion() {
+			return version;
+		}
+
+		public int[] getEntries() {
+			return entries;
+		}
+	}
+
+	private static class ForeignBrush implements GdiBrush {
+		private final int style;
+		private final int color;
+		private final int hatch;
+
+		private ForeignBrush(int style, int color, int hatch) {
+			this.style = style;
+			this.color = color;
+			this.hatch = hatch;
+		}
+
+		public int getStyle() {
+			return style;
+		}
+
+		public int getColor() {
+			return color;
+		}
+
+		public int getHatch() {
+			return hatch;
+		}
 	}
 
 	private BufferedImage readFirstPng(SvgGdi gdi) throws Exception {

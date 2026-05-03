@@ -4830,10 +4830,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void fillRgn(GdiRegion rgn, GdiBrush brush) {
 		SvgBrush sbrush = toRenderableBrush(brush);
-		if (rgn == null || sbrush == null)
+		if (!isSvgRegion(rgn) || sbrush == null)
 			return;
 
 		Element elem = createRegionElement(rgn);
+		if (elem == null) {
+			return;
+		}
 		setFillBrush(elem, brush, sbrush);
 		parentNode.appendChild(elem);
 	}
@@ -4954,10 +4957,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void invertRgn(GdiRegion rgn) {
-		if (rgn == null)
+		if (!isSvgRegion(rgn))
 			return;
 
 		Element elem = createRegionElement(rgn);
+		if (elem == null) {
+			return;
+		}
 		String ropFilter = dc.getRopFilter(DSTINVERT);
 		if (ropFilter != null) {
 			elem.setAttribute("filter", ropFilter);
@@ -5430,6 +5436,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public int extSelectClipRgn(GdiRegion rgn, int mode) {
+		if (rgn != null && !isSvgRegion(rgn)) {
+			rgn = null;
+		}
 		if (rgn != null) {
 			Element mask = createClipRgnMask(mode);
 			mask.appendChild(createRegionUse(rgn, mode == GdiRegion.RGN_DIFF ? "black" : "white"));
@@ -5481,9 +5490,16 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (rgn instanceof SvgRegion) {
 			return ((SvgRegion) rgn).createElement();
 		}
+		if (!nameMap.containsKey(rgn)) {
+			return null;
+		}
 		Element elem = doc.createElement("use");
 		elem.setAttribute("xlink:href", "#" + nameMap.get(rgn));
 		return elem;
+	}
+
+	private boolean isSvgRegion(GdiRegion rgn) {
+		return rgn instanceof SvgRegion;
 	}
 
 	public void selectClipPath(int mode) {

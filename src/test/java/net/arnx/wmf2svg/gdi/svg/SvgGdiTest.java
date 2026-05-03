@@ -2128,6 +2128,44 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testFillRgnSkipsForeignRegion() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.fillRgn(new ForeignRegion(), gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("#null"));
+		Assert.assertFalse(svg.contains("<use "));
+	}
+
+	@Test
+	public void testInvertRgnSkipsForeignRegion() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.invertRgn(new ForeignRegion());
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("#null"));
+		Assert.assertFalse(svg.contains("<use "));
+	}
+
+	@Test
+	public void testExtSelectClipRgnSkipsForeignRegion() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		Assert.assertEquals(GdiRegion.NULLREGION, gdi.extSelectClipRgn(new ForeignRegion(), GdiRegion.RGN_OR));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("#null"));
+	}
+
+	@Test
 	public void testCosmeticPenUsesLogicalPixelWidthWithPlaceableHeader() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.placeableHeader(0, 0, 718, 572, 1000);
@@ -3945,6 +3983,9 @@ public class SvgGdiTest {
 		public int getHatch() {
 			return hatch;
 		}
+	}
+
+	private static class ForeignRegion implements GdiRegion {
 	}
 
 	private BufferedImage readFirstPng(SvgGdi gdi) throws Exception {

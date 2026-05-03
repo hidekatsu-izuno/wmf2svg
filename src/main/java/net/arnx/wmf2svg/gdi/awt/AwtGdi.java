@@ -548,8 +548,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void ellipse(int sx, int sy, int ex, int ey) {
-		Shape ellipse = new Ellipse2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)), Math.abs(rx(ex - sx)),
-				Math.abs(ry(ey - sy)));
+		Rectangle2D rect = toRectangle(sx, sy, ex - sx, ey - sy);
+		Shape ellipse = new Ellipse2D.Double(rect.getX(), rect.getY(), rect.getWidth(), rect.getHeight());
 		if (currentPath != null) {
 			currentPath.append(ellipse, false);
 			return;
@@ -695,8 +695,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void floodFill(int x, int y, int color, boolean surfaceFill) {
 		ensureGraphics();
-		int seedX = (int) Math.round(tx(x));
-		int seedY = (int) Math.round(ty(y));
+		int seedX = ixi(x);
+		int seedY = iyi(y);
 		if (!isCanvasPixel(seedX, seedY) || !isInClip(seedX, seedY)) {
 			return;
 		}
@@ -777,18 +777,18 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		if (currentPath != null) {
-			currentPath.lineTo(tx(ex), ty(ey));
+			currentPath.lineTo(ix(ex), iy(ey));
 			dc.moveToEx(ex, ey, null);
 			return;
 		}
-		Shape line = new java.awt.geom.Line2D.Double(tx(dc.getCurrentX()), ty(dc.getCurrentY()), tx(ex), ty(ey));
+		Shape line = new java.awt.geom.Line2D.Double(ix(dc.getCurrentX()), iy(dc.getCurrentY()), ix(ex), iy(ey));
 		strokeShape(line, dc.getPen());
 		dc.moveToEx(ex, ey, null);
 	}
 
 	public void moveToEx(int x, int y, Point old) {
 		if (currentPath != null) {
-			currentPath.moveTo(tx(x), ty(y));
+			currentPath.moveTo(ix(x), iy(y));
 		}
 		dc.moveToEx(x, y, old);
 	}
@@ -2244,8 +2244,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh) {
-		Shape rect = new java.awt.geom.RoundRectangle2D.Double(Math.min(tx(sx), tx(ex)), Math.min(ty(sy), ty(ey)),
-				Math.abs(rx(ex - sx)), Math.abs(ry(ey - sy)), Math.abs(rx(rw)), Math.abs(ry(rh)));
+		Rectangle2D bounds = toRectangle(sx, sy, ex - sx, ey - sy);
+		Shape rect = new java.awt.geom.RoundRectangle2D.Double(bounds.getX(), bounds.getY(), bounds.getWidth(),
+				bounds.getHeight(), Math.abs(irx(rw)), Math.abs(iry(rh)));
 		if (currentPath != null) {
 			currentPath.append(rect, false);
 			return;
@@ -2821,8 +2822,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				Math.abs(eyr - syr));
 		double cx = frame.getCenterX();
 		double cy = frame.getCenterY();
-		double start = toArcAngle(tx(sxa), ty(sya), cx, cy);
-		double end = toArcAngle(tx(exa), ty(eya), cx, cy);
+		double start = toArcAngle(ix(sxa), iy(sya), cx, cy);
+		double end = toArcAngle(ix(exa), iy(eya), cx, cy);
 		double extent = dc.getArcDirection() == Gdi.AD_CLOCKWISE
 				? -normalizeDegrees(start - end)
 				: normalizeDegrees(end - start);
@@ -2903,8 +2904,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			boolean move) {
 		Point2D.Double point = new Point2D.Double(x, y);
 		transform.transform(point, point);
-		double px = tx(point.x);
-		double py = ty(point.y);
+		double px = ix(point.x);
+		double py = iy(point.y);
 		if (move) {
 			path.moveTo(px, py);
 		} else {
@@ -2946,12 +2947,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private void fillGradientTriangle(Trivertex v1, Trivertex v2, Trivertex v3) {
-		double x1 = tx(v1.x);
-		double y1 = ty(v1.y);
-		double x2 = tx(v2.x);
-		double y2 = ty(v2.y);
-		double x3 = tx(v3.x);
-		double y3 = ty(v3.y);
+		double x1 = ix(v1.x);
+		double y1 = iy(v1.y);
+		double x2 = ix(v2.x);
+		double y2 = iy(v2.y);
+		double x3 = ix(v3.x);
+		double y3 = iy(v3.y);
 		Path2D.Double triangle = new Path2D.Double();
 		triangle.moveTo(x1, y1);
 		triangle.lineTo(x2, y2);
@@ -3049,9 +3050,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (path == null || points == null || points.length == 0) {
 			return;
 		}
-		path.moveTo(tx(points[0].x), ty(points[0].y));
+		path.moveTo(ix(points[0].x), iy(points[0].y));
 		for (int i = 1; i < points.length; i++) {
-			path.lineTo(tx(points[i].x), ty(points[i].y));
+			path.lineTo(ix(points[i].x), iy(points[i].y));
 		}
 		if (close) {
 			path.closePath();
@@ -3064,12 +3065,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		int offset = 0;
 		if (!connect) {
-			currentPath.moveTo(tx(points[0].x), ty(points[0].y));
+			currentPath.moveTo(ix(points[0].x), iy(points[0].y));
 			offset = 1;
 		}
 		for (int i = offset; i + 2 < points.length; i += 3) {
-			currentPath.curveTo(tx(points[i].x), ty(points[i].y), tx(points[i + 1].x), ty(points[i + 1].y),
-					tx(points[i + 2].x), ty(points[i + 2].y));
+			currentPath.curveTo(ix(points[i].x), iy(points[i].y), ix(points[i + 1].x), iy(points[i + 1].y),
+					ix(points[i + 2].x), iy(points[i + 2].y));
 		}
 	}
 
@@ -3080,14 +3081,14 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		Path2D.Double path = new Path2D.Double();
 		int offset = 0;
 		if (connect) {
-			path.moveTo(tx(dc.getCurrentX()), ty(dc.getCurrentY()));
+			path.moveTo(ix(dc.getCurrentX()), iy(dc.getCurrentY()));
 		} else {
-			path.moveTo(tx(points[0].x), ty(points[0].y));
+			path.moveTo(ix(points[0].x), iy(points[0].y));
 			offset = 1;
 		}
 		for (int i = offset; i + 2 < points.length; i += 3) {
-			path.curveTo(tx(points[i].x), ty(points[i].y), tx(points[i + 1].x), ty(points[i + 1].y),
-					tx(points[i + 2].x), ty(points[i + 2].y));
+			path.curveTo(ix(points[i].x), iy(points[i].y), ix(points[i + 1].x), iy(points[i + 1].y),
+					ix(points[i + 2].x), iy(points[i + 2].y));
 		}
 		return path;
 	}
@@ -3359,7 +3360,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			BufferedImage pattern = decodeBitmap(((AwtPatternBrush) brush).image, ((AwtPatternBrush) brush).usage,
 					false, null, false);
 			if (pattern != null) {
-				return new TexturePaint(pattern, new Rectangle2D.Double(tx(dc.getBrushOrgX()), ty(dc.getBrushOrgY()),
+				return new TexturePaint(pattern, new Rectangle2D.Double(ix(dc.getBrushOrgX()), iy(dc.getBrushOrgY()),
 						pattern.getWidth(), pattern.getHeight()));
 			}
 		}
@@ -3395,7 +3396,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		} finally {
 			g.dispose();
 		}
-		return new TexturePaint(pattern, new Rectangle2D.Double(tx(dc.getBrushOrgX()), ty(dc.getBrushOrgY()),
+		return new TexturePaint(pattern, new Rectangle2D.Double(ix(dc.getBrushOrgX()), iy(dc.getBrushOrgY()),
 				pattern.getWidth(), pattern.getHeight()));
 	}
 
@@ -3438,8 +3439,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				&& ((align & Gdi.TA_RTLREADING) != 0 || (options & Gdi.ETO_RTLREADING) != 0);
 		TextAdvances advances = createTextAdvances(text, lpdx, metrics, options, middleEasternText);
 		double textWidth = advances != null ? advances.sumX() : getTextWidth(advanceFont, text);
-		int referenceX = (int) tx(x);
-		int referenceY = (int) ty(y);
+		int referenceX = ixi(x);
+		int referenceY = iyi(y);
 		int drawX = referenceX;
 		int drawY = referenceY;
 		if ((align & Gdi.TA_CENTER) == Gdi.TA_CENTER) {
@@ -3847,10 +3848,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		Image subImage = source.getSubimage(srcX, srcY, srcW, srcH);
-		int x1 = (int) tx(dx);
-		int y1 = (int) ty(dy);
-		int x2 = (int) tx(dx + dw);
-		int y2 = (int) ty(dy + dh);
+		int x1 = ixi(dx);
+		int y1 = iyi(dy);
+		int x2 = ixi(dx + dw);
+		int y2 = iyi(dy + dh);
 		ensureCanvasContains(x1, y1, x2, y2);
 		if (rop3 == getBitmapRop3(Gdi.SRCCOPY)) {
 			Object oldInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
@@ -3884,10 +3885,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		int x1 = (int) tx(dx);
-		int y1 = (int) ty(dy);
-		int x2 = (int) tx(dx + dw);
-		int y2 = (int) ty(dy + dh);
+		int x1 = ixi(dx);
+		int y1 = iyi(dy);
+		int x2 = ixi(dx + dw);
+		int y2 = iyi(dy + dh);
 		int left = Math.min(x1, x2);
 		int top = Math.min(y1, y2);
 		int width = Math.abs(x2 - x1);
@@ -3939,10 +3940,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int srcY = source.getHeight() - Math.max(0, startscan) - srcH;
 		srcY = Math.max(0, Math.min(source.getHeight() - srcH, srcY - sy));
 		Image subImage = source.getSubimage(srcX, srcY, srcW, srcH);
-		int x1 = (int) tx(dx);
-		int y1 = (int) ty(dy);
-		int x2 = (int) tx(dx + srcW);
-		int y2 = (int) ty(dy + srcH);
+		int x1 = ixi(dx);
+		int y1 = iyi(dy);
+		int x2 = ixi(dx + srcW);
+		int y2 = iyi(dy + srcH);
 		ensureCanvasContains(x1, y1, x2, y2);
 		Object oldInterpolation = graphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
 		try {
@@ -3977,12 +3978,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		double x0 = tx(points[0].x);
-		double y0 = ty(points[0].y);
-		double x1 = tx(points[1].x);
-		double y1 = ty(points[1].y);
-		double x2 = tx(points[2].x);
-		double y2 = ty(points[2].y);
+		double x0 = ix(points[0].x);
+		double y0 = iy(points[0].y);
+		double x1 = ix(points[1].x);
+		double y1 = iy(points[1].y);
+		double x2 = ix(points[2].x);
+		double y2 = iy(points[2].y);
 		Path2D.Double bounds = new Path2D.Double();
 		bounds.moveTo(x0, y0);
 		bounds.lineTo(x1, y1);
@@ -4026,10 +4027,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (srcW == 0 || srcH == 0) {
 			return;
 		}
-		int x1 = (int) tx(dx);
-		int y1 = (int) ty(dy);
-		int x2 = (int) tx(dx + dw);
-		int y2 = (int) ty(dy + dh);
+		int x1 = ixi(dx);
+		int y1 = iyi(dy);
+		int x2 = ixi(dx + dw);
+		int y2 = iyi(dy + dh);
 		ensureCanvasContains(x1, y1, x2, y2);
 
 		int foregroundRop3 = getBitmapRop3(rop & 0x00FFFFFFL);
@@ -4303,10 +4304,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private Rectangle2D toRectangle(int x, int y, int width, int height) {
-		double x1 = tx(x);
-		double y1 = ty(y);
-		double x2 = tx(x + width);
-		double y2 = ty(y + height);
+		double x1 = ix(x);
+		double y1 = iy(y);
+		double x2 = ix(x + width);
+		double y2 = iy(y + height);
 		return new Rectangle2D.Double(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
 	}
 
@@ -4316,7 +4317,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		Polygon polygon = new Polygon();
 		for (int i = 0; i < points.length; i++) {
-			polygon.addPoint((int) tx(points[i].x), (int) ty(points[i].y));
+			polygon.addPoint(ixi(points[i].x), iyi(points[i].y));
 		}
 		return polygon;
 	}
@@ -4326,11 +4327,35 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return null;
 		}
 		Path2D.Double path = new Path2D.Double();
-		path.moveTo(tx(points[0].x), ty(points[0].y));
+		path.moveTo(ix(points[0].x), iy(points[0].y));
 		for (int i = 1; i < points.length; i++) {
-			path.lineTo(tx(points[i].x), ty(points[i].y));
+			path.lineTo(ix(points[i].x), iy(points[i].y));
 		}
 		return path;
+	}
+
+	private int ixi(double x) {
+		return (int) ix(x);
+	}
+
+	private int iyi(double y) {
+		return (int) iy(y);
+	}
+
+	private double ix(double x) {
+		return Math.round(tx(x));
+	}
+
+	private double iy(double y) {
+		return Math.round(ty(y));
+	}
+
+	private double irx(double x) {
+		return Math.round(rx(x));
+	}
+
+	private double iry(double y) {
+		return Math.round(ry(y));
 	}
 
 	private double tx(double x) {

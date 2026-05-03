@@ -9,6 +9,7 @@ import static org.junit.Assume.assumeTrue;
 
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
@@ -27,8 +28,10 @@ import net.arnx.wmf2svg.gdi.GdiPalette;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiPatternBrush;
 import net.arnx.wmf2svg.gdi.GdiRegion;
+import net.arnx.wmf2svg.gdi.GradientRect;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
+import net.arnx.wmf2svg.gdi.Trivertex;
 import net.arnx.wmf2svg.gdi.emf.EmfGdi;
 
 public class AwtGdiTest {
@@ -157,6 +160,28 @@ public class AwtGdiTest {
 		assertTrue(countPaintedPixels(image, 2, 2, 19, 2) > 0);
 		assertTrue(countPaintedPixels(image, 19, 2, 2, 19) > 0);
 		assertEquals(0, countPaintedPixels(image, 2, 18, 4, 4));
+	}
+
+	@Test
+	public void testPolylineRoundsMappedIntegerCoordinatesToDevicePixels() {
+		AwtGdi gdi = createMappedGdi(8, 8, 4, 4);
+		gdi.selectObject(gdi.createPenIndirect(GdiPen.PS_SOLID, 1, 0));
+		gdi.polyline(new Point[]{new Point(1, 3), new Point(7, 3)});
+
+		Rectangle bounds = paintedBounds(gdi.getImage());
+		assertEquals(2, bounds.y);
+		assertEquals(1, bounds.height);
+		assertTrue(bounds.x >= 1);
+		assertTrue(bounds.x + bounds.width <= 5);
+	}
+
+	@Test
+	public void testGradientFillRoundsMappedIntegerCoordinatesToDevicePixels() {
+		AwtGdi gdi = createMappedGdi(8, 8, 4, 4);
+		gdi.gradientFill(new Trivertex[]{new Trivertex(3, 3, 0xFFFF, 0, 0, 0), new Trivertex(7, 7, 0, 0, 0xFFFF, 0)},
+				new GradientRect[]{new GradientRect(0, 1)}, Gdi.GRADIENT_FILL_RECT_H);
+
+		assertEquals(new Rectangle(2, 2, 2, 2), paintedBounds(gdi.getImage()));
 	}
 
 	@Test
@@ -3454,6 +3479,25 @@ public class AwtGdiTest {
 			}
 		}
 		return count;
+	}
+
+	private Rectangle paintedBounds(BufferedImage image) {
+		int minX = image.getWidth();
+		int minY = image.getHeight();
+		int maxX = -1;
+		int maxY = -1;
+		for (int y = 0; y < image.getHeight(); y++) {
+			for (int x = 0; x < image.getWidth(); x++) {
+				if ((image.getRGB(x, y) >>> 24) == 0) {
+					continue;
+				}
+				minX = Math.min(minX, x);
+				minY = Math.min(minY, y);
+				maxX = Math.max(maxX, x);
+				maxY = Math.max(maxY, y);
+			}
+		}
+		return maxX >= minX ? new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1) : null;
 	}
 
 	private int countOpaqueColorPixels(BufferedImage image, int rgb) {

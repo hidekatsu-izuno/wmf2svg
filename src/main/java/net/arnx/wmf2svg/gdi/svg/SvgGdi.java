@@ -427,13 +427,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (sxa == exa && sya == eya) {
 			if (svgRx == svgRy) {
 				elem = doc.createElement("circle");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("r", "" + svgRx);
 			} else {
 				elem = doc.createElement("ellipse");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("rx", "" + svgRx);
 				elem.setAttribute("ry", "" + svgRy);
 			}
@@ -448,9 +448,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 			elem = doc.createElement("path");
 			elem.setAttribute("d",
-					"M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy) + " A " + svgRx + "," + svgRy + " 0 "
-							+ getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag() + " " + dc.toAbsoluteX(ex + cx)
-							+ "," + dc.toAbsoluteY(ey + cy));
+					"M " + toDeviceX(sx + cx) + "," + toDeviceY(sy + cy) + " A " + svgRx + "," + svgRy + " 0 "
+							+ getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag() + " " + toDeviceX(ex + cx) + ","
+							+ toDeviceY(ey + cy));
 		}
 
 		if (dc.getPen() != null) {
@@ -593,12 +593,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		double x0 = dc.toAbsoluteX(upperLeft.x);
-		double y0 = dc.toAbsoluteY(upperLeft.y);
-		double x1 = dc.toAbsoluteX(upperRight.x);
-		double y1 = dc.toAbsoluteY(upperRight.y);
-		double x2 = dc.toAbsoluteX(lowerLeft.x);
-		double y2 = dc.toAbsoluteY(lowerLeft.y);
+		double x0 = toDeviceX(upperLeft.x);
+		double y0 = toDeviceY(upperLeft.y);
+		double x1 = toDeviceX(upperRight.x);
+		double y1 = toDeviceY(upperRight.y);
+		double x2 = toDeviceX(lowerLeft.x);
+		double y2 = toDeviceY(lowerLeft.y);
 
 		Element elem = doc.createElement("g");
 		elem.setAttribute("transform", "matrix(" + ((x1 - x0) / sourceWidth) + " " + ((y1 - y0) / sourceWidth) + " "
@@ -651,13 +651,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (sxa == exa && sya == eya) {
 			if (svgRx == svgRy) {
 				elem = doc.createElement("circle");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("r", "" + svgRx);
 			} else {
 				elem = doc.createElement("ellipse");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("rx", "" + svgRx);
 				elem.setAttribute("ry", "" + svgRy);
 			}
@@ -672,9 +672,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 			elem = doc.createElement("path");
 			elem.setAttribute("d",
-					"M " + dc.toAbsoluteX(sx + cx) + "," + dc.toAbsoluteY(sy + cy) + " A " + svgRx + "," + svgRy + " 0 "
-							+ getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag() + " " + dc.toAbsoluteX(ex + cx)
-							+ "," + dc.toAbsoluteY(ey + cy) + " Z");
+					"M " + toDeviceX(sx + cx) + "," + toDeviceY(sy + cy) + " A " + svgRx + "," + svgRy + " 0 "
+							+ getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag() + " " + toDeviceX(ex + cx) + ","
+							+ toDeviceY(ey + cy) + " Z");
 		}
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -821,14 +821,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			setFillPattern(elem, dc.getBrush());
 		}
 
-		double x1 = dc.toAbsoluteX(sx);
-		double y1 = dc.toAbsoluteY(sy);
-		double x2 = dc.toAbsoluteX(ex);
-		double y2 = dc.toAbsoluteY(ey);
-		elem.setAttribute("cx", "" + (int) ((x1 + x2) / 2));
-		elem.setAttribute("cy", "" + (int) ((y1 + y2) / 2));
-		elem.setAttribute("rx", "" + (int) (Math.abs(x2 - x1) / 2));
-		elem.setAttribute("ry", "" + (int) (Math.abs(y2 - y1) / 2));
+		int x1 = toDeviceX(sx);
+		int y1 = toDeviceY(sy);
+		int x2 = toDeviceX(ex);
+		int y2 = toDeviceY(ey);
+		elem.setAttribute("cx", Integer.toString((x1 + x2) / 2));
+		elem.setAttribute("cy", Integer.toString((y1 + y2) / 2));
+		elem.setAttribute("rx", Integer.toString(Math.abs(x2 - x1) / 2));
+		elem.setAttribute("ry", Integer.toString(Math.abs(y2 - y1) / 2));
 		parentNode.appendChild(elem);
 	}
 
@@ -4557,14 +4557,22 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private void setRectAttributes(Element elem, int left, int top, int right, int bottom) {
-		double x1 = dc.toAbsoluteX(left);
-		double y1 = dc.toAbsoluteY(top);
-		double x2 = dc.toAbsoluteX(right);
-		double y2 = dc.toAbsoluteY(bottom);
-		elem.setAttribute("x", Integer.toString((int) Math.min(x1, x2)));
-		elem.setAttribute("y", Integer.toString((int) Math.min(y1, y2)));
-		elem.setAttribute("width", Integer.toString((int) Math.abs(x2 - x1)));
-		elem.setAttribute("height", Integer.toString((int) Math.abs(y2 - y1)));
+		int x1 = toDeviceX(left);
+		int y1 = toDeviceY(top);
+		int x2 = toDeviceX(right);
+		int y2 = toDeviceY(bottom);
+		elem.setAttribute("x", Integer.toString(Math.min(x1, x2)));
+		elem.setAttribute("y", Integer.toString(Math.min(y1, y2)));
+		elem.setAttribute("width", Integer.toString(Math.abs(x2 - x1)));
+		elem.setAttribute("height", Integer.toString(Math.abs(y2 - y1)));
+	}
+
+	private int toDeviceX(double x) {
+		return (int) Math.round(dc.toAbsoluteX(x));
+	}
+
+	private int toDeviceY(double y) {
+		return (int) Math.round(dc.toAbsoluteY(y));
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
@@ -4636,7 +4644,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 
 		// x
-		int ax = (int) dc.toAbsoluteX(x);
+		int ax = toDeviceX(x);
 		int width = 0;
 		String pdyYPositions = null;
 		if (vertical) {
@@ -4677,7 +4685,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 						if (i > 0) {
 							yBuffer.append(" ");
 						}
-						yBuffer.append((int) dc.toAbsoluteY(ty));
+						yBuffer.append(toDeviceY(ty));
 						ty += dx[i * 2 + 1];
 					}
 					pdyYPositions = yBuffer.toString();
@@ -4685,7 +4693,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				for (int i = 0; i < advanceCount; i++) {
 					if (i > 0)
 						buffer.append(" ");
-					buffer.append((int) dc.toAbsoluteX(tx));
+					buffer.append(toDeviceX(tx));
 					tx += getExtTextOutHorizontalAdvance(pdy ? dx[i * 2] : dx[i], str, i);
 				}
 				if ((align & (TA_NOUPDATECP | TA_UPDATECP)) == TA_UPDATECP) {
@@ -4705,7 +4713,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 
 		// y
-		int ay = (int) dc.toAbsoluteY(y);
+		int ay = toDeviceY(y);
 		int height = 0;
 		if (vertical) {
 			if (dc.getFont() != null) {
@@ -4734,7 +4742,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 				for (int i = 0; i < dx.length; i++) {
 					buffer.append(" ");
-					buffer.append((int) dc.toAbsoluteY(ty));
+					buffer.append(toDeviceY(ty));
 					ty += dx[i];
 				}
 
@@ -4835,12 +4843,18 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
+		if (vertex == null || mesh == null) {
+			return;
+		}
 		for (int i = 0; i < mesh.length; i++) {
 			appendGradientRectangle(vertex, mesh[i], mode);
 		}
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientTriangle[] mesh, int mode) {
+		if (vertex == null || mesh == null) {
+			return;
+		}
 		for (int i = 0; i < mesh.length; i++) {
 			appendGradientTriangle(vertex, mesh[i]);
 		}
@@ -4904,16 +4918,16 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	private void appendFrameRectPath(StringBuffer path, int left, int top, int right, int bottom, int width,
 			int height) {
-		double x1 = dc.toAbsoluteX(left);
-		double y1 = dc.toAbsoluteY(top);
-		double x2 = dc.toAbsoluteX(right);
-		double y2 = dc.toAbsoluteY(bottom);
-		double outerLeft = Math.min(x1, x2);
-		double outerTop = Math.min(y1, y2);
-		double outerRight = Math.max(x1, x2);
-		double outerBottom = Math.max(y1, y2);
-		double frameWidth = Math.min(Math.abs(dc.toRelativeX(width)), (outerRight - outerLeft) / 2.0);
-		double frameHeight = Math.min(Math.abs(dc.toRelativeY(height)), (outerBottom - outerTop) / 2.0);
+		int x1 = toDeviceX(left);
+		int y1 = toDeviceY(top);
+		int x2 = toDeviceX(right);
+		int y2 = toDeviceY(bottom);
+		int outerLeft = Math.min(x1, x2);
+		int outerTop = Math.min(y1, y2);
+		int outerRight = Math.max(x1, x2);
+		int outerBottom = Math.max(y1, y2);
+		int frameWidth = Math.min((int) Math.round(Math.abs(dc.toRelativeX(width))), (outerRight - outerLeft) / 2);
+		int frameHeight = Math.min((int) Math.round(Math.abs(dc.toRelativeY(height))), (outerBottom - outerTop) / 2);
 		if (frameWidth <= 0 || frameHeight <= 0) {
 			return;
 		}
@@ -4970,10 +4984,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 		elem.setAttribute("fill", "none");
 
-		elem.setAttribute("x1", formatDouble(dc.toAbsoluteX(dc.getCurrentX())));
-		elem.setAttribute("y1", formatDouble(dc.toAbsoluteY(dc.getCurrentY())));
-		elem.setAttribute("x2", formatDouble(dc.toAbsoluteX(ex)));
-		elem.setAttribute("y2", formatDouble(dc.toAbsoluteY(ey)));
+		elem.setAttribute("x1", Integer.toString(toDeviceX(dc.getCurrentX())));
+		elem.setAttribute("y1", Integer.toString(toDeviceY(dc.getCurrentY())));
+		elem.setAttribute("x2", Integer.toString(toDeviceX(ex)));
+		elem.setAttribute("y2", Integer.toString(toDeviceY(ey)));
 		parentNode.appendChild(elem);
 
 		dc.moveToEx(ex, ey, null);
@@ -5030,14 +5044,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		}
 
 		elem.setAttribute("stroke", "none");
-		double x1 = dc.toAbsoluteX(x);
-		double y1 = dc.toAbsoluteY(y);
-		double x2 = dc.toAbsoluteX(x + width);
-		double y2 = dc.toAbsoluteY(y + height);
-		elem.setAttribute("x", "" + (int) Math.min(x1, x2));
-		elem.setAttribute("y", "" + (int) Math.min(y1, y2));
-		elem.setAttribute("width", "" + (int) Math.abs(x2 - x1));
-		elem.setAttribute("height", "" + (int) Math.abs(y2 - y1));
+		int x1 = toDeviceX(x);
+		int y1 = toDeviceY(y);
+		int x2 = toDeviceX(x + width);
+		int y2 = toDeviceY(y + height);
+		elem.setAttribute("x", Integer.toString(Math.min(x1, x2)));
+		elem.setAttribute("y", Integer.toString(Math.min(y1, y2)));
+		elem.setAttribute("width", Integer.toString(Math.abs(x2 - x1)));
+		elem.setAttribute("height", Integer.toString(Math.abs(y2 - y1)));
 
 		String ropFilter = dc.getRopFilter(rop);
 		if (ropFilter != null) {
@@ -5081,13 +5095,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (sxa == exa && sya == eya) {
 			if (svgRx == svgRy) {
 				elem = doc.createElement("circle");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("r", "" + svgRx);
 			} else {
 				elem = doc.createElement("ellipse");
-				elem.setAttribute("cx", "" + dc.toAbsoluteX(cx));
-				elem.setAttribute("cy", "" + dc.toAbsoluteY(cy));
+				elem.setAttribute("cx", Integer.toString(toDeviceX(cx)));
+				elem.setAttribute("cy", Integer.toString(toDeviceY(cy)));
 				elem.setAttribute("rx", "" + svgRx);
 				elem.setAttribute("ry", "" + svgRy);
 			}
@@ -5102,10 +5116,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 			elem = doc.createElement("path");
 			elem.setAttribute("d",
-					"M " + dc.toAbsoluteX(cx) + "," + dc.toAbsoluteY(cy) + " L " + dc.toAbsoluteX(sx + cx) + ","
-							+ dc.toAbsoluteY(sy + cy) + " A " + svgRx + "," + svgRy + " 0 "
-							+ getArcLargeFlag(sx, sy, ex, ey) + " " + getArcSweepFlag() + " " + dc.toAbsoluteX(ex + cx)
-							+ "," + dc.toAbsoluteY(ey + cy) + " Z");
+					"M " + toDeviceX(cx) + "," + toDeviceY(cy) + " L " + toDeviceX(sx + cx) + "," + toDeviceY(sy + cy)
+							+ " A " + svgRx + "," + svgRy + " 0 " + getArcLargeFlag(sx, sy, ex, ey) + " "
+							+ getArcSweepFlag() + " " + toDeviceX(ex + cx) + "," + toDeviceY(ey + cy) + " Z");
 		}
 
 		if (dc.getPen() != null || dc.getBrush() != null) {
@@ -5249,8 +5262,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				} else if (j == 1) {
 					buffer.append(" L ");
 				}
-				buffer.append(formatDouble(dc.toAbsoluteX(points[i][j].x))).append(",");
-				buffer.append(formatDouble(dc.toAbsoluteY(points[i][j].y))).append(" ");
+				buffer.append(toDeviceX(points[i][j].x)).append(",");
+				buffer.append(toDeviceY(points[i][j].y)).append(" ");
 				if (j == points[i].length - 1) {
 					buffer.append("z");
 				}
@@ -5352,14 +5365,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			setFillPattern(elem, dc.getBrush());
 		}
 
-		double x1 = dc.toAbsoluteX(sx);
-		double y1 = dc.toAbsoluteY(sy);
-		double x2 = dc.toAbsoluteX(ex);
-		double y2 = dc.toAbsoluteY(ey);
-		elem.setAttribute("x", "" + (int) Math.min(x1, x2));
-		elem.setAttribute("y", "" + (int) Math.min(y1, y2));
-		elem.setAttribute("width", "" + (int) Math.abs(x2 - x1));
-		elem.setAttribute("height", "" + (int) Math.abs(y2 - y1));
+		int x1 = toDeviceX(sx);
+		int y1 = toDeviceY(sy);
+		int x2 = toDeviceX(ex);
+		int y2 = toDeviceY(ey);
+		elem.setAttribute("x", Integer.toString(Math.min(x1, x2)));
+		elem.setAttribute("y", Integer.toString(Math.min(y1, y2)));
+		elem.setAttribute("width", Integer.toString(Math.abs(x2 - x1)));
+		elem.setAttribute("height", Integer.toString(Math.abs(y2 - y1)));
 		parentNode.appendChild(elem);
 	}
 
@@ -5385,16 +5398,18 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			setFillPattern(elem, dc.getBrush());
 		}
 
-		double x1 = dc.toAbsoluteX(sx);
-		double y1 = dc.toAbsoluteY(sy);
-		double x2 = dc.toAbsoluteX(ex);
-		double y2 = dc.toAbsoluteY(ey);
-		elem.setAttribute("x", "" + (int) Math.min(x1, x2));
-		elem.setAttribute("y", "" + (int) Math.min(y1, y2));
-		elem.setAttribute("width", "" + (int) Math.abs(x2 - x1));
-		elem.setAttribute("height", "" + (int) Math.abs(y2 - y1));
-		elem.setAttribute("rx", "" + (int) Math.min(Math.abs(x2 - x1) / 2.0, Math.abs(dc.toRelativeX(rw)) / 2.0));
-		elem.setAttribute("ry", "" + (int) Math.min(Math.abs(y2 - y1) / 2.0, Math.abs(dc.toRelativeY(rh)) / 2.0));
+		int x1 = toDeviceX(sx);
+		int y1 = toDeviceY(sy);
+		int x2 = toDeviceX(ex);
+		int y2 = toDeviceY(ey);
+		elem.setAttribute("x", Integer.toString(Math.min(x1, x2)));
+		elem.setAttribute("y", Integer.toString(Math.min(y1, y2)));
+		elem.setAttribute("width", Integer.toString(Math.abs(x2 - x1)));
+		elem.setAttribute("height", Integer.toString(Math.abs(y2 - y1)));
+		elem.setAttribute("rx",
+				Integer.toString((int) Math.min(Math.abs(x2 - x1) / 2.0, Math.abs(dc.toRelativeX(rw)) / 2.0)));
+		elem.setAttribute("ry",
+				Integer.toString((int) Math.min(Math.abs(y2 - y1) / 2.0, Math.abs(dc.toRelativeY(rh)) / 2.0)));
 		parentNode.appendChild(elem);
 	}
 
@@ -5472,7 +5487,16 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void selectClipPath(int mode) {
-		if (currentPath == null || currentPath.isEmpty()) {
+		if (currentPath == null) {
+			return;
+		}
+		if (currentPath.isEmpty()) {
+			if (mode == GdiRegion.RGN_COPY || mode == GdiRegion.RGN_AND) {
+				Element mask = createMask();
+				dc.setMask(mask);
+				beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
+			}
+			currentPath = null;
 			return;
 		}
 
@@ -5611,8 +5635,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		int prevY = Integer.MIN_VALUE;
 		boolean hasPrevious = false;
 		for (int i = 0; i < points.length; i++) {
-			int x = (int) dc.toAbsoluteX(points[i].x);
-			int y = (int) dc.toAbsoluteY(points[i].y);
+			int x = toDeviceX(points[i].x);
+			int y = toDeviceY(points[i].y);
 			if (normalizeDuplicates && hasPrevious && prevX == x && prevY == y) {
 				continue;
 			}
@@ -5753,29 +5777,29 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		gradient.setIdAttribute("id", true);
 		gradient.setAttribute("gradientUnits", "userSpaceOnUse");
 		if (mode == GRADIENT_FILL_RECT_V) {
-			gradient.setAttribute("x1", "" + (int) dc.toAbsoluteX(v1.x));
-			gradient.setAttribute("y1", "" + (int) dc.toAbsoluteY(v1.y));
-			gradient.setAttribute("x2", "" + (int) dc.toAbsoluteX(v1.x));
-			gradient.setAttribute("y2", "" + (int) dc.toAbsoluteY(v2.y));
+			gradient.setAttribute("x1", Integer.toString(toDeviceX(v1.x)));
+			gradient.setAttribute("y1", Integer.toString(toDeviceY(v1.y)));
+			gradient.setAttribute("x2", Integer.toString(toDeviceX(v1.x)));
+			gradient.setAttribute("y2", Integer.toString(toDeviceY(v2.y)));
 		} else {
-			gradient.setAttribute("x1", "" + (int) dc.toAbsoluteX(v1.x));
-			gradient.setAttribute("y1", "" + (int) dc.toAbsoluteY(v1.y));
-			gradient.setAttribute("x2", "" + (int) dc.toAbsoluteX(v2.x));
-			gradient.setAttribute("y2", "" + (int) dc.toAbsoluteY(v1.y));
+			gradient.setAttribute("x1", Integer.toString(toDeviceX(v1.x)));
+			gradient.setAttribute("y1", Integer.toString(toDeviceY(v1.y)));
+			gradient.setAttribute("x2", Integer.toString(toDeviceX(v2.x)));
+			gradient.setAttribute("y2", Integer.toString(toDeviceY(v1.y)));
 		}
 		appendGradientStop(gradient, "0%", v1.getColor());
 		appendGradientStop(gradient, "100%", v2.getColor());
 		defsNode.appendChild(gradient);
 
 		Element elem = doc.createElement("rect");
-		double x1 = dc.toAbsoluteX(v1.x);
-		double y1 = dc.toAbsoluteY(v1.y);
-		double x2 = dc.toAbsoluteX(v2.x);
-		double y2 = dc.toAbsoluteY(v2.y);
-		elem.setAttribute("x", "" + (int) Math.min(x1, x2));
-		elem.setAttribute("y", "" + (int) Math.min(y1, y2));
-		elem.setAttribute("width", "" + (int) Math.abs(x2 - x1));
-		elem.setAttribute("height", "" + (int) Math.abs(y2 - y1));
+		int x1 = toDeviceX(v1.x);
+		int y1 = toDeviceY(v1.y);
+		int x2 = toDeviceX(v2.x);
+		int y2 = toDeviceY(v2.y);
+		elem.setAttribute("x", Integer.toString(Math.min(x1, x2)));
+		elem.setAttribute("y", Integer.toString(Math.min(y1, y2)));
+		elem.setAttribute("width", Integer.toString(Math.abs(x2 - x1)));
+		elem.setAttribute("height", Integer.toString(Math.abs(y2 - y1)));
 		elem.setAttribute("fill", "url(#" + id + ")");
 		elem.setAttribute("stroke", "none");
 		parentNode.appendChild(elem);
@@ -5831,7 +5855,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		double c = 1.0 - a - b;
 		double x = c * v1.x + a * v2.x + b * v3.x;
 		double y = c * v1.y + a * v2.y + b * v3.y;
-		return dc.toAbsoluteX(x) + "," + dc.toAbsoluteY(y);
+		return toDeviceX(x) + "," + toDeviceY(y);
 	}
 
 	private int interpolateColor(Trivertex v1, Trivertex v2, Trivertex v3, double a, double b) {
@@ -5850,8 +5874,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private void appendSvgPoint(Point point) {
-		buffer.append(formatDouble(dc.toAbsoluteX(point.x))).append(",");
-		buffer.append(formatDouble(dc.toAbsoluteY(point.y)));
+		buffer.append(toDeviceX(point.x)).append(",");
+		buffer.append(toDeviceY(point.y));
 	}
 
 	private static class SvgPath {
@@ -6237,24 +6261,24 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		int offset = 0;
 		if (fromCurrentPosition) {
 			buffer.append("M ");
-			buffer.append(formatDouble(dc.toAbsoluteX(dc.getCurrentX()))).append(",");
-			buffer.append(formatDouble(dc.toAbsoluteY(dc.getCurrentY()))).append(" ");
+			buffer.append(toDeviceX(dc.getCurrentX())).append(",");
+			buffer.append(toDeviceY(dc.getCurrentY())).append(" ");
 		} else {
 			buffer.append("M ");
-			buffer.append(formatDouble(dc.toAbsoluteX(points[0].x))).append(",");
-			buffer.append(formatDouble(dc.toAbsoluteY(points[0].y))).append(" ");
+			buffer.append(toDeviceX(points[0].x)).append(",");
+			buffer.append(toDeviceY(points[0].y)).append(" ");
 			offset = 1;
 		}
 
 		Point last = null;
 		for (int i = offset; i + 2 < points.length; i += 3) {
 			buffer.append("C ");
-			buffer.append(formatDouble(dc.toAbsoluteX(points[i].x))).append(",");
-			buffer.append(formatDouble(dc.toAbsoluteY(points[i].y))).append(" ");
-			buffer.append(formatDouble(dc.toAbsoluteX(points[i + 1].x))).append(",");
-			buffer.append(formatDouble(dc.toAbsoluteY(points[i + 1].y))).append(" ");
-			buffer.append(formatDouble(dc.toAbsoluteX(points[i + 2].x))).append(",");
-			buffer.append(formatDouble(dc.toAbsoluteY(points[i + 2].y))).append(" ");
+			buffer.append(toDeviceX(points[i].x)).append(",");
+			buffer.append(toDeviceY(points[i].y)).append(" ");
+			buffer.append(toDeviceX(points[i + 1].x)).append(",");
+			buffer.append(toDeviceY(points[i + 1].y)).append(" ");
+			buffer.append(toDeviceX(points[i + 2].x)).append(",");
+			buffer.append(toDeviceY(points[i + 2].y)).append(" ");
 			last = points[i + 2];
 		}
 
@@ -6391,14 +6415,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		Element elem = doc.createElement("rect");
 		elem.setAttribute("stroke", "none");
 		elem.setAttribute("fill", SvgPen.toColor(color));
-		double x1 = dc.toAbsoluteX(x);
-		double y1 = dc.toAbsoluteY(y);
-		double x2 = dc.toAbsoluteX(x + 1);
-		double y2 = dc.toAbsoluteY(y + 1);
-		elem.setAttribute("x", formatDouble(Math.min(x1, x2)));
-		elem.setAttribute("y", formatDouble(Math.min(y1, y2)));
-		elem.setAttribute("width", formatDouble(Math.abs(x2 - x1)));
-		elem.setAttribute("height", formatDouble(Math.abs(y2 - y1)));
+		elem.setAttribute("x", Integer.toString(toDeviceX(x)));
+		elem.setAttribute("y", Integer.toString(toDeviceY(y)));
+		elem.setAttribute("width", "1");
+		elem.setAttribute("height", "1");
 		parentNode.appendChild(elem);
 	}
 
@@ -6410,14 +6430,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 		Element elem = doc.createElement("rect");
 		elem.setAttribute("stroke", "none");
-		double x1 = dc.toAbsoluteX(x);
-		double y1 = dc.toAbsoluteY(y);
-		double x2 = dc.toAbsoluteX(x + 1);
-		double y2 = dc.toAbsoluteY(y + 1);
-		elem.setAttribute("x", formatDouble(Math.min(x1, x2)));
-		elem.setAttribute("y", formatDouble(Math.min(y1, y2)));
-		elem.setAttribute("width", formatDouble(Math.abs(x2 - x1)));
-		elem.setAttribute("height", formatDouble(Math.abs(y2 - y1)));
+		elem.setAttribute("x", Integer.toString(toDeviceX(x)));
+		elem.setAttribute("y", Integer.toString(toDeviceY(y)));
+		elem.setAttribute("width", "1");
+		elem.setAttribute("height", "1");
 		setFillBrush(elem, dc.getBrush(), brush);
 		parentNode.appendChild(elem);
 	}
@@ -6569,8 +6585,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			y = dc.getCurrentY();
 		}
 
-		int ax = (int) dc.toAbsoluteX(x);
-		int ay = (int) dc.toAbsoluteY(y);
+		int ax = toDeviceX(x);
+		int ay = toDeviceY(y);
 		elem.setAttribute("x", Integer.toString(ax));
 		elem.setAttribute("y", Integer.toString(ay));
 
@@ -7124,8 +7140,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				? (srcX != 0 || srcY != 0 || srcW != imageSize[0] || srcH != imageSize[1])
 				: (srcX != 0 || srcY != 0 || srcW != dw || srcH != dh);
 		Element elem = doc.createElement(clipSource ? "svg" : "image");
-		int x = (int) dc.toAbsoluteX(dx);
-		int y = (int) dc.toAbsoluteY(dy);
+		int x = toDeviceX(dx);
+		int y = toDeviceY(dy);
 		int width = (int) dc.toRelativeX(dw);
 		int height = (int) dc.toRelativeY(dh);
 
@@ -7308,8 +7324,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private Element createBitmapMask(byte[] maskImage, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh) {
-		int x = (int) dc.toAbsoluteX(dx);
-		int y = (int) dc.toAbsoluteY(dy);
+		int x = toDeviceX(dx);
+		int y = toDeviceY(dy);
 		int width = (int) dc.toRelativeX(dw);
 		int height = (int) dc.toRelativeY(dh);
 		int maskX = Math.min(x, x + width);

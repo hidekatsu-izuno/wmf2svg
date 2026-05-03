@@ -14,6 +14,8 @@ import javax.imageio.ImageIO;
 import org.junit.Assert;
 import org.junit.Test;
 
+import net.arnx.wmf2svg.gdi.GradientRect;
+import net.arnx.wmf2svg.gdi.GradientTriangle;
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiColorSpace;
@@ -24,6 +26,7 @@ import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiRegion;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
+import net.arnx.wmf2svg.gdi.Trivertex;
 
 public class SvgGdiTest {
 	private static final Pattern PNG_DATA_PATTERN = Pattern.compile("xlink:href=\"data:image/png;base64,([^\"]+)\"");
@@ -1091,12 +1094,12 @@ public class SvgGdiTest {
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("x=\"2\""));
 		Assert.assertTrue(svg.contains("y=\"6\""));
-		Assert.assertTrue(svg.contains("width=\"2\""));
-		Assert.assertTrue(svg.contains("height=\"3\""));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
 	}
 
 	@Test
-	public void testSetPixelPreservesSubpixelMappedLogicalSize() throws Exception {
+	public void testSetPixelRoundsMappedDevicePoint() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1107,12 +1110,10 @@ public class SvgGdiTest {
 		gdi.footer();
 
 		String svg = writeSvg(gdi);
-		Assert.assertTrue(svg.contains("x=\"0.5\""));
-		Assert.assertTrue(svg.contains("y=\"0.5\""));
-		Assert.assertTrue(svg.contains("width=\"0.5\""));
-		Assert.assertTrue(svg.contains("height=\"0.5\""));
-		Assert.assertFalse(svg.contains("width=\"0\""));
-		Assert.assertFalse(svg.contains("height=\"0\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"1\""));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
 	}
 
 	@Test
@@ -1130,12 +1131,12 @@ public class SvgGdiTest {
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("x=\"2\""));
 		Assert.assertTrue(svg.contains("y=\"6\""));
-		Assert.assertTrue(svg.contains("width=\"2\""));
-		Assert.assertTrue(svg.contains("height=\"3\""));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
 	}
 
 	@Test
-	public void testExtFloodFillSeedPreservesSubpixelMappedLogicalSize() throws Exception {
+	public void testExtFloodFillSeedRoundsMappedDevicePoint() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1147,12 +1148,10 @@ public class SvgGdiTest {
 		gdi.footer();
 
 		String svg = writeSvg(gdi);
-		Assert.assertTrue(svg.contains("x=\"0.5\""));
-		Assert.assertTrue(svg.contains("y=\"0.5\""));
-		Assert.assertTrue(svg.contains("width=\"0.5\""));
-		Assert.assertTrue(svg.contains("height=\"0.5\""));
-		Assert.assertFalse(svg.contains("width=\"0\""));
-		Assert.assertFalse(svg.contains("height=\"0\""));
+		Assert.assertTrue(svg.contains("x=\"1\""));
+		Assert.assertTrue(svg.contains("y=\"1\""));
+		Assert.assertTrue(svg.contains("width=\"1\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
 	}
 
 	@Test
@@ -1244,7 +1243,7 @@ public class SvgGdiTest {
 	}
 
 	@Test
-	public void testLineToPreservesSubpixelMappedCoordinates() throws Exception {
+	public void testLineToRoundsMappedDeviceCoordinates() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1258,9 +1257,9 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<line "));
-		Assert.assertTrue(svg.contains("x1=\"0.5\""));
-		Assert.assertTrue(svg.contains("y1=\"0.5\""));
-		Assert.assertTrue(svg.contains("x2=\"1.5\""));
+		Assert.assertTrue(svg.contains("x1=\"1\""));
+		Assert.assertTrue(svg.contains("y1=\"1\""));
+		Assert.assertTrue(svg.contains("x2=\"2\""));
 		Assert.assertTrue(svg.contains("y2=\"1\""));
 	}
 
@@ -1388,8 +1387,8 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<ellipse "));
-		Assert.assertTrue(svg.contains("cx=\"10.0\""));
-		Assert.assertTrue(svg.contains("cy=\"15.0\""));
+		Assert.assertTrue(svg.contains("cx=\"10\""));
+		Assert.assertTrue(svg.contains("cy=\"15\""));
 		Assert.assertTrue(svg.contains("rx=\"10.0\""));
 		Assert.assertTrue(svg.contains("ry=\"15.0\""));
 		Assert.assertFalse(svg.contains("<circle "));
@@ -1551,7 +1550,7 @@ public class SvgGdiTest {
 	}
 
 	@Test
-	public void testPolyBezierPreservesSubpixelMappedCoordinates() throws Exception {
+	public void testPolyBezierRoundsMappedDeviceCoordinates() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1564,11 +1563,11 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<path "));
-		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 C 0.5,1.5 1.5,1.5 1.5,0.5 "));
+		Assert.assertTrue(svg.contains("d=\"M 1,1 C 1,2 2,2 2,1 "));
 	}
 
 	@Test
-	public void testPolyBezierToPreservesSubpixelMappedCurrentPosition() throws Exception {
+	public void testPolyBezierToRoundsMappedDeviceCurrentPosition() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1582,7 +1581,7 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<path "));
-		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 C 0.5,1.5 1.5,1.5 1.5,0.5 "));
+		Assert.assertTrue(svg.contains("d=\"M 1,1 C 1,2 2,2 2,1 "));
 	}
 
 	@Test
@@ -1616,7 +1615,7 @@ public class SvgGdiTest {
 	}
 
 	@Test
-	public void testPolyPolygonPreservesSubpixelMappedCoordinates() throws Exception {
+	public void testPolyPolygonRoundsMappedDeviceCoordinates() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1629,8 +1628,25 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<path "));
-		Assert.assertTrue(svg.contains("M 0.5,0.5"));
-		Assert.assertTrue(svg.contains("L 1.5,0.5 1.5,1.5 z"));
+		Assert.assertTrue(svg.contains("M 1,1"));
+		Assert.assertTrue(svg.contains("L 2,1 2,2 z"));
+	}
+
+	@Test
+	public void testGradientFillIgnoresNullInputs() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+
+		gdi.gradientFill(null, new GradientRect[]{new GradientRect(0, 1)}, Gdi.GRADIENT_FILL_RECT_H);
+		gdi.gradientFill(new Trivertex[]{new Trivertex(0, 0, 0, 0, 0, 0)}, (GradientRect[]) null,
+				Gdi.GRADIENT_FILL_RECT_H);
+		gdi.gradientFill(null, new GradientTriangle[]{new GradientTriangle(0, 1, 2)}, 0);
+		gdi.gradientFill(new Trivertex[]{new Trivertex(0, 0, 0, 0, 0, 0)}, (GradientTriangle[]) null, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<linearGradient "));
+		Assert.assertFalse(svg.contains("<polygon "));
 	}
 
 	@Test
@@ -1666,7 +1682,7 @@ public class SvgGdiTest {
 	}
 
 	@Test
-	public void testRecordedPathPreservesSubpixelMappedCoordinates() throws Exception {
+	public void testRecordedPathRoundsMappedDeviceCoordinates() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
 		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
@@ -1682,7 +1698,7 @@ public class SvgGdiTest {
 
 		String svg = writeSvg(gdi);
 		Assert.assertTrue(svg.contains("<path "));
-		Assert.assertTrue(svg.contains("d=\"M 0.5,0.5 L 1.5,0.5 C 1.5,1.5 0.5,1.5 0.5,0.5 "));
+		Assert.assertTrue(svg.contains("d=\"M 1,1 L 2,1 C 2,2 1,2 1,1 "));
 	}
 
 	@Test
@@ -1908,6 +1924,39 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("stroke-dasharray=\"36,12\""));
 		Assert.assertFalse(svg.contains("stroke-width=\"4.0\""));
 		Assert.assertFalse(svg.contains("stroke-dasharray=\"12,12\""));
+	}
+
+	@Test
+	public void testSelectEmptyClipPathCopyConsumesPathAndCreatesEmptyMask() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.selectClipPath(GdiRegion.RGN_COPY);
+		gdi.lineTo(10, 0);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<mask "));
+		Assert.assertTrue(svg.contains("mask=\"url(#mask"));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertFalse(svg.contains("<path "));
+	}
+
+	@Test
+	public void testSelectEmptyClipPathDiffConsumesPathWithoutAddingMask() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.beginPath();
+		gdi.selectClipPath(GdiRegion.RGN_DIFF);
+		gdi.lineTo(10, 0);
+		gdi.strokePath();
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertFalse(svg.contains("<mask "));
+		Assert.assertTrue(svg.contains("<line "));
+		Assert.assertFalse(svg.contains("<path "));
 	}
 
 	@Test

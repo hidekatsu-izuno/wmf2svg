@@ -164,7 +164,36 @@ public static class Wmf2PngDpiAwareness {
 	}
 }
 
+function Initialize-PaintLikeGdiplus() {
+	Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class Wmf2PngGdiplusStartup {
+	[StructLayout(LayoutKind.Sequential)]
+	public struct GdiplusStartupInput {
+		public uint GdiplusVersion;
+		public IntPtr DebugEventCallback;
+		public bool SuppressBackgroundThread;
+		public bool SuppressExternalCodecs;
+	}
+
+	[DllImport("gdiplus.dll", ExactSpelling=true)]
+	public static extern int GdiplusStartup(out IntPtr token, ref GdiplusStartupInput input, IntPtr output);
+}
+"@
+
+	$input = New-Object Wmf2PngGdiplusStartup+GdiplusStartupInput
+	$input.GdiplusVersion = 3
+	$token = [IntPtr]::Zero
+	$result = [Wmf2PngGdiplusStartup]::GdiplusStartup([ref]$token, [ref]$input, [IntPtr]::Zero)
+	if ($result -ne 0) {
+		throw "GdiplusStartup failed: $result"
+	}
+}
+
 Set-PaintLikeDpiAwareness
+Initialize-PaintLikeGdiplus
 
 Add-Type -AssemblyName System.Drawing
 

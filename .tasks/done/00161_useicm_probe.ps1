@@ -1,44 +1,21 @@
 param(
-	[Parameter(Mandatory = $true, Position = 0)]
+	[Parameter(Mandatory = $true)]
 	[string]$InputPath,
 
-	[Parameter(Position = 1)]
-	[string]$OutputPath
+	[Parameter(Mandatory = $true)]
+	[string]$OutputPath,
+
+	[Parameter(Mandatory = $true)]
+	[int]$UseIcm
+	,
+
+	[Parameter()]
+	[ValidateSet("Bitmap", "Image")]
+	[string]$LoadKind = "Bitmap"
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
-
-function Convert-PathForWindows([string]$Path, [switch]$ForOutput) {
-	if ([string]::IsNullOrWhiteSpace($Path)) {
-		return $Path
-	}
-
-	if ($Path -match "^[A-Za-z]:\\" -or $Path -match "^\\\\") {
-		return $Path
-	}
-
-	if (Test-Path -LiteralPath $Path) {
-		return (Convert-Path -LiteralPath $Path)
-	}
-
-	if ($Path.StartsWith("/")) {
-		$converted = (& wsl.exe wslpath -w -- "$Path" 2>$null)
-		if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($converted)) {
-			return $converted.Trim()
-		}
-	}
-
-	if ($ForOutput) {
-		$parent = Split-Path -Parent $Path
-		$name = Split-Path -Leaf $Path
-		if (-not [string]::IsNullOrWhiteSpace($parent) -and (Test-Path -LiteralPath $parent)) {
-			return (Join-Path (Convert-Path -LiteralPath $parent) $name)
-		}
-	}
-
-	return $Path
-}
 
 function Read-UInt16LE([byte[]]$Bytes, [int]$Offset) {
 	return [System.BitConverter]::ToUInt16($Bytes, $Offset)
@@ -55,13 +32,6 @@ function Read-UInt32LE([byte[]]$Bytes, [int]$Offset) {
 function Test-WmfPlaceableHeader([string]$Path) {
 	$bytes = [System.IO.File]::ReadAllBytes($Path)
 	return $bytes.Length -ge 22 -and (Read-UInt32LE $bytes 0) -eq [uint32]2596720087
-}
-
-function Test-EmfHeader([string]$Path) {
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	return $bytes.Length -ge 44 -and
-		(Read-UInt32LE $bytes 0) -eq [uint32]1 -and
-		(Read-UInt32LE $bytes 40) -eq [uint32]1179469088
 }
 
 function Test-WmfHasMapMode([string]$Path) {
@@ -146,84 +116,33 @@ function Get-WmfCanvasSize([string]$Path, [int]$GdiWidth, [int]$GdiHeight) {
 	return $null
 }
 
-function Set-PaintLikeDpiAwareness() {
-	Add-Type -TypeDefinition @"
-using System.Runtime.InteropServices;
-
-public static class Wmf2PngDpiAwareness {
-	[DllImport("shcore.dll")]
-	public static extern int SetProcessDpiAwareness(int value);
-}
-"@
-
-	# Paint is per-monitor DPI aware; GDI+ WMF text rasterization can differ if
-	# the process stays DPI unaware when GDI+ is initialized.
-	$result = [Wmf2PngDpiAwareness]::SetProcessDpiAwareness(2)
-	if ($result -ne 0 -and $result -ne -2147024891) {
-		throw "SetProcessDpiAwareness failed: $result"
-	}
-}
-
-Set-PaintLikeDpiAwareness
-
 Add-Type -AssemblyName System.Drawing
-
-Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
-using System;
-
-public static class WmfBitmapHelper {
-	public static System.Drawing.Bitmap LoadBitmapFromFile(string path) {
-		return new System.Drawing.Bitmap(path);
-	}
-}
-"@
-
-$source = Convert-PathForWindows $InputPath
-if (-not (Test-Path -LiteralPath $source)) {
-	throw "Input file not found: $InputPath"
-}
-
-if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-	$outputName = [System.IO.Path]::ChangeExtension($source, ".png")
-} else {
-	$outputName = Convert-PathForWindows $OutputPath -ForOutput
-}
-
-$outputDir = Split-Path -Parent $outputName
-if (-not [string]::IsNullOrWhiteSpace($outputDir) -and -not (Test-Path -LiteralPath $outputDir)) {
-	New-Item -ItemType Directory -Path $outputDir | Out-Null
-}
 
 $image = $null
 $bitmap = $null
 $graphics = $null
-$pngImage = $null
 
 try {
-	$isEmf = Test-EmfHeader $source
-	$hasPlaceableHeader = -not $isEmf -and (Test-WmfPlaceableHeader $source)
-	$hasMapMode = -not $isEmf -and -not $hasPlaceableHeader -and (Test-WmfHasMapMode $source)
-	if ($isEmf) {
-		$image = [System.Drawing.Image]::FromFile($source)
-	} elseif ($hasMapMode) {
-		$image = [WmfBitmapHelper]::LoadBitmapFromFile($source)
+	$hasPlaceableHeader = Test-WmfPlaceableHeader $InputPath
+	$hasMapMode = -not $hasPlaceableHeader -and (Test-WmfHasMapMode $InputPath)
+	$useIcmBool = $UseIcm -ne 0
+	if ($LoadKind -eq "Image") {
+		$image = [System.Drawing.Image]::FromFile($InputPath, $useIcmBool)
 	} else {
-		$image = [System.Drawing.Image]::FromFile($source)
+		$image = New-Object System.Drawing.Bitmap($InputPath, $useIcmBool)
 	}
-	$useTransparentBackground = -not $hasPlaceableHeader
 
-	$canvasSize = if ($isEmf) { $null } else { Get-WmfCanvasSize $source $image.Width $image.Height }
+	$canvasSize = Get-WmfCanvasSize $InputPath $image.Width $image.Height
 	if ($canvasSize -ne $null) {
-		$Width = $canvasSize.Width
-		$Height = $canvasSize.Height
+		$width = $canvasSize.Width
+		$height = $canvasSize.Height
 	} else {
-		$Width = [Math]::Max(1, $image.Width)
-		$Height = [Math]::Max(1, $image.Height)
+		$width = [Math]::Max(1, $image.Width)
+		$height = [Math]::Max(1, $image.Height)
 	}
 
-	$bitmap = New-Object System.Drawing.Bitmap($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+	$bitmap = New-Object System.Drawing.Bitmap($width, $height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 	$bitmap.SetResolution(96, 96)
-
 	$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 	if (-not $hasPlaceableHeader) {
 		$graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
@@ -236,25 +155,17 @@ try {
 		$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
 	}
 	$graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+	$graphics.Clear([System.Drawing.Color]::Transparent)
 
-	if ($useTransparentBackground) {
-		$graphics.Clear([System.Drawing.Color]::Transparent)
-	}
-
-	if ($isEmf) {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
-	} elseif ($hasPlaceableHeader) {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
-	} elseif ($hasMapMode) {
-		$destination = New-Object System.Drawing.Rectangle(0, 0, $Width, $Height)
+	if ($hasMapMode) {
+		$destination = New-Object System.Drawing.Rectangle(0, 0, $width, $height)
 		$graphics.DrawImage($image, $destination, 0, 0, $image.Width, $image.Height, [System.Drawing.GraphicsUnit]::Pixel)
 	} else {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
+		$graphics.DrawImage($image, 0, 0, $width, $height)
 	}
-	$pngImage = $bitmap
 
-	$pngImage.Save($outputName, [System.Drawing.Imaging.ImageFormat]::Png)
-	Write-Host ("{0} -> {1} ({2}x{3})" -f $source, $outputName, $Width, $Height)
+	$bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+	Write-Host ("loadKind={0} useIcm={1} {2}x{3} source={4}x{5} mapMode={6}" -f $LoadKind, $useIcmBool, $width, $height, $image.Width, $image.Height, $hasMapMode)
 } finally {
 	if ($graphics -ne $null) {
 		$graphics.Dispose()

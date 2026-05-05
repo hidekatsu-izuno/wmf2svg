@@ -1,0 +1,9 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT_LOAD gdiplus!GdipCreateBitmapFromFile; .echo ARG_FILENAME; du @rcx; k; q"
+bu gdiplus!GdipLoadImageFromFile ".echo HIT_LOAD gdiplus!GdipLoadImageFromFile; .echo ARG_FILENAME; du @rcx; k; q"
+bu gdiplus!GdipCreateMetafileFromFile ".echo HIT_LOAD gdiplus!GdipCreateMetafileFromFile; .echo ARG_FILENAME; du @rcx; k; q"
+bu gdiplus!GdipCreateMetafileFromWmfFile ".echo HIT_LOAD gdiplus!GdipCreateMetafileFromWmfFile; .echo ARG_FILENAME; du @rcx; k; q"
+g

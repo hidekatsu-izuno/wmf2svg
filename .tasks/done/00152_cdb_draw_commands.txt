@@ -1,0 +1,7 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipDrawImageRectRectI ".echo HIT_DRAW gdiplus!GdipDrawImageRectRectI; k; q"
+bu gdiplus!GdipDrawImageRectI ".echo HIT_DRAW gdiplus!GdipDrawImageRectI; k; q"
+g

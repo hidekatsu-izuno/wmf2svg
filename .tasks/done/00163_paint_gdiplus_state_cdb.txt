@@ -1,0 +1,6 @@
+sxe -c "gc" ld:gdi32
+sxe -c "gc" ld:gdi32full
+sxe -c "gc" ld:gdiplus
+bu gdiplus!GdiplusStartup ".echo HIT_GDIPLUS_STARTUP; .printf \"tokenOut=%p input=%p output=%p\n\", @rcx, @rdx, @r8; dd @rdx L8; gc"
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT_CREATE_BITMAP_FROM_FILE; du @rcx; .echo MODULES; lmvm gdiplus; lmvm gdi32; lmvm gdi32full; q"
+g

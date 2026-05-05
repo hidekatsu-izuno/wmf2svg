@@ -1,0 +1,16 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT_CREATE_BITMAP_FROM_FILE; .echo ARG_FILENAME; du @rcx; .printf \"out-param=%p\n\", @rdx; r @$t0=@rdx; gu; .echo RET_CREATE_BITMAP_FROM_FILE; r eax; dq @$t0 L1; gc"
+bu gdiplus!GdipGetImageWidth ".echo HIT_GET_WIDTH; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t1=@rdx; k; gu; .echo RET_GET_WIDTH; r eax; dd @$t1 L1; gc"
+bu gdiplus!GdipGetImageHeight ".echo HIT_GET_HEIGHT; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t2=@rdx; k; gu; .echo RET_GET_HEIGHT; r eax; dd @$t2 L1; gc"
+bu gdiplus!GdipGetImagePixelFormat ".echo HIT_GET_PIXEL_FORMAT; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t3=@rdx; k; gu; .echo RET_GET_PIXEL_FORMAT; r eax; dd @$t3 L1; gc"
+bu gdiplus!GdipGetImageHorizontalResolution ".echo HIT_GET_DPIX; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t4=@rdx; k; gu; .echo RET_GET_DPIX; r eax; dd @$t4 L1; gc"
+bu gdiplus!GdipGetImageVerticalResolution ".echo HIT_GET_DPIY; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t5=@rdx; k; gu; .echo RET_GET_DPIY; r eax; dd @$t5 L1; gc"
+bu gdiplus!GdipCreateBitmapFromScan0 ".echo HIT_CREATE_BITMAP_SCAN0; r rcx; r rdx; r r8; r r9; dq @rsp L10; k; gc"
+bu gdiplus!GdipCreateBitmapFromGraphics ".echo HIT_CREATE_BITMAP_GRAPHICS; r rcx; r rdx; r r8; r r9; dq @rsp L10; k; gc"
+bu gdiplus!GdipCreateBitmapFromHBITMAP ".echo HIT_CREATE_BITMAP_HBITMAP; r rcx; r rdx; r r8; k; gc"
+bu gdiplus!GdipGraphicsClear ".echo HIT_GRAPHICS_CLEAR; r rcx; r rdx; k; gc"
+bu gdiplus!GdipDrawImageRectRectI ".echo HIT_DRAW_ARGS gdiplus!GdipDrawImageRectRectI; r rcx; r rdx; r r8; r r9; dq @rsp L18; k; q"
+g

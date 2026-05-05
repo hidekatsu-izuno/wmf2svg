@@ -1,0 +1,6 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipGetImagePixelFormat ".echo HIT_GET_PIXEL_FORMAT; r rcx; .printf \"out-param=%p\n\", @rdx; r @$t0=@rdx; k; gu; .echo RET_GET_PIXEL_FORMAT; r eax; dd @$t0 L1; q"
+g

@@ -1,0 +1,6 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT gdiplus!GdipCreateBitmapFromFile; .echo ARG filename follows; du @rcx; k; q"
+g

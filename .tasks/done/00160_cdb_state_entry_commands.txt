@@ -1,0 +1,12 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT_CREATE_BITMAP_FROM_FILE; du @rcx; r rcx; r rdx; k; gc"
+bu gdiplus!GdipGetImageWidth ".echo HIT_GET_WIDTH; r rcx; r rdx; k; gc"
+bu gdiplus!GdipGetImageHeight ".echo HIT_GET_HEIGHT; r rcx; r rdx; k; gc"
+bu gdiplus!GdipGetImagePixelFormat ".echo HIT_GET_PIXEL_FORMAT; r rcx; r rdx; k; gc"
+bu gdiplus!GdipGetImageHorizontalResolution ".echo HIT_GET_DPIX; r rcx; r rdx; k; gc"
+bu gdiplus!GdipGetImageVerticalResolution ".echo HIT_GET_DPIY; r rcx; r rdx; k; gc"
+bu gdiplus!GdipDrawImageRectRectI ".echo HIT_DRAW_ARGS gdiplus!GdipDrawImageRectRectI; r rcx; r rdx; r r8; r r9; dq @rsp L18; k; q"
+g

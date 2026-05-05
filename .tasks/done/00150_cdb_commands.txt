@@ -1,0 +1,18 @@
+.symfix
+.reload
+sxd eh
+sxd 40080201
+bu gdiplus!GdipLoadImageFromFile ".echo HIT gdiplus!GdipLoadImageFromFile; k; g"
+bu gdiplus!GdipLoadImageFromStream ".echo HIT gdiplus!GdipLoadImageFromStream; k; g"
+bu gdiplus!GdipCreateBitmapFromFile ".echo HIT gdiplus!GdipCreateBitmapFromFile; k; g"
+bu gdiplus!GdipCreateBitmapFromStream ".echo HIT gdiplus!GdipCreateBitmapFromStream; k; g"
+bu gdiplus!GdipCreateMetafileFromFile ".echo HIT gdiplus!GdipCreateMetafileFromFile; k; g"
+bu gdiplus!GdipCreateMetafileFromWmfFile ".echo HIT gdiplus!GdipCreateMetafileFromWmfFile; k; g"
+bu gdiplus!GdipCreateMetafileFromStream ".echo HIT gdiplus!GdipCreateMetafileFromStream; k; g"
+bu gdiplus!GdipDrawImageRectI ".echo HIT gdiplus!GdipDrawImageRectI; k; g"
+bu gdiplus!GdipDrawImageRectRectI ".echo HIT gdiplus!GdipDrawImageRectRectI; k; g"
+bu gdi32!SetWinMetaFileBits ".echo HIT gdi32!SetWinMetaFileBits; k; g"
+bu gdi32full!SetWinMetaFileBits ".echo HIT gdi32full!SetWinMetaFileBits; k; g"
+bu gdi32full!PlayEnhMetaFile ".echo HIT gdi32full!PlayEnhMetaFile; k; g"
+bl
+g

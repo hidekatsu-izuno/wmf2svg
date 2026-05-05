@@ -52,41 +52,11 @@ function Read-UInt32LE([byte[]]$Bytes, [int]$Offset) {
 	return [System.BitConverter]::ToUInt32($Bytes, $Offset)
 }
 
-function Test-WmfPlaceableHeader([string]$Path) {
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	return $bytes.Length -ge 22 -and (Read-UInt32LE $bytes 0) -eq [uint32]2596720087
-}
-
 function Test-EmfHeader([string]$Path) {
 	$bytes = [System.IO.File]::ReadAllBytes($Path)
 	return $bytes.Length -ge 44 -and
 		(Read-UInt32LE $bytes 0) -eq [uint32]1 -and
 		(Read-UInt32LE $bytes 40) -eq [uint32]1179469088
-}
-
-function Test-WmfHasMapMode([string]$Path) {
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	if ($bytes.Length -lt 18) {
-		return $false
-	}
-
-	$pos = 18
-	while ($pos + 6 -le $bytes.Length) {
-		$recordSizeWords = Read-UInt32LE $bytes $pos
-		$recordSize = [int]($recordSizeWords * 2)
-		if ($recordSize -lt 6 -or $pos + $recordSize -gt $bytes.Length) {
-			break
-		}
-
-		$function = Read-UInt16LE $bytes ($pos + 4)
-		if ($function -eq 0x0103) {
-			return $true
-		}
-
-		$pos += $recordSize
-	}
-
-	return $false
 }
 
 function Get-WmfCanvasSize([string]$Path, [int]$GdiWidth, [int]$GdiHeight) {
@@ -197,16 +167,6 @@ Initialize-PaintLikeGdiplus
 
 Add-Type -AssemblyName System.Drawing
 
-Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @"
-using System;
-
-public static class WmfBitmapHelper {
-	public static System.Drawing.Bitmap LoadBitmapFromFile(string path) {
-		return new System.Drawing.Bitmap(path);
-	}
-}
-"@
-
 $source = Convert-PathForWindows $InputPath
 if (-not (Test-Path -LiteralPath $source)) {
 	throw "Input file not found: $InputPath"
@@ -230,16 +190,7 @@ $pngImage = $null
 
 try {
 	$isEmf = Test-EmfHeader $source
-	$hasPlaceableHeader = -not $isEmf -and (Test-WmfPlaceableHeader $source)
-	$hasMapMode = -not $isEmf -and -not $hasPlaceableHeader -and (Test-WmfHasMapMode $source)
-	if ($isEmf) {
-		$image = [System.Drawing.Image]::FromFile($source)
-	} elseif ($hasMapMode) {
-		$image = [WmfBitmapHelper]::LoadBitmapFromFile($source)
-	} else {
-		$image = [System.Drawing.Image]::FromFile($source)
-	}
-	$useTransparentBackground = -not $hasPlaceableHeader
+	$image = [System.Drawing.Bitmap]::new($source)
 
 	$canvasSize = if ($isEmf) { $null } else { Get-WmfCanvasSize $source $image.Width $image.Height }
 	if ($canvasSize -ne $null) {
@@ -254,32 +205,15 @@ try {
 	$bitmap.SetResolution(96, 96)
 
 	$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-	if (-not $hasPlaceableHeader) {
-		$graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-	}
 	$graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 	$graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-	if ($hasPlaceableHeader) {
-		$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
-	} else {
-		$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-	}
+	$graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
 	$graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
 
-	if ($useTransparentBackground) {
-		$graphics.Clear([System.Drawing.Color]::Transparent)
-	}
+	$graphics.Clear([System.Drawing.Color]::Transparent)
 
-	if ($isEmf) {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
-	} elseif ($hasPlaceableHeader) {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
-	} elseif ($hasMapMode) {
-		$destination = New-Object System.Drawing.Rectangle(0, 0, $Width, $Height)
-		$graphics.DrawImage($image, $destination, 0, 0, $image.Width, $image.Height, [System.Drawing.GraphicsUnit]::Pixel)
-	} else {
-		$graphics.DrawImage($image, 0, 0, $Width, $Height)
-	}
+	$destination = New-Object System.Drawing.Rectangle(0, 0, $Width, $Height)
+	$graphics.DrawImage($image, $destination, 0, 0, $image.Width, $image.Height, [System.Drawing.GraphicsUnit]::Pixel)
 	$pngImage = $bitmap
 
 	$pngImage.Save($outputName, [System.Drawing.Imaging.ImageFormat]::Png)

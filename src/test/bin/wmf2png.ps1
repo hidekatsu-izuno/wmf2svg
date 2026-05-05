@@ -40,82 +40,6 @@ function Convert-PathForWindows([string]$Path, [switch]$ForOutput) {
 	return $Path
 }
 
-function Read-UInt16LE([byte[]]$Bytes, [int]$Offset) {
-	return [System.BitConverter]::ToUInt16($Bytes, $Offset)
-}
-
-function Read-Int16LE([byte[]]$Bytes, [int]$Offset) {
-	return [System.BitConverter]::ToInt16($Bytes, $Offset)
-}
-
-function Read-UInt32LE([byte[]]$Bytes, [int]$Offset) {
-	return [System.BitConverter]::ToUInt32($Bytes, $Offset)
-}
-
-function Test-EmfHeader([string]$Path) {
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	return $bytes.Length -ge 44 -and
-		(Read-UInt32LE $bytes 0) -eq [uint32]1 -and
-		(Read-UInt32LE $bytes 40) -eq [uint32]1179469088
-}
-
-function Get-WmfCanvasSize([string]$Path, [int]$GdiWidth, [int]$GdiHeight) {
-	$bytes = [System.IO.File]::ReadAllBytes($Path)
-	if ($bytes.Length -lt 18) {
-		return $null
-	}
-
-	if ($bytes.Length -ge 22 -and (Read-UInt32LE $bytes 0) -eq [uint32]2596720087) {
-		$left = Read-Int16LE $bytes 6
-		$top = Read-Int16LE $bytes 8
-		$right = Read-Int16LE $bytes 10
-		$bottom = Read-Int16LE $bytes 12
-		$inch = [Math]::Max(1, [int](Read-UInt16LE $bytes 14))
-		$widthUnits = [Math]::Max(1, [int]$right - [int]$left)
-		$heightUnits = [Math]::Max(1, [int]$bottom - [int]$top)
-		$roundingBias = if ($left -ge 0 -and $top -ge 0) { 0.5 } else { 0.499999 }
-		return [pscustomobject]@{
-			Width = [Math]::Max(1, [int][Math]::Floor(($widthUnits * 144.0 / $inch) + $roundingBias))
-			Height = [Math]::Max(1, [int][Math]::Floor(($heightUnits * 144.0 / $inch) + $roundingBias))
-		}
-	}
-
-	$pos = 18
-	$windowWidth = 0
-	$windowHeight = 0
-	while ($pos + 6 -le $bytes.Length) {
-		$recordSizeWords = Read-UInt32LE $bytes $pos
-		$recordSize = [int]($recordSizeWords * 2)
-		if ($recordSize -lt 6 -or $pos + $recordSize -gt $bytes.Length) {
-			break
-		}
-
-		$function = Read-UInt16LE $bytes ($pos + 4)
-		if ($function -eq 0x020C -and $recordSize -ge 10) {
-			$windowHeight = Read-Int16LE $bytes ($pos + 6)
-			$windowWidth = Read-Int16LE $bytes ($pos + 8)
-		}
-
-		$pos += $recordSize
-	}
-
-	$width = [Math]::Abs($windowWidth)
-	$height = [Math]::Abs($windowHeight)
-	if ($width -gt 0 -and $height -gt 0) {
-		if ($GdiWidth -ge $width -and $GdiWidth -le $width + 1 -and
-				$GdiHeight -ge $height -and $GdiHeight -le $height + 1) {
-			$width = $GdiWidth
-			$height = $GdiHeight
-		}
-		return [pscustomobject]@{
-			Width = [Math]::Max(1, $width)
-			Height = [Math]::Max(1, $height)
-		}
-	}
-
-	return $null
-}
-
 function Set-PaintLikeDpiAwareness() {
 	Add-Type -TypeDefinition @"
 using System.Runtime.InteropServices;
@@ -189,17 +113,10 @@ $graphics = $null
 $pngImage = $null
 
 try {
-	$isEmf = Test-EmfHeader $source
 	$image = [System.Drawing.Bitmap]::new($source)
 
-	$canvasSize = if ($isEmf) { $null } else { Get-WmfCanvasSize $source $image.Width $image.Height }
-	if ($canvasSize -ne $null) {
-		$Width = $canvasSize.Width
-		$Height = $canvasSize.Height
-	} else {
-		$Width = [Math]::Max(1, $image.Width)
-		$Height = [Math]::Max(1, $image.Height)
-	}
+	$Width = [Math]::Max(1, $image.Width)
+	$Height = [Math]::Max(1, $image.Height)
 
 	$bitmap = New-Object System.Drawing.Bitmap($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
 	$bitmap.SetResolution(96, 96)

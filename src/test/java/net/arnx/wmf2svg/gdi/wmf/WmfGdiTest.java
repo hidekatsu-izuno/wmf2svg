@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -157,6 +158,28 @@ public class WmfGdiTest {
 		String text = new String(svg.toByteArray(), "UTF-8");
 
 		assertTrue(text.indexOf("height=\"20\" width=\"20\" x=\"10\" y=\"20\"") >= 0);
+	}
+
+	@Test
+	public void testParserDrawsTruncatedExtTextOutTextWithoutDx() throws Exception {
+		WmfGdi gdi = new WmfGdi();
+		gdi.header();
+		gdi.extTextOut(10, 20, 0, null, "Title".getBytes("US-ASCII"), new int[]{8, 8, 8, 8, 8});
+		gdi.footer();
+
+		byte[] wmf = write(gdi);
+		int offset = findRecordOffset(wmf, WmfConstants.META_EXTTEXTOUT);
+		int count = readUint16(wmf, offset + 10);
+		int textEnd = offset + 14 + count + (count % 2);
+		byte[] truncated = Arrays.copyOf(wmf, textEnd);
+
+		SvgGdi svgGdi = new SvgGdi();
+		new WmfParser().parse(new ByteArrayInputStream(truncated), svgGdi);
+
+		ByteArrayOutputStream svg = new ByteArrayOutputStream();
+		svgGdi.write(svg);
+		String text = new String(svg.toByteArray(), "UTF-8");
+		assertTrue(text.indexOf(">Title</text>") >= 0);
 	}
 
 	@Test
@@ -340,6 +363,21 @@ public class WmfGdiTest {
 			pos += recordSize;
 		}
 		return found;
+	}
+
+	private int findRecordOffset(byte[] wmf, int function) {
+		int pos = 18;
+		while (pos + 6 <= wmf.length) {
+			int recordSize = readUint32(wmf, pos) * 2;
+			if (recordSize < 6 || pos + recordSize > wmf.length) {
+				break;
+			}
+			if (readUint16(wmf, pos + 4) == function) {
+				return pos;
+			}
+			pos += recordSize;
+		}
+		throw new AssertionError("WMF record not found: " + function);
 	}
 
 	private int readUint16(byte[] data, int pos) {

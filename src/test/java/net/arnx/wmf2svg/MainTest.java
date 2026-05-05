@@ -27,7 +27,8 @@ public class MainTest {
 		}
 		File[] files = dir.listFiles(new FileFilter() {
 			public boolean accept(File file) {
-				return file.getName().toLowerCase().endsWith(".wmf");
+				String name = file.getName().toLowerCase();
+				return name.endsWith(".wmf") || name.endsWith(".emf");
 			}
 		});
 

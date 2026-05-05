@@ -40,7 +40,14 @@ public class WmfParser implements Parser, WmfConstants {
 
 	private static Logger log = Logger.getLogger(WmfParser.class.getName());
 
+	private final boolean parseEnhancedMetafileComments;
+
 	public WmfParser() {
+		this(true);
+	}
+
+	public WmfParser(boolean parseEnhancedMetafileComments) {
+		this.parseEnhancedMetafileComments = parseEnhancedMetafileComments;
 	}
 
 	private boolean isObjectIndex(int index, GdiObject[] objects) {
@@ -50,6 +57,7 @@ public class WmfParser implements Parser, WmfConstants {
 	public void parse(InputStream is, Gdi gdi) throws IOException, WmfParseException {
 		DataInput in = null;
 		boolean isEmpty = true;
+		boolean lifecycleStarted = false;
 
 		try {
 			in = new DataInput(new BufferedInputStream(is), ByteOrder.LITTLE_ENDIAN);
@@ -89,6 +97,7 @@ public class WmfParser implements Parser, WmfConstants {
 			}
 
 			gdi.header();
+			lifecycleStarted = true;
 
 			GdiObject[] objs = new GdiObject[mtNoObjects];
 			boolean enhancedMetafileComment = false;
@@ -461,10 +470,10 @@ public class WmfParser implements Parser, WmfConstants {
 					}
 					case META_ESCAPE : {
 						byte[] data = in.readBytes(2 * size);
-						if (!EmfParser.parseEscape(data, gdi)) {
-							gdi.escape(data);
-						} else {
+						if (parseEnhancedMetafileComments && EmfParser.parseEscape(data, gdi)) {
 							enhancedMetafileComment = true;
+						} else if (!EmfParser.isEnhancedMetafileEscape(data)) {
+							gdi.escape(data);
 						}
 						break;
 					}
@@ -558,8 +567,14 @@ public class WmfParser implements Parser, WmfConstants {
 						int[] dx = null;
 						if (rsize > 0) {
 							dx = new int[rsize];
-							for (int i = 0; i < dx.length; i++) {
-								dx[i] = in.readInt16();
+							try {
+								for (int i = 0; i < dx.length; i++) {
+									dx[i] = in.readInt16();
+								}
+							} catch (EOFException e) {
+								dx = null;
+								gdi.extTextOut(x, y, options, rect, text, dx);
+								throw e;
 							}
 						}
 						gdi.extTextOut(x, y, options, rect, text, dx);
@@ -759,9 +774,14 @@ public class WmfParser implements Parser, WmfConstants {
 			in.close();
 
 			gdi.footer();
+			lifecycleStarted = false;
 		} catch (EOFException e) {
-			if (isEmpty)
+			if (isEmpty) {
 				throw new WmfParseException("input file size is zero.");
+			}
+			if (lifecycleStarted) {
+				gdi.footer();
+			}
 		}
 	}
 

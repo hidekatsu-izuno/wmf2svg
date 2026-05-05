@@ -14,12 +14,15 @@ import java.awt.RenderingHints;
 import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
 import org.junit.Test;
 
+import net.arnx.wmf2svg.Main;
 import net.arnx.wmf2svg.gdi.Gdi;
 import net.arnx.wmf2svg.gdi.GdiBrush;
 import net.arnx.wmf2svg.gdi.GdiColorSpace;
@@ -77,6 +80,81 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testStandaloneEmfHeaderCanvasSurvivesLaterMappingExtents() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(0, 0, 793, 1122, 0, 0, 20999, 29699, 794, 1123, 210, 297);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(793, 1122, null);
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setViewportExtEx(96, 96, null);
+		gdi.setWindowExtEx(2540, 2540, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.rectangle(0, 0, 1, 1);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(795, image.getWidth());
+		assertEquals(1124, image.getHeight());
+		assertEquals(0, alphaAtBottomRight(image));
+	}
+
+	@Test
+	public void testStandaloneEmfHeaderCanvasUsesNonZeroBoundsOrigin() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(723, 1073, 1646, 1999, 22594, 33531, 51438, 62469, 1024, 768, 320, 240);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(923, 926, null);
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setWindowExtEx(8301, 8334, null);
+		gdi.setViewportExtEx(2767, 2778, null);
+		gdi.rectangle(2170, 3218, 4937, 5996);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(924, image.getWidth());
+		assertEquals(927, image.getHeight());
+		assertTrue(countPaintedPixels(image, 0, 0, 924, 927) > 10_000);
+	}
+
+	@Test
+	public void testStandaloneEmfPlusHeaderCanvasUsesFramePixelsAndZeroOrigin() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(2, 2, 102, 52, 0, 0, 20000, 10000, 100, 50, 100, 50);
+		gdi.comment(createEmfPlusComment().toByteArray());
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(201, image.getWidth());
+		assertEquals(101, image.getHeight());
+	}
+
+	@Test
+	public void testMainEmfPngKeepsTransparentBackground() throws Exception {
+		File src = File.createTempFile("wmf2svg-transparent-emf", ".emf");
+		File dst = File.createTempFile("wmf2svg-transparent-emf", ".png");
+		try {
+			FileOutputStream out = new FileOutputStream(src);
+			try {
+				out.write(createLineEmf());
+			} finally {
+				out.close();
+			}
+
+			Main.main(new String[]{src.getPath(), dst.getPath()});
+
+			BufferedImage image = ImageIO.read(dst);
+			assertTrue(countPaintedPixels(image) > 0);
+			assertEquals(0, (image.getRGB(image.getWidth() - 1, 0) >>> 24) & 0xFF);
+		} finally {
+			src.delete();
+			dst.delete();
+		}
+	}
+
+	@Test
 	public void testPendingEmfUsesOuterMappingWhenMappingFollowsComment() throws Exception {
 		AwtGdi gdi = new AwtGdi();
 		gdi.escape(createEscapeRecord(0x1234, createBackgroundEmf()));
@@ -91,6 +169,21 @@ public class AwtGdiTest {
 		assertEquals(200, image.getWidth());
 		assertEquals(200, image.getHeight());
 		assertTrue(countPaintedPixels(image) > 30_000);
+	}
+
+	@Test
+	public void testPendingEmfFooterMappingDoesNotClipToEmfHeaderBounds() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.escape(createEscapeRecord(0x1234, createLineEmfWithBounds(0, 0, 10, 10)));
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(100, 100, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setViewportExtEx(100, 100, null);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(countPaintedPixels(image, 55, 55, 10, 10) > 0);
 	}
 
 	@Test
@@ -1412,6 +1505,18 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusDrawImagePointsUsesPixelUnitDestinationPoints() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusBitmapDrawImagePointsComment(2));
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue(image.getWidth() >= 20);
+		assertTrue(countPaintedPixels(image, 10, 1, 9, 8) > 0);
+	}
+
+	@Test
 	public void testEmfPlusDrawImageAppliesColorMatrixEffect() throws Exception {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -1967,6 +2072,15 @@ public class AwtGdiTest {
 		return out.toByteArray();
 	}
 
+	private byte[] createLineEmfWithBounds(int left, int top, int right, int bottom) throws IOException {
+		byte[] data = createLineEmf();
+		writeInt32(data, 8, left);
+		writeInt32(data, 12, top);
+		writeInt32(data, 16, right);
+		writeInt32(data, 20, bottom);
+		return data;
+	}
+
 	private byte[] createBackgroundEmf() throws IOException {
 		EmfGdi gdi = new EmfGdi();
 		gdi.rectangle(0, 0, 100, 100);
@@ -2188,6 +2302,33 @@ public class AwtGdiTest {
 		payload.reset();
 		writeInt(payload, 0);
 		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, 0x0000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusBitmapDrawImagePointsComment(int srcUnit) throws IOException {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		byte[] png = createTwoPixelPng();
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, srcUnit);
 		writeFloat(payload, 0);
 		writeFloat(payload, 0);
 		writeFloat(payload, 2);

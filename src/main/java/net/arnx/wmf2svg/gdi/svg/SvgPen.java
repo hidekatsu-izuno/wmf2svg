@@ -132,6 +132,6 @@ class SvgPen extends SvgObject implements GdiPen {
 		if ((style & PS_DEVICE_WIDTH) != 0) {
 			return Math.max(1.0, width);
 		}
-		return getGDI().getDC().toStrokeWidth(width);
+		return Math.max(getGDI().getDC().toStrokeWidth(width), getGDI().getPlaceableHorizontalPixelWidth());
 	}
 }

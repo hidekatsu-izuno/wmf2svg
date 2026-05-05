@@ -77,6 +77,8 @@ import net.arnx.wmf2svg.gdi.emf.EmfPlusConstants;
 import net.arnx.wmf2svg.gdi.emf.EmfPlusParser;
 import net.arnx.wmf2svg.gdi.emf.EmfParseException;
 import net.arnx.wmf2svg.gdi.emf.EmfParser;
+import net.arnx.wmf2svg.gdi.wmf.WmfParseException;
+import net.arnx.wmf2svg.gdi.wmf.WmfParser;
 import net.arnx.wmf2svg.util.FontUtil;
 import net.arnx.wmf2svg.util.SymbolFontMappings;
 
@@ -95,6 +97,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private BufferedImage image;
 	private Graphics2D graphics;
 	private boolean placeableHeader;
+	private boolean emfHeaderCanvas;
+	private int emfHeaderFrameCanvasWidth;
+	private int emfHeaderFrameCanvasHeight;
 	private double placeableViewportScaleX = 1.0;
 	private double placeableViewportScaleY = 1.0;
 	private boolean growCanvas = true;
@@ -214,6 +219,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi) {
 		placeableHeader = true;
+		emfHeaderCanvas = false;
 		growCanvas = false;
 		initialDpi = dpi;
 		canvasWidth = unitsToPixels(vsx, vex, dpi);
@@ -224,6 +230,52 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		dc.setWindowExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		setViewportExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		dc.setDpi(dpi);
+	}
+
+	public void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom) {
+		emfHeader(left, top, right, bottom, frameLeft, frameTop, frameRight, frameBottom, 0, 0, 0, 0);
+	}
+
+	public void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom, int deviceWidth, int deviceHeight, int millimetersWidth, int millimetersHeight) {
+		int width = Math.abs(right - left);
+		int height = Math.abs(bottom - top);
+		if (replayingPendingEmf || placeableHeader || width == 0 || height == 0 || image != null) {
+			return;
+		}
+		emfHeaderFrameCanvasWidth = emfHeaderFrameCanvasSize(Math.abs(frameRight - frameLeft), deviceWidth,
+				millimetersWidth);
+		emfHeaderFrameCanvasHeight = emfHeaderFrameCanvasSize(Math.abs(frameBottom - frameTop), deviceHeight,
+				millimetersHeight);
+		emfHeaderCanvas = true;
+		growCanvas = false;
+		canvasMinX = left;
+		canvasMinY = top;
+		canvasWidth = emfHeaderCanvasSize(width, emfHeaderFrameCanvasWidth);
+		canvasHeight = emfHeaderCanvasSize(height, emfHeaderFrameCanvasHeight);
+	}
+
+	private int emfHeaderFrameCanvasSize(int frameSize, int deviceSize, int millimetersSize) {
+		if (frameSize <= 0 || deviceSize <= 0 || millimetersSize <= 0) {
+			return 0;
+		}
+		return Math.max(1, (int) Math.round((double) frameSize * deviceSize / (millimetersSize * 100.0)) + 1);
+	}
+
+	private int emfHeaderCanvasSize(int boundsSize, int frameCanvasSize) {
+		int size = frameCanvasSize > 0 ? Math.max(boundsSize, frameCanvasSize) : boundsSize;
+		return Math.min(size, MAX_CANVAS_SIZE);
+	}
+
+	private void useEmfPlusHeaderCanvas() {
+		if (!emfHeaderCanvas || emfHeaderFrameCanvasWidth <= 0 || emfHeaderFrameCanvasHeight <= 0 || image != null) {
+			return;
+		}
+		canvasMinX = 0;
+		canvasMinY = 0;
+		canvasWidth = Math.min(emfHeaderFrameCanvasWidth, MAX_CANVAS_SIZE);
+		canvasHeight = Math.min(emfHeaderFrameCanvasHeight, MAX_CANVAS_SIZE);
 	}
 
 	public void header() {
@@ -580,6 +632,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
+			useEmfPlusHeaderCanvas();
 			if (emfPlusGetDCActive) {
 				endEmfPlusGetDCMode();
 			} else {
@@ -1819,6 +1872,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		int imageAttributesId = readInt32(payload, 0);
+		int srcUnit = readInt32(payload, 4);
 		double srcX = readFloat(payload, 8);
 		double srcY = readFloat(payload, 12);
 		double srcWidth = readFloat(payload, 16);
@@ -1833,7 +1887,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		EmfPlusImageEffect effect = pendingEmfPlusImageEffect;
 		pendingEmfPlusImageEffect = null;
-		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points, true, effect);
+		drawEmfPlusImage(objectId, imageAttributesId, srcX, srcY, srcWidth, srcHeight, points,
+				shouldNormalizeEmfPlusImagePoints(srcUnit), effect);
+	}
+
+	private boolean shouldNormalizeEmfPlusImagePoints(int srcUnit) {
+		return srcUnit != EMF_PLUS_UNIT_PIXEL;
 	}
 
 	private void drawEmfPlusImage(int objectId, int imageAttributesId, double srcX, double srcY, double srcWidth,
@@ -2066,14 +2125,33 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		try {
 			AwtGdi gdi = new AwtGdi();
 			gdi.setReplaceSymbolFont(replaceSymbolFont);
-			gdi.setParseEmfPlusComments(false);
-			new EmfParser().parse(new ByteArrayInputStream(metafile), gdi);
+			if (isPlaceableWmf(metafile)) {
+				new WmfParser(false).parse(new ByteArrayInputStream(normalizePlaceableWmf(metafile)), gdi);
+			} else {
+				new EmfParser().parse(new ByteArrayInputStream(metafile), gdi);
+			}
 			return cropTransparentBounds(gdi.getImage());
 		} catch (IOException e) {
 			return null;
 		} catch (EmfParseException e) {
 			return null;
+		} catch (WmfParseException e) {
+			return null;
 		}
+	}
+
+	private boolean isPlaceableWmf(byte[] data) {
+		return data.length >= 4 && readInt32(data, 0) == 0x9AC6CDD7;
+	}
+
+	private byte[] normalizePlaceableWmf(byte[] data) {
+		if (data.length >= 28 && readInt16(data, 22) == 0 && readInt16(data, 24) == 1 && readInt16(data, 26) == 9) {
+			byte[] normalized = new byte[data.length - 2];
+			System.arraycopy(data, 0, normalized, 0, 22);
+			System.arraycopy(data, 24, normalized, 22, data.length - 24);
+			return normalized;
+		}
+		return data;
 	}
 
 	private BufferedImage cropTransparentBounds(BufferedImage source) {
@@ -2521,7 +2599,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			y = placeableViewportY(y);
 		}
 		dc.setViewportExtEx(x, y, old);
-		if (!replayingPendingEmf && !placeableHeader && x != 0 && y != 0 && image == null) {
+		if (!replayingPendingEmf && !placeableHeader && !emfHeaderCanvas && x != 0 && y != 0 && image == null) {
 			growCanvas = false;
 			canvasWidth = Math.min(Math.max(Math.abs(x), 1), MAX_CANVAS_SIZE);
 			canvasHeight = Math.min(Math.max(Math.abs(y), 1), MAX_CANVAS_SIZE);
@@ -2552,7 +2630,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		dc.setWindowExtEx(width, height, old);
-		if (!replayingPendingEmf && !placeableHeader && width != 0 && height != 0) {
+		if (!replayingPendingEmf && !placeableHeader && !emfHeaderCanvas && width != 0 && height != 0) {
 			growCanvas = false;
 			if (image == null) {
 				canvasWidth = windowExtentToCanvasSize(width, dc.getWindowX());
@@ -2627,7 +2705,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				ignoredPendingEmfHeaderMappings = useCapturedDc || useFooterDc ? 2 : 0;
 				if (!useCapturedDc && !useFooterDc) {
 					applyPendingEmfFrame(pendingEmf.header);
-				} else if (pendingEmf.header != null && (useCapturedDc || !placeableHeader)) {
+				} else if (pendingEmf.header != null && useCapturedDc) {
 					ensureGraphics();
 					oldClip = graphics.getClip();
 					graphics.clip(toRectangle(pendingEmf.header.boundsLeft, pendingEmf.header.boundsTop,
@@ -4288,6 +4366,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private BufferedImage decodeBitmap(byte[] data, int usage, boolean reverse, Integer transparentColor,
 			boolean preserveAlpha) {
+		data = applyMonochromePatternColors(data, usage);
 		BufferedImage decoded = decodeWmfBitmap(data, reverse, transparentColor, preserveAlpha);
 		if (decoded == null) {
 			decoded = decodeDib(applyPaletteToDib(data, usage), reverse, transparentColor, preserveAlpha,
@@ -4301,6 +4380,28 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		} catch (IOException e) {
 			return null;
 		}
+	}
+
+	private byte[] applyMonochromePatternColors(byte[] dib, int usage) {
+		if (usage != 3 || dib == null || dib.length < 48) {
+			return dib;
+		}
+		int headerSize = readInt32(dib, 0);
+		if (headerSize < 40 || dib.length < headerSize + 8 || readUInt16(dib, 14) != 1
+				|| getDibColorCount(dib, headerSize, 1) < 2) {
+			return dib;
+		}
+		byte[] rgbDib = dib.clone();
+		writeRgbQuad(rgbDib, headerSize, dc.getTextColor());
+		writeRgbQuad(rgbDib, headerSize + 4, dc.getBkColor());
+		return rgbDib;
+	}
+
+	private void writeRgbQuad(byte[] dib, int offset, int color) {
+		dib[offset] = (byte) ((color >>> 16) & 0xFF);
+		dib[offset + 1] = (byte) ((color >>> 8) & 0xFF);
+		dib[offset + 2] = (byte) (color & 0xFF);
+		dib[offset + 3] = 0;
 	}
 
 	private Rectangle2D toRectangle(int x, int y, int width, int height) {

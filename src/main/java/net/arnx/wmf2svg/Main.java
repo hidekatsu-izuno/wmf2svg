@@ -86,7 +86,6 @@ public class Main {
 			final Gdi gdi;
 			if (isRasterOutput(destLower)) {
 				AwtGdi awtGdi = new AwtGdi();
-				awtGdi.setOpaqueBackground(src.toLowerCase().endsWith(".emf"));
 				awtGdi.setReplaceSymbolFont(replaceSymbolFont);
 				gdi = awtGdi;
 			} else {

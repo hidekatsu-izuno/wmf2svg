@@ -65,6 +65,8 @@ import net.arnx.wmf2svg.gdi.emf.EmfParser;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
 import net.arnx.wmf2svg.gdi.Trivertex;
+import net.arnx.wmf2svg.gdi.wmf.WmfParseException;
+import net.arnx.wmf2svg.gdi.wmf.WmfParser;
 import net.arnx.wmf2svg.util.Base64;
 import net.arnx.wmf2svg.util.ImageUtil;
 import net.arnx.wmf2svg.util.SymbolFontMappings;
@@ -100,6 +102,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
+	private boolean replayingPendingEmf = false;
 	private Map<Integer, byte[]> emfPlusMetafileImages = new HashMap<Integer, byte[]>();
 	private Map<Integer, byte[]> emfPlusBitmapImages = new HashMap<Integer, byte[]>();
 	private Map<Integer, EmfPlusBrush> emfPlusBrushes = new HashMap<Integer, EmfPlusBrush>();
@@ -165,6 +168,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	private int targetCanvasHeight = 0;
 
+	private int placeableLogicalWidth = 0;
+
+	private int placeableLogicalHeight = 0;
+
 	private boolean windowCanvasOriginSet = false;
 
 	private int windowCanvasX = 0;
@@ -176,6 +183,20 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private int viewportCanvasX = 0;
 
 	private int viewportCanvasY = 0;
+
+	private boolean emfHeaderCanvas = false;
+
+	private int emfHeaderCanvasX = 0;
+
+	private int emfHeaderCanvasY = 0;
+
+	private int emfHeaderCanvasWidth = 0;
+
+	private int emfHeaderCanvasHeight = 0;
+
+	private int emfHeaderFrameCanvasWidth = 0;
+
+	private int emfHeaderFrameCanvasHeight = 0;
 
 	private int brushNo = 0;
 
@@ -308,20 +329,67 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void placeableHeader(int wsx, int wsy, int wex, int wey, int dpi) {
 		placeableHeader = true;
+		emfHeaderCanvas = false;
 		initialDpi = dpi;
+		placeableLogicalWidth = Math.abs(wex - wsx);
+		placeableLogicalHeight = Math.abs(wey - wsy);
+		targetCanvasWidth = unitsToPixels(wsx, wex, dpi);
+		targetCanvasHeight = unitsToPixels(wsy, wey, dpi);
 		if (parentNode == null) {
 			init();
 		}
 
-		dc.setWindowExtEx(Math.abs(wex - wsx), Math.abs(wey - wsy), null);
-		dc.setViewportExtEx(Math.abs(wex - wsx), Math.abs(wey - wsy), null);
+		dc.setWindowExtEx(placeableLogicalWidth, placeableLogicalHeight, null);
+		dc.setViewportExtEx(placeableLogicalWidth, placeableLogicalHeight, null);
 		dc.setDpi(dpi);
 
 		Element root = doc.getDocumentElement();
-		targetCanvasWidth = unitsToPixels(wsx, wex, dpi);
-		targetCanvasHeight = unitsToPixels(wsy, wey, dpi);
 		root.setAttribute("width", pixelsToCssInches(targetCanvasWidth));
 		root.setAttribute("height", pixelsToCssInches(targetCanvasHeight));
+	}
+
+	public void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom) {
+		emfHeader(left, top, right, bottom, frameLeft, frameTop, frameRight, frameBottom, 0, 0, 0, 0);
+	}
+
+	public void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom, int deviceWidth, int deviceHeight, int millimetersWidth, int millimetersHeight) {
+		int width = Math.abs(right - left);
+		int height = Math.abs(bottom - top);
+		if (replayingPendingEmf || placeableHeader || width == 0 || height == 0) {
+			return;
+		}
+		emfHeaderFrameCanvasWidth = emfHeaderFrameCanvasSize(Math.abs(frameRight - frameLeft), deviceWidth,
+				millimetersWidth);
+		emfHeaderFrameCanvasHeight = emfHeaderFrameCanvasSize(Math.abs(frameBottom - frameTop), deviceHeight,
+				millimetersHeight);
+		emfHeaderCanvas = true;
+		emfHeaderCanvasX = left;
+		emfHeaderCanvasY = top;
+		emfHeaderCanvasWidth = emfHeaderCanvasSize(width, emfHeaderFrameCanvasWidth);
+		emfHeaderCanvasHeight = emfHeaderCanvasSize(height, emfHeaderFrameCanvasHeight);
+	}
+
+	private int emfHeaderFrameCanvasSize(int frameSize, int deviceSize, int millimetersSize) {
+		if (frameSize <= 0 || deviceSize <= 0 || millimetersSize <= 0) {
+			return 0;
+		}
+		return Math.max(1, (int) Math.round((double) frameSize * deviceSize / (millimetersSize * 100.0)) + 1);
+	}
+
+	private int emfHeaderCanvasSize(int boundsSize, int frameCanvasSize) {
+		return frameCanvasSize > 0 ? Math.max(boundsSize, frameCanvasSize) : boundsSize;
+	}
+
+	private void useEmfPlusHeaderCanvas() {
+		if (!emfHeaderCanvas || emfHeaderFrameCanvasWidth <= 0 || emfHeaderFrameCanvasHeight <= 0) {
+			return;
+		}
+		emfHeaderCanvasX = 0;
+		emfHeaderCanvasY = 0;
+		emfHeaderCanvasWidth = emfHeaderFrameCanvasWidth;
+		emfHeaderCanvasHeight = emfHeaderFrameCanvasHeight;
 	}
 
 	private int unitsToPixels(int start, int end, int inch) {
@@ -348,6 +416,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		return placeableHeader;
 	}
 
+	double getPlaceableHorizontalPixelWidth() {
+		int viewportWidth = dc != null ? Math.abs(dc.getViewportWidth()) : 0;
+		if (!placeableHeader || targetCanvasWidth <= 0 || viewportWidth == 0) {
+			return 1.0;
+		}
+		return Math.max(1.0, (double) viewportWidth / targetCanvasWidth);
+	}
+
 	public void header() {
 		if (parentNode == null) {
 			init();
@@ -357,6 +433,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private void init() {
 		dc = new SvgDc(this);
 		dc.setDpi(initialDpi);
+		if (placeableHeader && placeableLogicalWidth > 0 && placeableLogicalHeight > 0) {
+			dc.setWindowExtEx(placeableLogicalWidth, placeableLogicalHeight, null);
+			dc.setViewportExtEx(placeableLogicalWidth, placeableLogicalHeight, null);
+		}
 
 		Element root = doc.getDocumentElement();
 		root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -742,11 +822,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public GdiPen createPenIndirect(int style, int width, int color) {
 		SvgPen pen = new SvgPen(this, style, width, color);
-		if (!nameMap.containsKey(pen)) {
-			String name = "pen" + (penNo++);
-			nameMap.put(pen, name);
-			styleNode.appendChild(pen.createTextNode(name));
-		}
+		String name = "pen" + (penNo++);
+		nameMap.put(pen, name);
+		styleNode.appendChild(pen.createTextNode(name));
 		return pen;
 	}
 
@@ -840,6 +918,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
+			useEmfPlusHeaderCanvas();
 			if (emfPlusGetDCActive) {
 				endEmfPlusGetDCMode();
 			} else {
@@ -1249,7 +1328,6 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			byte[] metafile = new byte[metafileSize];
 			System.arraycopy(payload, 16, metafile, 0, metafileSize);
 			emfPlusMetafileImages.put(Integer.valueOf(objectId), metafile);
-			includePendingEmfBounds(metafile);
 			return;
 		}
 		if (imageDataType != EMF_PLUS_IMAGE_DATA_TYPE_BITMAP) {
@@ -3522,6 +3600,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
+		int srcUnit = readInt32(payload, 4);
 		float srcX = readFloat(payload, 8);
 		float srcY = readFloat(payload, 12);
 		float srcWidth = readFloat(payload, 16);
@@ -3536,7 +3615,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		appendEmfPlusImage(objectId, srcX, srcY, srcWidth, srcHeight, points, true);
+		appendEmfPlusImage(objectId, srcX, srcY, srcWidth, srcHeight, points,
+				shouldNormalizeEmfPlusImagePoints(srcUnit));
+	}
+
+	private boolean shouldNormalizeEmfPlusImagePoints(int srcUnit) {
+		return srcUnit != EMF_PLUS_UNIT_PIXEL;
 	}
 
 	private void appendEmfPlusImage(int objectId, double srcX, double srcY, double srcWidth, double srcHeight,
@@ -3552,7 +3636,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (bitmap != null) {
 			href = PNG_DATA_URI_PREFIX + Base64.encode(bitmap);
 		} else {
-			href = createSvgDataUri(metafile);
+			href = createSvgDataUri(metafile, srcX, srcY, srcWidth, srcHeight);
 			suppressFallback = true;
 		}
 		if (href == null) {
@@ -3950,11 +4034,21 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private String createSvgDataUri(byte[] metafile) {
+		return createSvgDataUri(metafile, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+	}
+
+	private String createSvgDataUri(byte[] metafile, double srcX, double srcY, double srcWidth, double srcHeight) {
 		try {
 			SvgGdi svg = new SvgGdi(compatible);
 			svg.setReplaceSymbolFont(replaceSymbolFont);
-			svg.setParseEmfPlusComments(false);
-			new EmfParser().parse(new ByteArrayInputStream(metafile), svg);
+			if (isPlaceableWmf(metafile)) {
+				new WmfParser(false).parse(new ByteArrayInputStream(normalizePlaceableWmf(metafile)), svg);
+			} else {
+				new EmfParser().parse(new ByteArrayInputStream(metafile), svg);
+			}
+			if (isFinitePositive(srcWidth) && isFinitePositive(srcHeight)) {
+				svg.setRootCanvas(srcX, srcY, srcWidth, srcHeight);
+			}
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			svg.write(out);
 			return SVG_DATA_URI_PREFIX + Base64.encode(out.toByteArray());
@@ -3964,10 +4058,40 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		} catch (EmfParseException e) {
 			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
 			return null;
+		} catch (WmfParseException e) {
+			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
+			return null;
 		} catch (SvgGdiException e) {
 			log.fine("unsupported EMF+ metafile image: " + e.getMessage());
 			return null;
 		}
+	}
+
+	private static boolean isFinitePositive(double value) {
+		return value > 0 && !Double.isNaN(value) && !Double.isInfinite(value);
+	}
+
+	private void setRootCanvas(double x, double y, double width, double height) {
+		Element root = doc.getDocumentElement();
+		root.setAttribute("width", formatDouble(width));
+		root.setAttribute("height", formatDouble(height));
+		root.setAttribute("viewBox",
+				formatDouble(x) + " " + formatDouble(y) + " " + formatDouble(width) + " " + formatDouble(height));
+		root.setAttribute("preserveAspectRatio", "none");
+	}
+
+	private boolean isPlaceableWmf(byte[] data) {
+		return data.length >= 4 && readInt32(data, 0) == 0x9AC6CDD7;
+	}
+
+	private byte[] normalizePlaceableWmf(byte[] data) {
+		if (data.length >= 28 && readInt16(data, 22) == 0 && readInt16(data, 24) == 1 && readInt16(data, 26) == 9) {
+			byte[] normalized = new byte[data.length - 2];
+			System.arraycopy(data, 0, normalized, 0, 22);
+			System.arraycopy(data, 24, normalized, 22, data.length - 24);
+			return normalized;
+		}
+		return data;
 	}
 
 	private void includePendingEmfBounds(byte[] data) {
@@ -4006,9 +4130,11 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		ArrayList<PendingEmf> list = pendingEmfList;
 		pendingEmfList = new ArrayList<PendingEmf>();
 		SvgDc savedDc = dc;
+		boolean savedReplayingPendingEmf = replayingPendingEmf;
 		for (PendingEmf pendingEmf : list) {
 			try {
 				dc = (SvgDc) pendingEmf.dc.clone();
+				replayingPendingEmf = true;
 				new EmfParser(false).parse(new ByteArrayInputStream(pendingEmf.data), this);
 			} catch (IOException e) {
 				throw new IllegalStateException(e);
@@ -4016,6 +4142,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				throw new IllegalStateException(e);
 			} finally {
 				dc = savedDc;
+				replayingPendingEmf = savedReplayingPendingEmf;
 			}
 		}
 	}
@@ -4610,6 +4737,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			} else {
 				if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
 					buffer.append("dominant-baseline: alphabetic; ");
+				} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_TOP) {
+					buffer.append("dominant-baseline: alphabetic; ");
+					elem.setAttribute("dy", "0.88em");
 				} else {
 					buffer.append("dominant-baseline: text-before-edge; ");
 				}
@@ -6492,7 +6622,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void setViewportExtEx(int x, int y, Size old) {
 		dc.setViewportExtEx(x, y, old);
-		if (!placeableHeader && x != 0 && y != 0) {
+		if (!replayingPendingEmf && !placeableHeader && x != 0 && y != 0) {
 			viewportCanvasOriginSet = true;
 			viewportCanvasX = dc.getViewportX();
 			viewportCanvasY = dc.getViewportY();
@@ -6505,7 +6635,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void setWindowExtEx(int width, int height, Size old) {
 		dc.setWindowExtEx(width, height, old);
-		if (!placeableHeader && width != 0 && height != 0) {
+		if (!replayingPendingEmf && !placeableHeader && width != 0 && height != 0 && !windowCanvasOriginSet) {
 			windowCanvasOriginSet = true;
 			windowCanvasX = dc.getWindowX();
 			windowCanvasY = dc.getWindowY();
@@ -6576,6 +6706,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		} else {
 			if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_BASELINE) {
 				buffer.append("dominant-baseline: alphabetic; ");
+			} else if ((align & (TA_BOTTOM | TA_TOP | TA_BASELINE)) == TA_TOP) {
+				buffer.append("dominant-baseline: alphabetic; ");
+				elem.setAttribute("dy", "0.88em");
 			} else {
 				buffer.append("dominant-baseline: text-before-edge; ");
 			}
@@ -6674,6 +6807,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		int y = dc.getViewportHeight() != 0
 				? (viewportCanvasOriginSet ? viewportCanvasY : dc.getViewportY())
 				: (placeableHeader ? 0 : (windowCanvasOriginSet ? windowCanvasY : dc.getWindowY()));
+		if (emfHeaderCanvas) {
+			x = emfHeaderCanvasX;
+			y = emfHeaderCanvasY;
+			width = emfHeaderCanvasWidth;
+			height = emfHeaderCanvasHeight;
+		}
 		double[] contentBounds = getRootContentBounds(root);
 		double[] physicalCanvasBounds = getPhysicalCanvasBounds(root);
 		double[] canvasBounds = getCanvasBounds(x, y, width, height, contentBounds, physicalCanvasBounds);
@@ -6735,7 +6874,19 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return physicalCanvasBounds;
 		}
 		if (!placeableHeader && contentBounds != null) {
-			return addBounds(new double[]{0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT}, contentBounds);
+			if (contentBounds[0] < 0.0 || contentBounds[1] < 0.0 || contentBounds[2] < 0.0 || contentBounds[3] < 0.0) {
+				double left = Math.min(0.0, contentBounds[0]);
+				double top = Math.min(0.0, contentBounds[1]);
+				if (contentBounds[2] - left <= DEFAULT_CANVAS_WIDTH
+						&& contentBounds[3] - top <= DEFAULT_CANVAS_HEIGHT) {
+					int canvasLeft = (int) Math.floor(left);
+					int canvasTop = (int) Math.floor(top);
+					return new double[]{canvasLeft, canvasTop, canvasLeft + DEFAULT_CANVAS_WIDTH,
+							canvasTop + DEFAULT_CANVAS_HEIGHT};
+				}
+				return contentBounds;
+			}
+			return new double[]{0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT};
 		}
 		if (contentBounds != null) {
 			return contentBounds;
@@ -6805,7 +6956,59 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				bounds = addBounds(bounds, getContentBounds((Element) node));
 			}
 		}
-		return bounds;
+		return transformBounds(bounds, elem.getAttribute("transform"));
+	}
+
+	private double[] transformBounds(double[] bounds, String transform) {
+		if (bounds == null || transform == null || transform.length() == 0) {
+			return bounds;
+		}
+		double[] matrix = readTransformMatrix(transform);
+		if (matrix == null) {
+			return bounds;
+		}
+		double[] transformed = null;
+		transformed = addTransformedPointToBounds(transformed, bounds[0], bounds[1], matrix);
+		transformed = addTransformedPointToBounds(transformed, bounds[2], bounds[1], matrix);
+		transformed = addTransformedPointToBounds(transformed, bounds[0], bounds[3], matrix);
+		transformed = addTransformedPointToBounds(transformed, bounds[2], bounds[3], matrix);
+		return transformed;
+	}
+
+	private double[] addTransformedPointToBounds(double[] bounds, double x, double y, double[] matrix) {
+		return addPointToBounds(bounds, matrix[0] * x + matrix[2] * y + matrix[4],
+				matrix[1] * x + matrix[3] * y + matrix[5]);
+	}
+
+	private double[] readTransformMatrix(String transform) {
+		transform = transform.trim();
+		if (transform.startsWith("rotate(")) {
+			double[] values = readNumbers(transform.substring(7, transform.indexOf(')', 7)));
+			if (values.length == 1) {
+				return createRotateMatrix(values[0], 0.0, 0.0);
+			}
+			if (values.length >= 3) {
+				return createRotateMatrix(values[0], values[1], values[2]);
+			}
+		} else if (transform.startsWith("translate(")) {
+			double[] values = readNumbers(transform.substring(10, transform.indexOf(')', 10)));
+			if (values.length >= 1) {
+				return new double[]{1.0, 0.0, 0.0, 1.0, values[0], values.length >= 2 ? values[1] : 0.0};
+			}
+		} else if (transform.startsWith("matrix(")) {
+			double[] values = readNumbers(transform.substring(7, transform.indexOf(')', 7)));
+			if (values.length >= 6) {
+				return new double[]{values[0], values[1], values[2], values[3], values[4], values[5]};
+			}
+		}
+		return null;
+	}
+
+	private double[] createRotateMatrix(double degrees, double cx, double cy) {
+		double radians = Math.toRadians(degrees);
+		double cos = Math.cos(radians);
+		double sin = Math.sin(radians);
+		return new double[]{cos, sin, -sin, cos, cx - cos * cx + sin * cy, cy - sin * cx - cos * cy};
 	}
 
 	private double[] getPhysicalCanvasBounds(Element root) {
@@ -7491,6 +7694,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	private byte[] convertDibToPng(byte[] dib, int usage, boolean reverse, Integer transparentColor,
 			boolean preserveAlpha) {
+		dib = applyMonochromePatternColors(dib, usage);
 		dib = applyPaletteToDib(dib, usage);
 		BufferedImage decoded = decodeWmfBitmap(dib, reverse, transparentColor, preserveAlpha);
 		if (decoded == null) {
@@ -7572,6 +7776,28 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			}
 		}
 		return image;
+	}
+
+	private byte[] applyMonochromePatternColors(byte[] dib, int usage) {
+		if (usage != 3 || dib == null || dib.length < 48) {
+			return dib;
+		}
+		int headerSize = readInt32(dib, 0);
+		if (headerSize < 40 || dib.length < headerSize + 8 || readUInt16(dib, 14) != 1
+				|| getDibColorCount(dib, headerSize, 1) < 2) {
+			return dib;
+		}
+		byte[] rgbDib = dib.clone();
+		writeRgbQuad(rgbDib, headerSize, dc.getTextColor());
+		writeRgbQuad(rgbDib, headerSize + 4, dc.getBkColor());
+		return rgbDib;
+	}
+
+	private void writeRgbQuad(byte[] dib, int offset, int color) {
+		dib[offset] = (byte) ((color >>> 16) & 0xFF);
+		dib[offset + 1] = (byte) ((color >>> 8) & 0xFF);
+		dib[offset + 2] = (byte) (color & 0xFF);
+		dib[offset + 3] = 0;
 	}
 
 	private int readWmfBitmapPixel(byte[] bitmap, int row, int x, int bitCount, Integer transparentColor,

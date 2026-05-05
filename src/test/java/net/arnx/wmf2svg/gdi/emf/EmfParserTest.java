@@ -22,7 +22,7 @@ public class EmfParserTest {
 
 		assertTrue(svg.indexOf("width=\"100\"") >= 0);
 		assertTrue(svg.indexOf("height=\"50\"") >= 0);
-		assertTrue(svg.indexOf("viewBox=\"0 0 100 50\"") >= 0);
+		assertTrue(svg.indexOf("viewBox=\"10 20 100 50\"") >= 0);
 	}
 
 	@Test

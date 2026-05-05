@@ -116,6 +116,13 @@ public interface Gdi {
 	public static final int GRADIENT_FILL_TRIANGLE = 2;
 
 	public void placeableHeader(int vsx, int vsy, int vex, int vey, int dpi);
+	public default void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom) {
+	}
+	public default void emfHeader(int left, int top, int right, int bottom, int frameLeft, int frameTop, int frameRight,
+			int frameBottom, int deviceWidth, int deviceHeight, int millimetersWidth, int millimetersHeight) {
+		emfHeader(left, top, right, bottom, frameLeft, frameTop, frameRight, frameBottom);
+	}
 	public void header();
 	public void animatePalette(GdiPalette palette, int startIndex, int[] entries);
 	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,

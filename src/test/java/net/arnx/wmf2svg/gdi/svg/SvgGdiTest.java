@@ -30,6 +30,8 @@ import net.arnx.wmf2svg.gdi.Trivertex;
 
 public class SvgGdiTest {
 	private static final Pattern PNG_DATA_PATTERN = Pattern.compile("xlink:href=\"data:image/png;base64,([^\"]+)\"");
+	private static final Pattern SVG_DATA_PATTERN = Pattern
+			.compile("xlink:href=\"data:image/svg\\+xml;base64,([^\"]+)\"");
 
 	@Test
 	public void testLogicalFontFallbackFamilies() throws Exception {
@@ -2181,8 +2183,60 @@ public class SvgGdiTest {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		gdi.write(out);
 		String svg = out.toString("UTF-8");
-		Assert.assertTrue(svg.contains("stroke-width: 1.0;"));
+		Assert.assertTrue(svg.contains("stroke-width: 10.405797101449275;"));
+		Assert.assertFalse(svg.contains("vector-effect:"));
 		Assert.assertFalse(svg.contains("stroke-width: 11.0;"));
+	}
+
+	@Test
+	public void testPlaceableThinPenUsesAtLeastOneOutputPixelWidth() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.placeableHeader(0, 0, 3277, 2130, 1489);
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(3277, 2130, null);
+		GdiPen pen = gdi.createPenIndirect(0, 1, 0);
+		gdi.selectObject(pen);
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(3277, 0);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("stroke-width: 10.337539432176657;"));
+		Assert.assertFalse(svg.contains("vector-effect:"));
+	}
+
+	@Test
+	public void testPlaceableDefaultPenUsesAtLeastOneOutputPixelWidth() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.placeableHeader(0, 0, 9000, 9000, 1440);
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(200, 200, null);
+		gdi.rectangle(10, 10, 110, 110);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains(".pen0 { stroke: rgb(0,0,0); stroke-width: 10.0;"));
+		Assert.assertFalse(svg.contains(".pen0 { stroke: rgb(0,0,0); stroke-width: 1.0;"));
+		Assert.assertFalse(svg.contains("vector-effect:"));
+	}
+
+	@Test
+	public void testNonPlaceableCosmeticPenDoesNotForceNonScalingStroke() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(100, 100, null);
+		GdiPen pen = gdi.createPenIndirect(0, 0, 0);
+		gdi.selectObject(pen);
+		gdi.moveToEx(0, 0, null);
+		gdi.lineTo(100, 100);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("stroke-width: 1.0;"));
+		Assert.assertFalse(svg.contains("vector-effect:"));
 	}
 
 	@Test
@@ -2277,6 +2331,21 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testEmbeddedEmfReplayDoesNotOverrideOuterWindowOrigin() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEnhancedMetafileComment(createEmfWithPolyline(0, 0, 100, 100)));
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(-10, -20, null);
+		gdi.setWindowExtEx(100, 100, null);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("viewBox=\"-10 -20 100 100\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 100 100\""));
+	}
+
+	@Test
 	public void testEmbeddedEmfPlusCommentKeepsGdiFallbackContent() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -2305,6 +2374,26 @@ public class SvgGdiTest {
 		String svg = out.toString("UTF-8");
 		Assert.assertEquals(2, count(svg, "<image "));
 		Assert.assertFalse(svg.contains("<line "));
+	}
+
+	@Test
+	public void testEmfPlusMetafileImageUsesSourceRectCanvas() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowExtEx(20, 10, null);
+		gdi.comment(createEmfPlusMetafileImageComment(0, createMinimalEmf(-352, -381, 942, 812)));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 20 10\""));
+		Assert.assertFalse(svg.contains("viewBox=\"-352 -381 1294 1193\""));
+
+		Matcher matcher = SVG_DATA_PATTERN.matcher(svg);
+		Assert.assertTrue(matcher.find());
+		String nestedSvg = new String(java.util.Base64.getDecoder().decode(matcher.group(1)), "UTF-8");
+		Assert.assertTrue(nestedSvg.contains("width=\"20\""));
+		Assert.assertTrue(nestedSvg.contains("height=\"10\""));
+		Assert.assertTrue(nestedSvg.contains("viewBox=\"0 0 20 10\""));
 	}
 
 	@Test
@@ -2915,6 +3004,20 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("<image "));
 		Assert.assertTrue(svg.contains("xlink:href=\"data:image/png;base64,"));
 		Assert.assertTrue(svg.contains("transform=\"matrix(15 0 0 40 5 7)\""));
+	}
+
+	@Test
+	public void testEmfPlusDrawImagePointsUsesPixelUnitDestinationPoints() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusDrawImagePointsBitmapComment(0, createPng(2, 1), 2));
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("<image "));
+		Assert.assertTrue(svg.contains("transform=\"matrix(10 0 0 10 0 0)\""));
 	}
 
 	@Test
@@ -3772,6 +3875,41 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testNoPlaceableHeaderDoesNotExpandDefaultCanvasForPositiveOverflow() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 0, 0, GdiFont.FW_NORMAL, false, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Arial".getBytes("US-ASCII")));
+		gdi.textOut(170, 120, "I am the string I am the string".getBytes("US-ASCII"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"330\""));
+		Assert.assertTrue(svg.contains("height=\"460\""));
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 330 460\""));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 430 460\""));
+		Assert.assertTrue(svg.contains("dy=\"0.88em\""));
+		Assert.assertTrue(svg.contains("dominant-baseline: alphabetic"));
+		Assert.assertTrue(svg.contains("<rect "));
+	}
+
+	@Test
+	public void testNoPlaceableHeaderShiftsDefaultCanvasForRotatedNegativeOverflow() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.selectObject(gdi.createFontIndirect(-20, 0, 600, 1700, GdiFont.FW_NORMAL, true, false, false,
+				GdiFont.ANSI_CHARSET, 0, 0, 0, 0, "Verdana".getBytes("US-ASCII")));
+		gdi.textOut(170, 120, "I am the string I am the string".getBytes("US-ASCII"));
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"330\""));
+		Assert.assertTrue(svg.contains("height=\"460\""));
+		Assert.assertTrue(svg.contains("viewBox=\"0 -"));
+		Assert.assertFalse(svg.contains("viewBox=\"0 0 330 460\""));
+	}
+
+	@Test
 	public void testNoPlaceableHeaderUsesDefaultViewport() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -3815,6 +3953,61 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("viewBox=\"0 0 200 200\""));
 		Assert.assertFalse(svg.contains("viewBox=\"100 100 200 200\""));
 		Assert.assertTrue(svg.contains("x=\"-75\""));
+	}
+
+	@Test
+	public void testLaterWindowOriginBeforeExtentDoesNotOverrideRootViewBoxOrigin() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(704, 576, null);
+		gdi.setWindowOrgEx(112, 64, null);
+		gdi.setWindowExtEx(706, 578, null);
+		gdi.ellipse(112, 64, 320, 264);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 706 578\""));
+		Assert.assertFalse(svg.contains("viewBox=\"112 64 706 578\""));
+		Assert.assertTrue(svg.contains("cx=\"104\""));
+		Assert.assertTrue(svg.contains("cy=\"100\""));
+	}
+
+	@Test
+	public void testStandaloneEmfHeaderCanvasUsesNonZeroBoundsOrigin() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.emfHeader(723, 1073, 1646, 1999, 22594, 33531, 51438, 62469, 1024, 768, 320, 240);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(923, 926, null);
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setViewportOrgEx(0, 0, null);
+		gdi.setWindowExtEx(8301, 8334, null);
+		gdi.setViewportExtEx(2767, 2778, null);
+		gdi.rectangle(2170, 3218, 4937, 5996);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"924\""));
+		Assert.assertTrue(svg.contains("height=\"927\""));
+		Assert.assertTrue(svg.contains("viewBox=\"723 1073 924 927\""));
+		Assert.assertTrue(svg.contains("x=\"723\""));
+		Assert.assertTrue(svg.contains("y=\"1073\""));
+	}
+
+	@Test
+	public void testStandaloneEmfPlusHeaderCanvasUsesFramePixelsAndZeroOrigin() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.emfHeader(2, 2, 102, 52, 0, 0, 20000, 10000, 100, 50, 100, 50);
+		gdi.comment(createEmfPlusComment().toByteArray());
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"201\""));
+		Assert.assertTrue(svg.contains("height=\"101\""));
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 201 101\""));
 	}
 
 	@Test
@@ -5181,6 +5374,34 @@ public class SvgGdiTest {
 		writeFloat(payload, 30);
 		writeFloat(payload, 40);
 		writeEmfPlusRecord(comment, 0x401A, objectId, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDrawImagePointsBitmapComment(int objectId, byte[] png, int srcUnit) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 2);
+		writeInt(payload, png.length);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500 | objectId, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, srcUnit);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, objectId, payload.toByteArray());
 		return comment.toByteArray();
 	}
 

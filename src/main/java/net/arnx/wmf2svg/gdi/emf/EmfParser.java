@@ -643,9 +643,16 @@ public class EmfParser implements Parser, EmfConstants {
 		int width = right - left;
 		int height = bottom - top;
 		if (width != 0 && height != 0) {
+			gdi.emfHeader(left, top, right, bottom, readInt32(data, 16), readInt32(data, 20), readInt32(data, 24),
+					readInt32(data, 28), readHeaderInt32(data, 64), readHeaderInt32(data, 68),
+					readHeaderInt32(data, 72), readHeaderInt32(data, 76));
 			gdi.setWindowOrgEx(0, 0, null);
 			gdi.setWindowExtEx(width, height, null);
 		}
+	}
+
+	private static int readHeaderInt32(byte[] data, int offset) {
+		return data.length >= offset + 4 ? readInt32(data, offset) : 0;
 	}
 
 	private GdiObject getObject(Map<Integer, GdiObject> objects, Map<Integer, GdiObject> stockObjects, int id) {

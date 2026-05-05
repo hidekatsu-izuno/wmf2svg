@@ -6,3 +6,5 @@ prefix_rule(pattern=["mvn", "test"], decision="allow")
 prefix_rule(pattern=["mvn", "-q", "spotless:apply"], decision="allow")
 prefix_rule(pattern=["gh", "issue", "view"], decision="allow")
 prefix_rule(pattern=["gh", "pr", "view"], decision="allow")
+prefix_rule(pattern=["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "./src/test/bin/wmf2png.ps1"], decision="allow")
+

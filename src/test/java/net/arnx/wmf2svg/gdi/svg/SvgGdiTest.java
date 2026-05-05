@@ -3997,6 +3997,22 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testStandaloneEmfHeaderCanvasPlacesExtraFramePixelAboveNegativeFrame() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.emfHeader(300, -616, 490, -501, 9375, -19250, 15313, -15656, 1024, 768, 320, 240);
+		gdi.rectangle(300, -616, 490, -501);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"191\""));
+		Assert.assertTrue(svg.contains("height=\"116\""));
+		Assert.assertTrue(svg.contains("viewBox=\"300 -617 191 116\""));
+		Assert.assertTrue(svg.contains("x=\"300\""));
+		Assert.assertTrue(svg.contains("y=\"-616\""));
+	}
+
+	@Test
 	public void testStandaloneEmfPlusHeaderCanvasUsesFramePixelsAndZeroOrigin() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();

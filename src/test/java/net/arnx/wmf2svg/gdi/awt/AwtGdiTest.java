@@ -120,6 +120,33 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testPatBltHonorsStandaloneEmfHeaderCanvasOrigin() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(0, 277, 1095, 1060, 0, 5309, 20968, 20298, 1920, 1200, 368, 230);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(1095, 783, null);
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x00FFFFFF, 0));
+		gdi.patBlt(-114, 277, 1324, 994, Gdi.PATCOPY);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0xFFFFFFFF, image.getRGB(10, 0));
+		assertEquals(0xFFFFFFFF, image.getRGB(10, image.getHeight() - 1));
+	}
+
+	@Test
+	public void testStandaloneEmfHeaderCanvasPlacesExtraFramePixelAboveNegativeFrame() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(300, -616, 490, -501, 9375, -19250, 15313, -15656, 1024, 768, 320, 240);
+		gdi.rectangle(300, -616, 490, -501);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0, (image.getRGB(10, 0) >>> 24) & 0xFF);
+		assertTrue(((image.getRGB(10, 1) >>> 24) & 0xFF) != 0);
+	}
+
+	@Test
 	public void testStandaloneEmfPlusHeaderCanvasUsesFramePixelsAndZeroOrigin() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();

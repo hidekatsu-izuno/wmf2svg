@@ -369,6 +369,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		emfHeaderCanvasY = top;
 		emfHeaderCanvasWidth = emfHeaderCanvasSize(width, emfHeaderFrameCanvasWidth);
 		emfHeaderCanvasHeight = emfHeaderCanvasSize(height, emfHeaderFrameCanvasHeight);
+		if (frameTop < 0 && emfHeaderFrameCanvasHeight > height) {
+			emfHeaderCanvasY -= emfHeaderFrameCanvasHeight - height;
+		}
 	}
 
 	private int emfHeaderFrameCanvasSize(int frameSize, int deviceSize, int millimetersSize) {

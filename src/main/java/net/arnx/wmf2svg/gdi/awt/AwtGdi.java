@@ -254,6 +254,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		canvasMinY = top;
 		canvasWidth = emfHeaderCanvasSize(width, emfHeaderFrameCanvasWidth);
 		canvasHeight = emfHeaderCanvasSize(height, emfHeaderFrameCanvasHeight);
+		if (frameTop < 0 && emfHeaderFrameCanvasHeight > height) {
+			canvasMinY -= emfHeaderFrameCanvasHeight - height;
+		}
 	}
 
 	private int emfHeaderFrameCanvasSize(int frameSize, int deviceSize, int millimetersSize) {
@@ -874,10 +877,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		ensureGraphics();
 		Rectangle2D rect = toRectangle(x, y, width, height);
 		ensureCanvasContains(rect);
-		int left = Math.max(0, (int) Math.floor(rect.getMinX()));
-		int top = Math.max(0, (int) Math.floor(rect.getMinY()));
-		int right = Math.min(canvasWidth, (int) Math.ceil(rect.getMaxX()));
-		int bottom = Math.min(canvasHeight, (int) Math.ceil(rect.getMaxY()));
+		int[] bounds = toDeviceBounds(rect);
+		int left = bounds[0];
+		int top = bounds[1];
+		int right = bounds[2];
+		int bottom = bounds[3];
 		if (left >= right || top >= bottom) {
 			return;
 		}
@@ -887,10 +891,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (needsPattern && isNullBrush(dc.getBrush())) {
 			return;
 		}
-		BufferedImage pattern = needsPattern ? createPatternImage(left, top, right - left, bottom - top) : null;
+		BufferedImage pattern = needsPattern
+				? createPatternImage(toLogicalXi(left), toLogicalYi(top), right - left, bottom - top)
+				: null;
 		for (int py = top; py < bottom; py++) {
 			for (int px = left; px < right; px++) {
-				if (!isInClip(px, py)) {
+				if (!isDeviceInClip(px, py)) {
 					continue;
 				}
 				int p = pattern != null ? pattern.getRGB(px - left, py - top) & 0x00FFFFFF : 0;
@@ -4311,6 +4317,34 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private boolean isCanvasPixel(int x, int y) {
 		return x >= 0 && y >= 0 && x < canvasWidth && y < canvasHeight;
+	}
+
+	private int[] toDeviceBounds(Rectangle2D bounds) {
+		return new int[]{Math.max(0, (int) Math.floor(bounds.getMinX() - canvasMinX)),
+				Math.max(0, (int) Math.floor(bounds.getMinY() - canvasMinY)),
+				Math.min(canvasWidth, (int) Math.ceil(bounds.getMaxX() - canvasMinX)),
+				Math.min(canvasHeight, (int) Math.ceil(bounds.getMaxY() - canvasMinY))};
+	}
+
+	private double toLogicalX(int deviceX) {
+		return deviceX + canvasMinX;
+	}
+
+	private double toLogicalY(int deviceY) {
+		return deviceY + canvasMinY;
+	}
+
+	private int toLogicalXi(int deviceX) {
+		return deviceX + canvasMinX;
+	}
+
+	private int toLogicalYi(int deviceY) {
+		return deviceY + canvasMinY;
+	}
+
+	private boolean isDeviceInClip(int x, int y) {
+		Shape clip = graphics.getClip();
+		return clip == null || clip.contains(toLogicalX(x) + 0.5, toLogicalY(y) + 0.5);
 	}
 
 	private boolean isInClip(int x, int y) {

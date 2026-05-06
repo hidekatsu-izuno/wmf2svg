@@ -204,7 +204,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: font mapper flags.
 - Rendering/test relevance: font substitution behavior.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed, but exact font mapping depends on runtime fonts.
+  - EmfGdi: Supported; serialized as `EMR_SETMAPPERFLAGS`.
   - SvgGdi: Partial; parsed, but exact font mapping depends on runtime fonts.
   - AwtGdi: Partial; parsed, but exact font mapping depends on runtime fonts.
 
@@ -248,9 +248,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: ROP2 mode.
 - Rendering/test relevance: non-copy stroke/fill blending tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed, with backend-specific ROP fidelity.
+  - EmfGdi: Supported; serialized as `EMR_SETROP2`.
   - SvgGdi: Partial; parsed, with backend-specific ROP fidelity.
-  - AwtGdi: Partial; parsed, with backend-specific ROP fidelity.
+  - AwtGdi: Supported; all defined ROP2 modes are mapped to Java2D compositing/filter behavior.
 
 ### EMR_SETSTRETCHBLTMODE (0x00000015)
 
@@ -259,9 +259,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: stretch/filtering mode.
 - Rendering/test relevance: scaled bitmap tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed, with backend-specific scaling behavior.
+  - EmfGdi: Supported; serialized as `EMR_SETSTRETCHBLTMODE`.
   - SvgGdi: Partial; parsed, with backend-specific scaling behavior.
-  - AwtGdi: Partial; parsed, with backend-specific scaling behavior.
+  - AwtGdi: Supported; stretch modes are mapped to Java2D interpolation hints where applicable.
 
 ### EMR_SETTEXTALIGN (0x00000016)
 
@@ -281,9 +281,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: raw color-adjustment structure.
 - Rendering/test relevance: bitmap color transform tests.
 - wmf2svg status:
-  - EmfGdi: Partial; payload is passed to `Gdi`, backend effects may be limited.
-  - SvgGdi: Partial; payload is passed to `Gdi`, backend effects may be limited.
-  - AwtGdi: Partial; payload is passed to `Gdi`, backend effects may be limited.
+  - EmfGdi: Supported; serialized as `EMR_SETCOLORADJUSTMENT`.
+  - SvgGdi: Partial; state is stored, but SVG output does not fully apply GDI color-adjustment transforms.
+  - AwtGdi: Partial; state is stored, but bitmap color-adjustment transforms are not fully applied.
 
 ### EMR_SETTEXTCOLOR (0x00000018)
 
@@ -611,9 +611,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: point, color, and fill mode.
 - Rendering/test relevance: raster fill behavior.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, backend behavior may vary.
+  - EmfGdi: Supported; serialized as `EMR_EXTFLOODFILL`.
   - SvgGdi: Partial; parsed and replayed, backend behavior may vary.
-  - AwtGdi: Partial; parsed and replayed, backend behavior may vary.
+  - AwtGdi: Supported; rendered through the raster flood-fill implementation.
 
 ### EMR_LINETO (0x00000036)
 
@@ -754,9 +754,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: path geometry mutation.
 - Rendering/test relevance: widened path clipping/fill tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, exact geometry depends on backend.
-  - SvgGdi: Partial; parsed and replayed, exact geometry depends on backend.
-  - AwtGdi: Partial; parsed and replayed, exact geometry depends on backend.
+  - EmfGdi: Supported; serialized as `EMR_WIDENPATH`.
+  - SvgGdi: Supported; current path is widened using the selected pen before later path operations.
+  - AwtGdi: Supported; current path is replaced by the Java2D stroked outline.
 
 ### EMR_SELECTCLIPPATH (0x00000043)
 
@@ -787,9 +787,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: byte payload.
 - Rendering/test relevance: EMF+ integration and private-comment tests.
 - wmf2svg status:
-  - EmfGdi: Passed through/comment; implementation constant is named `EMR_GDICOMMENT` but uses the official value.
-  - SvgGdi: Passed through/comment; implementation constant is named `EMR_GDICOMMENT` but uses the official value.
-  - AwtGdi: Passed through/comment; implementation constant is named `EMR_GDICOMMENT` but uses the official value.
+  - EmfGdi: Passed through/comment; serialized as `EMR_COMMENT` using the implementation constant `EMR_GDICOMMENT`.
+  - SvgGdi: Passed through/comment; EMF+ and embedded EMF comments are interpreted when recognized, while generic private comments have no rendering effect.
+  - AwtGdi: Passed through/comment; EMF+ and embedded EMF comments are interpreted when recognized, while generic private comments have no rendering effect.
 
 ### EMR_FILLRGN (0x00000047)
 
@@ -820,9 +820,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: region data.
 - Rendering/test relevance: raster-effect tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, SVG/raster fidelity depends on backend.
+  - EmfGdi: Supported; serialized as `EMR_INVERTRGN`.
   - SvgGdi: Partial; parsed and replayed, SVG/raster fidelity depends on backend.
-  - AwtGdi: Partial; parsed and replayed, SVG/raster fidelity depends on backend.
+  - AwtGdi: Supported; rendered by XOR/invert fill over the parsed region.
 
 ### EMR_PAINTRGN (0x0000004A)
 
@@ -853,9 +853,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: destination/source geometry, transform, raster op, optional bitmap data.
 - Rendering/test relevance: bitmap placement and ROP coverage.
 - wmf2svg status:
-  - EmfGdi: Partial; common embedded bitmap cases are handled, complex ROP/source cases vary.
+  - EmfGdi: Supported; serialized as `EMR_BITBLT`.
   - SvgGdi: Partial; common embedded bitmap cases are handled, complex ROP/source cases vary.
-  - AwtGdi: Partial; common embedded bitmap cases are handled, complex ROP/source cases vary.
+  - AwtGdi: Supported; embedded bitmap and source-less pattern ROP cases are rendered through the bitmap ROP path.
 
 ### EMR_STRETCHBLT (0x0000004D)
 
@@ -864,9 +864,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: source and destination rectangles plus optional bitmap data.
 - Rendering/test relevance: scaled bitmap coverage.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed, with backend-dependent scaling/ROP support.
+  - EmfGdi: Supported; serialized as `EMR_STRETCHBLT`.
   - SvgGdi: Partial; parsed, with backend-dependent scaling/ROP support.
-  - AwtGdi: Partial; parsed, with backend-dependent scaling/ROP support.
+  - AwtGdi: Supported; embedded bitmap scaling and ROP handling are rendered through the bitmap path.
 
 ### EMR_MASKBLT (0x0000004E)
 
@@ -875,9 +875,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: source bitmap, mask bitmap, geometry, and ROPs.
 - Rendering/test relevance: masked image tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parser reads mask blit data, backend fidelity can vary.
+  - EmfGdi: Supported; serialized as `EMR_MASKBLT`.
   - SvgGdi: Partial; parser reads mask blit data, backend fidelity can vary.
-  - AwtGdi: Partial; parser reads mask blit data, backend fidelity can vary.
+  - AwtGdi: Supported; mask and fallback non-mask cases are rendered through bitmap paths.
 
 ### EMR_PLGBLT (0x0000004F)
 
@@ -886,9 +886,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: three destination points, source bitmap, optional mask.
 - Rendering/test relevance: affine image transform tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed, with backend-dependent transformed image support.
+  - EmfGdi: Supported; serialized as `EMR_PLGBLT`.
   - SvgGdi: Partial; parsed, with backend-dependent transformed image support.
-  - AwtGdi: Partial; parsed, with backend-dependent transformed image support.
+  - AwtGdi: Supported; destination parallelogram transforms are rendered through the bitmap path.
 
 ### EMR_SETDIBITSTODEVICE (0x00000050)
 
@@ -1095,9 +1095,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: ICM mode value.
 - Rendering/test relevance: color-management state tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, visible effect is backend-dependent.
-  - SvgGdi: Partial; parsed and replayed, visible effect is backend-dependent.
-  - AwtGdi: Partial; parsed and replayed, visible effect is backend-dependent.
+  - EmfGdi: Supported; serialized as `EMR_SETICMMODE`.
+  - SvgGdi: Partial; ICM mode is stored but SVG color conversion is not fully applied.
+  - AwtGdi: Partial; ICM mode is stored but Java2D output does not fully emulate GDI ICM.
 
 ### EMR_CREATECOLORSPACE (0x00000063)
 
@@ -1106,7 +1106,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: object id and color-space payload.
 - Rendering/test relevance: color-space object lifecycle tests.
 - wmf2svg status:
-  - EmfGdi: Partial; object is created from raw data, exact color conversion may be limited.
+  - EmfGdi: Supported; serialized as `EMR_CREATECOLORSPACE`.
   - SvgGdi: Partial; object is created from raw data, exact color conversion may be limited.
   - AwtGdi: Partial; object is created from raw data, exact color conversion may be limited.
 
@@ -1117,9 +1117,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: color-space object id.
 - Rendering/test relevance: color profile selection tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed when the object is a color space.
-  - SvgGdi: Partial; parsed and replayed when the object is a color space.
-  - AwtGdi: Partial; parsed and replayed when the object is a color space.
+  - EmfGdi: Supported; serialized as `EMR_SETCOLORSPACE`.
+  - SvgGdi: Partial; selected color space is stored but output color conversion is limited.
+  - AwtGdi: Partial; selected color space is stored but output color conversion is limited.
 
 ### EMR_DELETECOLORSPACE (0x00000065)
 
@@ -1238,9 +1238,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: palette id, first entry, number of entries.
 - Rendering/test relevance: palette color-correction tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed when the object is a palette.
-  - SvgGdi: Partial; parsed and replayed when the object is a palette.
-  - AwtGdi: Partial; parsed and replayed when the object is a palette.
+  - EmfGdi: Supported; serialized as `EMR_COLORCORRECTPALETTE`.
+  - SvgGdi: Partial; palette object lookup is available, but WCS color correction is not applied to output colors.
+  - AwtGdi: Partial; palette object lookup is available, but WCS color correction is not applied to output colors.
 
 ### EMR_SETICMPROFILEA (0x00000070)
 
@@ -1249,7 +1249,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: profile name and profile data.
 - Rendering/test relevance: color profile parsing tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
+  - EmfGdi: Supported; serialized as `EMR_SETICMPROFILEA`.
   - SvgGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
   - AwtGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
 
@@ -1260,7 +1260,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: UTF-16 profile name and profile data.
 - Rendering/test relevance: Unicode profile-name parsing tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
+  - EmfGdi: Supported; serialized as `EMR_SETICMPROFILEW`.
   - SvgGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
   - AwtGdi: Partial; parsed and replayed as profile data, exact color conversion may be limited.
 
@@ -1282,9 +1282,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: layout flags.
 - Rendering/test relevance: right-to-left/mirrored layout tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, backend behavior can differ.
-  - SvgGdi: Partial; parsed and replayed, backend behavior can differ.
-  - AwtGdi: Partial; parsed and replayed, backend behavior can differ.
+  - EmfGdi: Supported; serialized as `EMR_SETLAYOUT`.
+  - SvgGdi: Partial; layout state is stored, but full GDI mirroring/orientation semantics are not applied to every operation.
+  - AwtGdi: Partial; layout state is stored, but full GDI mirroring/orientation semantics are not applied to every operation.
 
 ### EMR_TRANSPARENTBLT (0x00000074)
 
@@ -1348,7 +1348,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: action flag, profile name, and profile data.
 - Rendering/test relevance: target profile parsing tests.
 - wmf2svg status:
-  - EmfGdi: Partial; parsed and replayed, exact color matching may be limited.
+  - EmfGdi: Supported; serialized as `EMR_COLORMATCHTOTARGETW`.
   - SvgGdi: Partial; parsed and replayed, exact color matching may be limited.
   - AwtGdi: Partial; parsed and replayed, exact color matching may be limited.
 
@@ -1359,7 +1359,7 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: object id and color-space payload.
 - Rendering/test relevance: Unicode color-space object tests.
 - wmf2svg status:
-  - EmfGdi: Partial; object is created from raw data, exact color conversion may be limited.
+  - EmfGdi: Supported; serialized as `EMR_CREATECOLORSPACEW`.
   - SvgGdi: Partial; object is created from raw data, exact color conversion may be limited.
   - AwtGdi: Partial; object is created from raw data, exact color conversion may be limited.
 

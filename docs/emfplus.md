@@ -43,8 +43,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed as part of EMF+ comment scanning, with limited direct rendering effect.
-  - AwtGdi: Partial; parsed as part of EMF+ comment scanning, with limited direct rendering effect.
+  - SvgGdi: Parsed/ignored for rendering; header metadata is used only to manage EMF+ comment playback.
+  - AwtGdi: Parsed/ignored for rendering; header metadata is used only to manage EMF+ comment playback.
 
 ### EmfPlusEndOfFile (0x4002)
 
@@ -55,8 +55,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed, with no drawing operation.
-  - AwtGdi: Partial; parsed, with no drawing operation.
+  - SvgGdi: Parsed/ignored for rendering.
+  - AwtGdi: Parsed/ignored for rendering.
 
 ### EmfPlusComment (0x4003)
 
@@ -379,8 +379,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed, with backend-specific pattern effects.
-  - AwtGdi: Partial; parsed, with backend-specific pattern effects.
+  - SvgGdi: Supported; rendering origin is stored for EMF+ brush/pattern positioning where used.
+  - AwtGdi: Supported; rendering origin is stored for EMF+ brush/pattern positioning where used.
 
 ### EmfPlusSetAntiAliasMode (0x401E)
 
@@ -391,8 +391,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; AWT maps common modes to rendering hints, SVG effect is indirect.
-  - AwtGdi: Partial; AWT maps common modes to rendering hints, SVG effect is indirect.
+  - SvgGdi: Partial; state is parsed, but SVG antialiasing is controlled mostly by viewer behavior.
+  - AwtGdi: Supported; common modes are mapped to Java2D antialiasing hints.
 
 ### EmfPlusSetTextRenderingHint (0x401F)
 
@@ -403,8 +403,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; AWT maps common hints, SVG/font output is environment-dependent.
-  - AwtGdi: Partial; AWT maps common hints, SVG/font output is environment-dependent.
+  - SvgGdi: Partial; state is parsed, but SVG/font output remains viewer and font dependent.
+  - AwtGdi: Supported; common hints are mapped to Java2D text antialiasing hints.
 
 ### EmfPlusSetTextContrast (0x4020)
 
@@ -415,8 +415,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed, but visible effect is backend-dependent.
-  - AwtGdi: Partial; parsed, but visible effect is backend-dependent.
+  - SvgGdi: Partial; value is parsed, but SVG has no direct equivalent for GDI+ text contrast.
+  - AwtGdi: Supported; value is mapped to Java2D LCD text contrast hints.
 
 ### EmfPlusSetInterpolationMode (0x4021)
 
@@ -427,8 +427,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; AWT maps common modes, SVG output depends on image-rendering support.
-  - AwtGdi: Partial; AWT maps common modes, SVG output depends on image-rendering support.
+  - SvgGdi: Partial; common modes are recorded for image output, but SVG viewer support varies.
+  - AwtGdi: Supported; common modes are mapped to Java2D interpolation hints.
 
 ### EmfPlusSetPixelOffsetMode (0x4022)
 
@@ -440,7 +440,7 @@ Backend status entries use the same support vocabulary but apply it to different
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
   - SvgGdi: Partial; parsed and applied where backend supports it.
-  - AwtGdi: Partial; parsed and applied where backend supports it.
+  - AwtGdi: Supported; pixel-offset modes update Java2D stroke-control hints and EMF+ coordinate offsets.
 
 ### EmfPlusSetCompositingMode (0x4023)
 
@@ -451,8 +451,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; AWT maps common modes, SVG fidelity depends on generated compositing model.
-  - AwtGdi: Partial; AWT maps common modes, SVG fidelity depends on generated compositing model.
+  - SvgGdi: Partial; source-copy/source-over state is represented where SVG compositing can express it.
+  - AwtGdi: Supported; source-copy and source-over map to Java2D `AlphaComposite`.
 
 ### EmfPlusSetCompositingQuality (0x4024)
 
@@ -463,8 +463,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; AWT maps common quality hints.
-  - AwtGdi: Partial; AWT maps common quality hints.
+  - SvgGdi: Partial; quality value is parsed, but SVG has limited direct compositing-quality controls.
+  - AwtGdi: Supported; common quality values map to Java2D alpha-interpolation hints.
 
 ### EmfPlusSave (0x4025)
 
@@ -715,8 +715,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed by EMF+ handlers with limited output effect.
-  - AwtGdi: Partial; parsed by EMF+ handlers with limited output effect.
+  - SvgGdi: Partial; graphics state fields are parsed and stored, but SVG output has limited equivalents for some quality hints.
+  - AwtGdi: Supported; graphics state fields update Java2D rendering hints, compositing, text contrast, pixel offset, and world transform.
 
 ### EmfPlusSetTSClip (0x403A)
 
@@ -727,8 +727,8 @@ Backend status entries use the same support vocabulary but apply it to different
 - wmf2svg status:
   - WmfGdi: Passed through/comment only when raw EMF+ comment bytes are replayed; WMF has no native EMF+ record model.
   - EmfGdi: Passed through/comment as `EMR_COMMENT` when raw EMF+ comment bytes are replayed; native EMF+ interpretation is not performed by the writer.
-  - SvgGdi: Partial; parsed by EMF+ handlers with limited output effect.
-  - AwtGdi: Partial; parsed by EMF+ handlers with limited output effect.
+  - SvgGdi: Supported for compressed and uncompressed rectangular TS clip records.
+  - AwtGdi: Supported for compressed and uncompressed rectangular TS clip records.
 
 ## Referenced EMF+ Structures
 

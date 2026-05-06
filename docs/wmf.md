@@ -94,9 +94,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: ROP2 mode.
 - Rendering/test relevance: many SVG backends can only approximate non-copy raster operations.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, with backend-specific rendering fidelity.
+  - WmfGdi: Supported; serializes the native WMF `META_SETROP2` record.
   - SvgGdi: Partial; parsed and replayed, with backend-specific rendering fidelity.
-  - AwtGdi: Partial; parsed and replayed, with backend-specific rendering fidelity.
+  - AwtGdi: Supported; applies all defined ROP2 modes for stroked and filled shapes.
 
 ### META_SETRELABS (0x0105)
 
@@ -105,9 +105,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: none for conforming playback.
 - Rendering/test relevance: include as a negative test to ensure it does not alter output.
 - wmf2svg status:
-  - WmfGdi: Parsed/ignored.
+  - WmfGdi: Supported; serializes the native WMF `META_SETRELABS` record when replayed.
   - SvgGdi: Parsed/ignored.
-  - AwtGdi: Parsed/ignored.
+  - AwtGdi: Parsed/ignored; the obsolete state is retained but has no drawing effect.
 
 ### META_SETPOLYFILLMODE (0x0106)
 
@@ -127,9 +127,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: stretch filtering/color mode.
 - Rendering/test relevance: compare nearest/filtered DIB scaling where backend supports it.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, with backend-dependent filtering.
+  - WmfGdi: Supported; serializes the native WMF `META_SETSTRETCHBLTMODE` record.
   - SvgGdi: Partial; parsed and replayed, with backend-dependent filtering.
-  - AwtGdi: Partial; parsed and replayed, with backend-dependent filtering.
+  - AwtGdi: Supported for rendering; maps halftone to bilinear interpolation and other modes to nearest-neighbor behavior.
 
 ### META_SETTEXTCHAREXTRA (0x0108)
 
@@ -182,9 +182,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: layout flags.
 - Rendering/test relevance: text and coordinate mirroring tests.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, with backend-specific behavior.
+  - WmfGdi: Supported; serializes the native WMF `META_SETLAYOUT` record.
   - SvgGdi: Partial; parsed and replayed, with backend-specific behavior.
-  - AwtGdi: Partial; parsed and replayed, with backend-specific behavior.
+  - AwtGdi: Partial; stores layout state, but full GDI mirroring/orientation behavior is not applied to all drawing operations.
 
 ### META_SETBKCOLOR (0x0201)
 
@@ -336,9 +336,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: font mapper flags.
 - Rendering/test relevance: font substitution tests.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, but exact host font mapping is environment-dependent.
+  - WmfGdi: Supported; serializes the native WMF `META_SETMAPPERFLAGS` record.
   - SvgGdi: Partial; parsed and replayed, but exact host font mapping is environment-dependent.
-  - AwtGdi: Partial; parsed and replayed, but exact host font mapping is environment-dependent.
+  - AwtGdi: Partial; stores mapper flags, but Java font selection remains host-font and fallback dependent.
 
 ### META_SELECTPALETTE (0x0234)
 
@@ -435,9 +435,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: start point and target color semantics.
 - Rendering/test relevance: hard to represent in SVG; useful as a raster backend test.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, exact behavior depends on backend support.
+  - WmfGdi: Supported; serializes the native WMF `META_FLOODFILL` record.
   - SvgGdi: Partial; parsed and replayed, exact behavior depends on backend support.
-  - AwtGdi: Partial; parsed and replayed, exact behavior depends on backend support.
+  - AwtGdi: Supported; performs pixel flood fill against the raster canvas and current clip.
 
 ### META_RECTANGLE (0x041B)
 
@@ -512,9 +512,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: point, color, and fill type.
 - Rendering/test relevance: raster-only edge cases and boundary fill behavior.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, backend behavior can differ.
+  - WmfGdi: Supported; serializes the native WMF `META_EXTFLOODFILL` record.
   - SvgGdi: Partial; parsed and replayed, backend behavior can differ.
-  - AwtGdi: Partial; parsed and replayed, backend behavior can differ.
+  - AwtGdi: Supported; implements both border-fill and surface-fill flood modes on the raster canvas.
 
 ### META_ROUNDRECT (0x061C)
 
@@ -534,9 +534,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: destination rectangle and ROP.
 - Rendering/test relevance: pattern brush and raster-operation tests.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, but complex ROPs are backend-dependent.
+  - WmfGdi: Supported; serializes the native WMF `META_PATBLT` record.
   - SvgGdi: Partial; parsed and replayed, but complex ROPs are backend-dependent.
-  - AwtGdi: Partial; parsed and replayed, but complex ROPs are backend-dependent.
+  - AwtGdi: Supported; evaluates pattern/destination ROP truth tables on the raster canvas.
 
 ### META_ESCAPE (0x0626)
 
@@ -545,9 +545,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: escape function and arbitrary byte data; can contain embedded EMF comments.
 - Rendering/test relevance: include enhanced-metafile escape and ignored driver escape cases.
 - wmf2svg status:
-  - WmfGdi: Passed through/comment for enhanced metafile escape data, otherwise parsed/ignored or backend-specific.
+  - WmfGdi: Supported for pass-through; serializes escape/comment payloads as WMF `META_ESCAPE` records.
   - SvgGdi: Passed through/comment for enhanced metafile escape data, otherwise parsed/ignored or backend-specific.
-  - AwtGdi: Passed through/comment for enhanced metafile escape data, otherwise parsed/ignored or backend-specific.
+  - AwtGdi: Supported for embedded EMF/EMF+ escape payloads; other driver-specific escapes have no generic raster effect.
 
 ### META_SAVEDC (0x001E)
 
@@ -567,9 +567,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: region object handle.
 - Rendering/test relevance: raster-effect region tests.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, but SVG/raster behavior depends on backend support for inversion.
+  - WmfGdi: Supported; serializes the native WMF `META_INVERTREGION` record.
   - SvgGdi: Partial; parsed and replayed, but SVG/raster behavior depends on backend support for inversion.
-  - AwtGdi: Partial; parsed and replayed, but SVG/raster behavior depends on backend support for inversion.
+  - AwtGdi: Supported; performs white XOR fill over the region on the raster canvas.
 
 ### META_PAINTREGION (0x012B)
 
@@ -666,9 +666,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: source/destination geometry, source bitmap data or device context, and ROP.
 - Rendering/test relevance: core bitmap placement and ROP coverage.
 - wmf2svg status:
-  - WmfGdi: Partial; DIB-backed cases are handled, device-dependent or complex ROP cases can vary.
+  - WmfGdi: Supported; serializes the native WMF `META_BITBLT` record with embedded bitmap data.
   - SvgGdi: Partial; DIB-backed cases are handled, device-dependent or complex ROP cases can vary.
-  - AwtGdi: Partial; DIB-backed cases are handled, device-dependent or complex ROP cases can vary.
+  - AwtGdi: Supported for embedded bitmap data; evaluates source/destination/pattern ROP truth tables when bitmap data is present.
 
 ### META_DIBBITBLT (0x0940)
 
@@ -699,9 +699,9 @@ Backend status entries use the same support vocabulary but apply it to different
 - Key payload/effect: source/destination rectangles, bitmap data/context, and ROP.
 - Rendering/test relevance: bitmap scaling and ROP tests.
 - wmf2svg status:
-  - WmfGdi: Partial; parsed and replayed, with backend-dependent source and ROP support.
+  - WmfGdi: Supported; serializes the native WMF `META_STRETCHBLT` record with embedded bitmap data.
   - SvgGdi: Partial; parsed and replayed, with backend-dependent source and ROP support.
-  - AwtGdi: Partial; parsed and replayed, with backend-dependent source and ROP support.
+  - AwtGdi: Supported for embedded bitmap data; scales with the selected stretch mode and evaluates bitmap ROP truth tables.
 
 ### META_DIBSTRETCHBLT (0x0B41)
 

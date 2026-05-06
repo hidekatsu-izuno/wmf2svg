@@ -797,6 +797,7 @@ public class EmfParser implements Parser, EmfConstants {
 		}
 
 		Point figureStart = null;
+		boolean figureOpen = false;
 		for (int i = 0; i < count; i++) {
 			Point point = shortPoints
 					? transformPoint(transform, readInt16(data, pointOffset), readInt16(data, pointOffset + 2))
@@ -807,11 +808,17 @@ public class EmfParser implements Parser, EmfConstants {
 
 			switch (operation) {
 				case PT_MOVETO :
-					gdi.moveToEx(point.x, point.y, null);
-					figureStart = point;
+					if (figureOpen) {
+						gdi.lineTo(point.x, point.y);
+					} else {
+						gdi.moveToEx(point.x, point.y, null);
+						figureStart = point;
+						figureOpen = true;
+					}
 					break;
 				case PT_LINETO :
 					gdi.lineTo(point.x, point.y);
+					figureOpen = true;
 					break;
 				case PT_BEZIERTO :
 					Point[] bezier = null;
@@ -834,8 +841,10 @@ public class EmfParser implements Parser, EmfConstants {
 					}
 					if (bezier != null) {
 						gdi.polyBezierTo(bezier);
+						figureOpen = true;
 					} else {
 						gdi.lineTo(point.x, point.y);
+						figureOpen = true;
 					}
 					break;
 				default :
@@ -844,7 +853,8 @@ public class EmfParser implements Parser, EmfConstants {
 
 			if ((closeType & PT_CLOSEFIGURE) != 0) {
 				if (figureStart != null) {
-					gdi.lineTo(figureStart.x, figureStart.y);
+					gdi.closeFigure();
+					figureOpen = false;
 				}
 			}
 			pointOffset += (shortPoints ? 4 : 8);

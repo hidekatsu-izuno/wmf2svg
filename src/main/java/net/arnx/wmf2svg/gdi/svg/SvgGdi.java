@@ -1675,19 +1675,29 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			int count = readInt32(payload, optionalOffset);
 			optionalOffset += 4 + Math.max(0, count) * 4;
 		}
+		EmfPlusCustomLineCap customStartCap = null;
+		EmfPlusCustomLineCap customEndCap = null;
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_CUSTOM_START_CAP) != 0) {
 			if (payload.length < optionalOffset + 4) {
 				return null;
 			}
 			int size = readInt32(payload, optionalOffset);
-			optionalOffset += 4 + Math.max(0, size);
+			if (size < 0 || payload.length < optionalOffset + 4 + size) {
+				return null;
+			}
+			customStartCap = readEmfPlusCustomLineCap(payload, optionalOffset + 4, size);
+			optionalOffset += 4 + size;
 		}
 		if ((penDataFlags & EMF_PLUS_PEN_DATA_CUSTOM_END_CAP) != 0) {
 			if (payload.length < optionalOffset + 4) {
 				return null;
 			}
 			int size = readInt32(payload, optionalOffset);
-			optionalOffset += 4 + Math.max(0, size);
+			if (size < 0 || payload.length < optionalOffset + 4 + size) {
+				return null;
+			}
+			customEndCap = readEmfPlusCustomLineCap(payload, optionalOffset + 4, size);
+			optionalOffset += 4 + size;
 		}
 		if (payload.length < optionalOffset) {
 			return null;
@@ -1697,7 +1707,23 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return null;
 		}
 		return new EmfPlusPen(width, brush, startCap, endCap, lineJoin, miterLimit, lineStyle, dashCap, dashOffset,
-				dashPattern, penTransform);
+				dashPattern, penTransform, customStartCap, customEndCap);
+	}
+
+	private EmfPlusCustomLineCap readEmfPlusCustomLineCap(byte[] payload, int offset, int size) {
+		if (size < 60 || payload.length < offset + size
+				|| readInt32(payload, offset + 4) != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
+			return null;
+		}
+		int dataOffset = offset + 8;
+		double width = readFloat(payload, dataOffset);
+		double height = readFloat(payload, dataOffset + 4);
+		boolean fill = readInt32(payload, dataOffset + 12) != 0;
+		double widthScale = readFloat(payload, dataOffset + 32);
+		if (width <= 0.0 || height <= 0.0 || widthScale <= 0.0) {
+			return null;
+		}
+		return new EmfPlusCustomLineCap(width, height, fill, widthScale);
 	}
 
 	private EmfPlusFont readEmfPlusFont(byte[] payload) {
@@ -1958,10 +1984,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if ((flags & EMF_PLUS_FLAG_CLOSE) != 0) {
 			points = closeEmfPlusPoints(points);
 		}
-		Element polyline = doc.createElement("polyline");
-		polyline.setAttribute("points", toEmfPlusSvgPoints(points));
-		applyEmfPlusStroke(polyline, pen);
-		parentNode.appendChild(polyline);
+		Node keepNode = appendEmfPlusPolyline(points, (flags & EMF_PLUS_FLAG_CLOSE) != 0, pen);
+		markEmfPlusFallbackSuppression(keepNode);
 	}
 
 	private void handleEmfPlusPie(int flags, byte[] payload, boolean fill) {
@@ -2644,6 +2668,129 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			buffer.append(formatDouble(point[0])).append(",").append(formatDouble(point[1]));
 		}
 		return buffer.toString();
+	}
+
+	private Node appendEmfPlusPolyline(double[][] points, boolean closed, EmfPlusPen pen) {
+		if (closed || !hasDistinctSolidLineCaps(pen)) {
+			Element polyline = doc.createElement("polyline");
+			polyline.setAttribute("points", toEmfPlusSvgPoints(points));
+			applyEmfPlusStroke(polyline, pen);
+			parentNode.appendChild(polyline);
+			return polyline;
+		}
+
+		Element group = doc.createElement("g");
+		Element polyline = doc.createElement("polyline");
+		polyline.setAttribute("points", toEmfPlusSvgPoints(points));
+		applyEmfPlusStroke(polyline, pen);
+		polyline.setAttribute("stroke-linecap", "butt");
+		group.appendChild(polyline);
+
+		double penWidth = Math.max(1.0, pen.width) * getEmfPlusPenScale(pen);
+		appendEmfPlusLineCap(group, pen.startCap, pen.customStartCap, points[0], points[1], penWidth, pen);
+		appendEmfPlusLineCap(group, pen.endCap, pen.customEndCap, points[points.length - 1], points[points.length - 2],
+				penWidth, pen);
+		parentNode.appendChild(group);
+		return group;
+	}
+
+	private void appendEmfPlusLineCap(Element group, int cap, EmfPlusCustomLineCap customCap, double[] rawEnd,
+			double[] rawAdjacent, double penWidth, EmfPlusPen pen) {
+		Element elem = createEmfPlusLineCapElement(cap, customCap, rawEnd, rawAdjacent, penWidth);
+		if (elem == null) {
+			return;
+		}
+		if (customCap == null || customCap.fill) {
+			applyEmfPlusFill(elem, pen.brush);
+		} else {
+			applyEmfPlusStroke(elem, pen);
+		}
+		group.appendChild(elem);
+	}
+
+	private Element createEmfPlusLineCapElement(int cap, EmfPlusCustomLineCap customCap, double[] rawEnd,
+			double[] rawAdjacent, double penWidth) {
+		double[] end = toEmfPlusLogicalPoint(rawEnd[0], rawEnd[1]);
+		double[] adjacent = toEmfPlusLogicalPoint(rawAdjacent[0], rawAdjacent[1]);
+		if (customCap != null) {
+			return createEmfPlusCustomLineCapElement(customCap, end, adjacent, penWidth);
+		}
+		if (cap == EMF_PLUS_LINE_CAP_FLAT || !isSupportedEmfPlusLineCap(cap)) {
+			return null;
+		}
+		double dx = end[0] - adjacent[0];
+		double dy = end[1] - adjacent[1];
+		double length = Math.hypot(dx, dy);
+		if (length <= 0.0 || Double.isNaN(length) || Double.isInfinite(length)) {
+			return null;
+		}
+		double half = penWidth / 2.0;
+		if (cap == EMF_PLUS_LINE_CAP_ROUND) {
+			Element ellipse = doc.createElement("ellipse");
+			ellipse.setAttribute("cx", formatDouble(end[0]));
+			ellipse.setAttribute("cy", formatDouble(end[1]));
+			ellipse.setAttribute("rx", formatDouble(half));
+			ellipse.setAttribute("ry", formatDouble(half));
+			return ellipse;
+		}
+
+		double ux = dx / length * half;
+		double uy = dy / length * half;
+		double nx = -dy / length * half;
+		double ny = dx / length * half;
+		return createEmfPlusPolygonPath(
+				new double[][]{{end[0] - ux - nx, end[1] - uy - ny}, {end[0] + ux - nx, end[1] + uy - ny},
+						{end[0] + ux + nx, end[1] + uy + ny}, {end[0] - ux + nx, end[1] - uy + ny}});
+	}
+
+	private Element createEmfPlusCustomLineCapElement(EmfPlusCustomLineCap cap, double[] end, double[] adjacent,
+			double penWidth) {
+		double dx = end[0] - adjacent[0];
+		double dy = end[1] - adjacent[1];
+		double length = Math.hypot(dx, dy);
+		if (length <= 0.0 || Double.isNaN(length) || Double.isInfinite(length)) {
+			return null;
+		}
+		double ux = dx / length;
+		double uy = dy / length;
+		double nx = -uy;
+		double ny = ux;
+		double width = cap.width * penWidth * cap.widthScale;
+		double height = cap.height * penWidth * cap.widthScale;
+		return createEmfPlusPolygonPath(new double[][]{{end[0] + ux * height, end[1] + uy * height},
+				{end[0] + nx * width / 2.0, end[1] + ny * width / 2.0},
+				{end[0] - nx * width / 2.0, end[1] - ny * width / 2.0}});
+	}
+
+	private Element createEmfPlusPolygonPath(double[][] points) {
+		Element path = doc.createElement("path");
+		StringBuffer d = new StringBuffer();
+		for (int i = 0; i < points.length; i++) {
+			if (i > 0) {
+				d.append(" ");
+			}
+			d.append(i == 0 ? "M " : "L ");
+			d.append(formatDouble(points[i][0])).append(",").append(formatDouble(points[i][1]));
+		}
+		d.append(" Z");
+		path.setAttribute("d", d.toString());
+		return path;
+	}
+
+	private boolean hasDistinctSolidLineCaps(EmfPlusPen pen) {
+		return pen != null && !hasEmfPlusDash(pen)
+				&& (pen.customStartCap != null || pen.customEndCap != null || pen.startCap != pen.endCap)
+				&& (isSupportedEmfPlusLineCap(pen.startCap) || isSupportedEmfPlusLineCap(pen.endCap));
+	}
+
+	private boolean hasEmfPlusDash(EmfPlusPen pen) {
+		return pen.dashPattern != null || pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH
+				|| pen.lineStyle == EMF_PLUS_LINE_STYLE_DOT || pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH_DOT
+				|| pen.lineStyle == EMF_PLUS_LINE_STYLE_DASH_DOT_DOT || pen.lineStyle == EMF_PLUS_LINE_STYLE_CUSTOM;
+	}
+
+	private boolean isSupportedEmfPlusLineCap(int cap) {
+		return cap == EMF_PLUS_LINE_CAP_FLAT || cap == EMF_PLUS_LINE_CAP_SQUARE || cap == EMF_PLUS_LINE_CAP_ROUND;
 	}
 
 	private double[] toEmfPlusLogicalSize(double width, double height) {
@@ -3419,7 +3566,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		int i = 0;
 		while (i < path.points.length) {
 			int rawType = path.types[i] & 0xFF;
-			int type = rawType & EMF_PLUS_PATH_POINT_TYPE_MASK;
+			int type = toEmfPlusPathPointType(rawType, result.length() == 0);
 			if (type == EMF_PLUS_PATH_POINT_TYPE_START || result.length() == 0) {
 				appendEmfPlusPathCommand(result, "M", path.points[i]);
 				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
@@ -3451,6 +3598,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			}
 		}
 		return result.toString();
+	}
+
+	private int toEmfPlusPathPointType(int rawType, boolean emptyPath) {
+		int type = rawType & EMF_PLUS_PATH_POINT_TYPE_MASK;
+		if (type == EMF_PLUS_PATH_POINT_TYPE_START && !emptyPath && (rawType & EMF_PLUS_PATH_POINT_TYPE_MARKER) != 0) {
+			return EMF_PLUS_PATH_POINT_TYPE_LINE;
+		}
+		return type;
 	}
 
 	private String toEmfPlusBezierPath(double[][] points) {
@@ -4015,6 +4170,15 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		clearEmfPlusFallbackSuppression();
 	}
 
+	private void markEmfPlusFallbackSuppression(Node keepNode) {
+		if (keepNode == null || !replayingPendingEmf) {
+			return;
+		}
+		emfPlusFallbackParent = parentNode;
+		emfPlusFallbackKeepNode = keepNode;
+		emfPlusFallbackRootKeepNode = doc.getDocumentElement().getLastChild();
+	}
+
 	private void endEmfPlusGetDCMode() {
 		emfPlusGetDCActive = false;
 		clearEmfPlusFallbackSuppression();
@@ -4383,13 +4547,16 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		private final double dashOffset;
 		private final double[] dashPattern;
 		private final double[] transform;
+		private final EmfPlusCustomLineCap customStartCap;
+		private final EmfPlusCustomLineCap customEndCap;
 
 		private EmfPlusPen(double width, EmfPlusBrush brush) {
-			this(width, brush, 0, 0, 0, 0.0, 0, 0, 0.0, null, null);
+			this(width, brush, 0, 0, 0, 0.0, 0, 0, 0.0, null, null, null, null);
 		}
 
 		private EmfPlusPen(double width, EmfPlusBrush brush, int startCap, int endCap, int lineJoin, double miterLimit,
-				int lineStyle, int dashCap, double dashOffset, double[] dashPattern, double[] transform) {
+				int lineStyle, int dashCap, double dashOffset, double[] dashPattern, double[] transform,
+				EmfPlusCustomLineCap customStartCap, EmfPlusCustomLineCap customEndCap) {
 			this.width = width;
 			this.brush = brush;
 			this.startCap = startCap;
@@ -4401,6 +4568,22 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			this.dashOffset = dashOffset;
 			this.dashPattern = dashPattern;
 			this.transform = transform;
+			this.customStartCap = customStartCap;
+			this.customEndCap = customEndCap;
+		}
+	}
+
+	private static class EmfPlusCustomLineCap {
+		private final double width;
+		private final double height;
+		private final boolean fill;
+		private final double widthScale;
+
+		private EmfPlusCustomLineCap(double width, double height, boolean fill, double widthScale) {
+			this.width = width;
+			this.height = height;
+			this.fill = fill;
+			this.widthScale = widthScale;
 		}
 	}
 
@@ -5134,7 +5317,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void moveToEx(int x, int y, Point old) {
 		if (currentPath != null) {
-			currentPath.moveTo(new Point(x, y));
+			Point point = new Point(x, y);
+			if (currentPath.hasOpenFigure()) {
+				currentPath.lineTo(point);
+			} else {
+				currentPath.moveTo(point);
+			}
 		}
 		dc.moveToEx(x, y, old);
 	}
@@ -6036,6 +6224,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		private LinkedList<Command> commands = new LinkedList<Command>();
 		private Point figureStart;
 		private Point current;
+		private boolean figureClosed;
 		private boolean widened;
 		private SvgPen widenedPen;
 
@@ -6043,6 +6232,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			commands.add(new Command(MOVE_TO, new Point[]{point}));
 			figureStart = point;
 			current = point;
+			figureClosed = false;
 		}
 
 		public void lineTo(Point point) {
@@ -6051,6 +6241,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			} else {
 				commands.add(new Command(LINE_TO, new Point[]{point}));
 				current = point;
+				figureClosed = false;
 			}
 		}
 
@@ -6060,6 +6251,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			} else {
 				commands.add(new Command(BEZIER_TO, new Point[]{control1, control2, end}));
 				current = end;
+				figureClosed = false;
 			}
 		}
 
@@ -6067,7 +6259,11 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			if (points == null || points.length == 0) {
 				return;
 			}
-			moveTo(points[0]);
+			if (hasOpenFigure()) {
+				lineTo(points[0]);
+			} else {
+				moveTo(points[0]);
+			}
 			for (int i = 1; i < points.length; i++) {
 				lineTo(points[i]);
 			}
@@ -6236,7 +6432,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			if (current != null) {
 				commands.add(new Command(CLOSE, new Point[0]));
 				current = figureStart;
+				figureClosed = true;
 			}
+		}
+
+		public boolean hasOpenFigure() {
+			return current != null && !figureClosed;
 		}
 
 		public boolean isEmpty() {

@@ -31,6 +31,7 @@ import net.arnx.wmf2svg.gdi.GdiPalette;
 import net.arnx.wmf2svg.gdi.GdiPen;
 import net.arnx.wmf2svg.gdi.GdiPatternBrush;
 import net.arnx.wmf2svg.gdi.GdiRegion;
+import net.arnx.wmf2svg.gdi.GdiUtils;
 import net.arnx.wmf2svg.gdi.GradientRect;
 import net.arnx.wmf2svg.gdi.Point;
 import net.arnx.wmf2svg.gdi.Size;
@@ -159,6 +160,19 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testStandaloneEmfPlusDrawingScalesToFramePixels() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.emfHeader(2, 2, 102, 52, 0, 0, 20000, 10000, 100, 50, 100, 50);
+		gdi.comment(createEmfPlusSolidFillComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0, (image.getRGB(1, 2) >>> 24) & 0xFF);
+		assertTrue(countPaintedPixels(image, 4, 6, 20, 15) > 0);
+	}
+
+	@Test
 	public void testMainEmfPngKeepsTransparentBackground() throws Exception {
 		File src = File.createTempFile("wmf2svg-transparent-emf", ".emf");
 		File dst = File.createTempFile("wmf2svg-transparent-emf", ".png");
@@ -247,6 +261,21 @@ public class AwtGdiTest {
 		assertEquals(144, image.getWidth());
 		assertEquals(144, image.getHeight());
 		assertTrue(((image.getRGB(140, 140) >>> 24) & 0xFF) != 0);
+	}
+
+	@Test
+	public void testPlaceableEmfPlusRecordsScaleToCanvasPixels() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.placeableHeader(0, 0, 100, 100, 50);
+		gdi.header();
+		gdi.comment(createEmfPlusSolidFillComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(288, image.getWidth());
+		assertEquals(288, image.getHeight());
+		assertEquals(0, (image.getRGB(2, 3) >>> 24) & 0xFF);
+		assertEquals(0x336699, image.getRGB(10, 12) & 0x00FFFFFF);
 	}
 
 	@Test
@@ -994,6 +1023,26 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testExtTextOutShiftJisDxAdvancesByDecodedCharacters() throws Exception {
+		assumeTrue(new Font(Font.SANS_SERIF, Font.PLAIN, 14).canDisplay('\u5E74'));
+
+		AwtGdi gdi = createMappedGdi(80, 40);
+		gdi.setBkMode(Gdi.TRANSPARENT);
+		gdi.setTextAlign(Gdi.TA_UPDATECP | Gdi.TA_LEFT | Gdi.TA_TOP);
+		gdi.selectObject(gdi.createFontIndirect(-14, 0, 0, 0, 400, false, false, false, GdiFont.SHIFTJIS_CHARSET, 0, 0,
+				0, 0, new byte[]{'D', 'i', 'a', 'l', 'o', 'g', 0}));
+		gdi.moveToEx(5, 8, null);
+		gdi.extTextOut(99, 99, 0, null, "\u5E74".getBytes(GdiUtils.getCharset(GdiFont.SHIFTJIS_CHARSET)),
+				new int[]{7, 13});
+		gdi.setTextColor(0x0000FF);
+		gdi.textOut(99, 99, new byte[]{'I'});
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0, countOpaqueColorPixels(image, 0xFF0000, 0, 0, 18, 30));
+		assertTrue(countOpaqueColorPixels(image, 0xFF0000, 22, 0, 20, 30) > 0);
+	}
+
+	@Test
 	public void testThickStrokeGrowsCanvasForStrokeBounds() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -1402,6 +1451,49 @@ public class AwtGdiTest {
 		assertEquals(0x336699, image.getRGB(5, 5) & 0x00FFFFFF);
 		assertTrue(((image.getRGB(26, 16) >>> 24) & 0xFF) > 0);
 		assertTrue(((image.getRGB(7, 32) >>> 24) & 0xFF) > 0);
+	}
+
+	@Test
+	public void testSupportedDualEmfPlusCommentSuppressesGdiFallback() {
+		AwtGdi gdi = createMappedGdi(20, 20);
+		gdi.comment(createDualEmfPlusSolidFillComment(false));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.rectangle(1, 1, 12, 12);
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0x336699, image.getRGB(5, 5) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testDualEmfPlusGetDcKeepsGdiInteropRecords() {
+		AwtGdi gdi = createMappedGdi(20, 20);
+		gdi.comment(createDualEmfPlusSolidFillComment());
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.rectangle(1, 1, 12, 12);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0xFF0000, image.getRGB(5, 5) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testNonRenderableDualEmfPlusCommentDoesNotSuppressGdi() {
+		AwtGdi gdi = createMappedGdi(20, 20);
+		gdi.comment(createUnsupportedDualEmfPlusComment());
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.rectangle(1, 1, 12, 12);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0xFF0000, image.getRGB(5, 5) & 0x00FFFFFF);
+	}
+
+	@Test
+	public void testEmfPlusPathMarkerPointContinuesCurrentFigure() {
+		AwtGdi gdi = createMappedGdi(20, 20);
+		gdi.comment(createEmfPlusPathMarkerComment());
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0x336699, image.getRGB(5, 5) & 0x00FFFFFF);
 	}
 
 	@Test
@@ -2156,6 +2248,78 @@ public class AwtGdiTest {
 		writeFloat(payload, 2);
 		writeFloat(payload, 38);
 		writeEmfPlusRecord(comment, 0x400C, 0x8000, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createDualEmfPlusSolidFillComment() {
+		return createDualEmfPlusSolidFillComment(true);
+	}
+
+	private byte[] createDualEmfPlusSolidFillComment(boolean getDc) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0x00000001);
+		writeInt(payload, 96);
+		writeInt(payload, 96);
+		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeEmfPlusRecord(comment, 0x400A, 0x8000, payload.toByteArray());
+
+		if (getDc) {
+			payload.reset();
+			writeEmfPlusRecord(comment, 0x4004, 0, payload.toByteArray());
+		}
+		return comment.toByteArray();
+	}
+
+	private byte[] createUnsupportedDualEmfPlusComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0x00000001);
+		writeInt(payload, 96);
+		writeInt(payload, 96);
+		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
+
+		payload.reset();
+		writeEmfPlusRecord(comment, 0x4005, 0, payload.toByteArray());
+
+		payload.reset();
+		writeEmfPlusRecord(comment, 0x4004, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusPathMarkerComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 3);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeFloat(payload, 5);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		payload.write(0);
+		payload.write(0x20);
+		payload.write(0x81);
+		while (payload.size() % 4 != 0) {
+			payload.write(0);
+		}
+		writeEmfPlusRecord(comment, 0x4008, 0x0301, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeEmfPlusRecord(comment, 0x4014, 0x8001, payload.toByteArray());
 		return comment.toByteArray();
 	}
 
@@ -3673,6 +3837,19 @@ public class AwtGdiTest {
 		for (int y = 0; y < image.getHeight(); y++) {
 			for (int x = 0; x < image.getWidth(); x++) {
 				int argb = image.getRGB(x, y);
+				if (((argb >>> 24) & 0xFF) != 0 && (argb & 0x00FFFFFF) == rgb) {
+					count++;
+				}
+			}
+		}
+		return count;
+	}
+
+	private int countOpaqueColorPixels(BufferedImage image, int rgb, int x, int y, int width, int height) {
+		int count = 0;
+		for (int py = y; py < y + height; py++) {
+			for (int px = x; px < x + width; px++) {
+				int argb = image.getRGB(px, py);
 				if (((argb >>> 24) & 0xFF) != 0 && (argb & 0x00FFFFFF) == rgb) {
 					count++;
 				}

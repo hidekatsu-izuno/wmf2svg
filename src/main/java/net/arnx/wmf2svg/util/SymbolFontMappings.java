@@ -841,6 +841,45 @@ public final class SymbolFontMappings {
 		WINGDINGS_3[0xF0] = 0x1F897;
 	}
 
+	private static final int[] MT_EXTRA = new int[256];
+
+	static {
+		MT_EXTRA[0x23] = 0x0300;
+		MT_EXTRA[0x24] = 0x0302;
+		MT_EXTRA[0x25] = 0x0303;
+		MT_EXTRA[0x26] = 0x0307;
+		MT_EXTRA[0x28] = 0x032E;
+		MT_EXTRA[0x29] = 0x032F;
+		MT_EXTRA[0x3C] = 0x25C3;
+		MT_EXTRA[0x3E] = 0x25B9;
+		MT_EXTRA[0x43] = 0x2210;
+		MT_EXTRA[0x44] = 0x019B;
+		MT_EXTRA[0x49] = 0x2229;
+		MT_EXTRA[0x4B] = 0x2026;
+		MT_EXTRA[0x4C] = 0x22EF;
+		MT_EXTRA[0x4D] = 0x22EE;
+		MT_EXTRA[0x4E] = 0x22F0;
+		MT_EXTRA[0x4F] = 0x22F1;
+		MT_EXTRA[0x51] = 0x2235;
+		MT_EXTRA[0x55] = 0x222A;
+		MT_EXTRA[0x60] = 0x2035;
+		MT_EXTRA[0x61] = 0x21A6;
+		MT_EXTRA[0x62] = 0x2195;
+		MT_EXTRA[0x63] = 0x21D5;
+		MT_EXTRA[0x66] = 0x227B;
+		MT_EXTRA[0x68] = 0x210F;
+		MT_EXTRA[0x6C] = 0x2113;
+		MT_EXTRA[0x6D] = 0x2213;
+		MT_EXTRA[0x6F] = 0x2218;
+		MT_EXTRA[0x70] = 0x227A;
+		MT_EXTRA[0x72] = 0x20D7;
+		MT_EXTRA[0x73] = 0x20D6;
+		MT_EXTRA[0x74] = 0x20E1;
+		MT_EXTRA[0x75] = 0x20D7;
+		MT_EXTRA[0x76] = 0x20D1;
+		MT_EXTRA[0x77] = 0x20D0;
+	}
+
 	private SymbolFontMappings() {
 	}
 
@@ -880,6 +919,8 @@ public final class SymbolFontMappings {
 			return WINGDINGS_2;
 		} else if ("wingdings 3".equals(key)) {
 			return WINGDINGS_3;
+		} else if ("mt extra".equals(key)) {
+			return MT_EXTRA;
 		}
 		return null;
 	}

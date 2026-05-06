@@ -3216,6 +3216,19 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusPathMarkerPointContinuesCurrentFigure() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusPathMarkerComment());
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("d=\"M 0,0 L 10,5 L 0,10 Z\""));
+	}
+
+	@Test
 	public void testEmfPlusStrokeFillPathRendersSingleFilledAndStrokedPath() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -5658,6 +5671,32 @@ public class SvgGdiTest {
 		payload.reset();
 		writeInt(payload, 1);
 		writeEmfPlusRecord(comment, 0x4015, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusPathMarkerComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 3);
+		writeInt(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeFloat(payload, 5);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		payload.write(0);
+		payload.write(0x20);
+		payload.write(0x81);
+		while (payload.size() % 4 != 0) {
+			payload.write(0);
+		}
+		writeEmfPlusRecord(comment, 0x4008, 0x0301, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeEmfPlusRecord(comment, 0x4014, 0x8001, payload.toByteArray());
 		return comment.toByteArray();
 	}
 

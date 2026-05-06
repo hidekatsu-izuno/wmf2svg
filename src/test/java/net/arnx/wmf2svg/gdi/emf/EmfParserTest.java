@@ -91,6 +91,32 @@ public class EmfParserTest {
 		assertFalse(svg.indexOf("stroke-width: 560.0;") >= 0);
 	}
 
+	@Test
+	public void testPolyDrawCloseFigureUsesClosedSubpath() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		new EmfParser().parse(new ByteArrayInputStream(createEmfWithClosedPolyDraw()), gdi);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = new String(out.toByteArray(), "UTF-8");
+
+		assertTrue(svg.indexOf("M 10,10 L 20,10 L 10,20 z") >= 0);
+		assertFalse(svg.indexOf("M 10,10 L 20,10 L 10,20 L 10,10") >= 0);
+	}
+
+	@Test
+	public void testPolyDrawMoveContinuesOpenFigure() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		new EmfParser().parse(new ByteArrayInputStream(createEmfWithContinuedPolyDrawMove()), gdi);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = new String(out.toByteArray(), "UTF-8");
+
+		assertTrue(svg.indexOf("M 10,10 L 20,10 L 20,20 L 10,20 z") >= 0);
+		assertFalse(svg.indexOf("M 10,10 M 20,10") >= 0);
+	}
+
 	private static byte[] createMinimalEmf() {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		writeHeader(out);
@@ -140,6 +166,32 @@ public class EmfParserTest {
 		writeRecord(out, 37, intData(1));
 		writePointRecord(out, 27, 0, 0);
 		writePointRecord(out, 54, 100, 0);
+		writeRecord(out, 14, new byte[12]);
+		return out.toByteArray();
+	}
+
+	private static byte[] createEmfWithClosedPolyDraw() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		writeHeader(out);
+		writeCreateBrush(out, 1, 0, 0);
+		writeRecord(out, 37, intData(1));
+		writeRecord(out, 59, new byte[0]);
+		writePolyDraw(out, new int[][]{{10, 10}, {20, 10}, {10, 20}}, new int[]{6, 2, 3});
+		writeRecord(out, 60, new byte[0]);
+		writeRecord(out, 62, new byte[0]);
+		writeRecord(out, 14, new byte[12]);
+		return out.toByteArray();
+	}
+
+	private static byte[] createEmfWithContinuedPolyDrawMove() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		writeHeader(out);
+		writeCreateBrush(out, 1, 0, 0);
+		writeRecord(out, 37, intData(1));
+		writeRecord(out, 59, new byte[0]);
+		writePolyDraw(out, new int[][]{{10, 10}, {20, 10}, {20, 20}, {10, 20}}, new int[]{6, 6, 2, 3});
+		writeRecord(out, 60, new byte[0]);
+		writeRecord(out, 62, new byte[0]);
 		writeRecord(out, 14, new byte[12]);
 		return out.toByteArray();
 	}
@@ -275,6 +327,15 @@ public class EmfParserTest {
 		writeRecord(out, 38, data.toByteArray());
 	}
 
+	private static void writeCreateBrush(ByteArrayOutputStream out, int handle, int style, int color) {
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		writeInt(data, handle);
+		writeInt(data, style);
+		writeInt(data, color);
+		writeInt(data, 0);
+		writeRecord(out, 39, data.toByteArray());
+	}
+
 	private static void writeExtCreatePen(ByteArrayOutputStream out, int handle, int style, int width, int color) {
 		ByteArrayOutputStream data = new ByteArrayOutputStream();
 		writeInt(data, handle);
@@ -293,6 +354,23 @@ public class EmfParserTest {
 		ByteArrayOutputStream data = new ByteArrayOutputStream();
 		writeInt(data, value);
 		return data.toByteArray();
+	}
+
+	private static void writePolyDraw(ByteArrayOutputStream out, int[][] points, int[] types) {
+		ByteArrayOutputStream data = new ByteArrayOutputStream();
+		writeInt(data, 0);
+		writeInt(data, 0);
+		writeInt(data, 100);
+		writeInt(data, 50);
+		writeInt(data, points.length);
+		for (int i = 0; i < points.length; i++) {
+			writeInt(data, points[i][0]);
+			writeInt(data, points[i][1]);
+		}
+		for (int i = 0; i < points.length; i++) {
+			data.write(types[i]);
+		}
+		writeRecord(out, 56, data.toByteArray());
 	}
 
 	private static void writeRecord(ByteArrayOutputStream out, int type, byte[] data) {

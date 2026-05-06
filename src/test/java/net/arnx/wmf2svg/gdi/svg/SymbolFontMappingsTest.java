@@ -29,4 +29,11 @@ public class SymbolFontMappingsTest {
 		assertEquals(new String(Character.toChars(0x1F58A)), SymbolFontMappings.replace("Wingdings 2", "!"));
 		assertEquals("\u2B60", SymbolFontMappings.replace("Wingdings 3", "!"));
 	}
+
+	@Test
+	public void testMtExtraMapping() {
+		assertTrue(SymbolFontMappings.isMappedFont("MT Extra"));
+		assertEquals("\u0300\u2235\u21D5", SymbolFontMappings.replace("MT Extra", "#Qc"));
+		assertEquals("!", SymbolFontMappings.replace("MT Extra", "!"));
+	}
 }

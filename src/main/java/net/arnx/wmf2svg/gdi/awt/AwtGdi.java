@@ -100,6 +100,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private boolean emfHeaderCanvas;
 	private int emfHeaderFrameCanvasWidth;
 	private int emfHeaderFrameCanvasHeight;
+	private int emfHeaderLogicalCanvasWidth;
+	private int emfHeaderLogicalCanvasHeight;
+	private double emfPlusCanvasScaleX = 1.0;
+	private double emfPlusCanvasScaleY = 1.0;
 	private double placeableViewportScaleX = 1.0;
 	private double placeableViewportScaleY = 1.0;
 	private boolean growCanvas = true;
@@ -119,6 +123,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private byte[] lastDibPatternBrushImage;
 	private int lastDibPatternBrushUsage = Gdi.DIB_RGB_COLORS;
 	private Path2D.Double currentPath;
+	private boolean currentPathFigureClosed;
 	private ByteArrayOutputStream emfBuffer;
 	private int emfTotalSize;
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
@@ -139,6 +144,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private EmfPlusImageEffect pendingEmfPlusImageEffect;
 	private boolean suppressEmfPlusFallback;
 	private boolean emfPlusGetDCActive;
+	private boolean emfPlusDualActive;
+	private LinkedList<byte[]> emfPlusDualComments;
+	private boolean emfPlusDualRenderable;
 	private double[] emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
 	private double emfPlusPageScale = 1.0;
 	private double emfPlusPageUnitScale = 1.0;
@@ -226,6 +234,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		canvasHeight = unitsToPixels(vsy, vey, dpi);
 		placeableViewportScaleX = (double) canvasWidth / Math.max(Math.abs(vex - vsx), 1);
 		placeableViewportScaleY = (double) canvasHeight / Math.max(Math.abs(vey - vsy), 1);
+		emfPlusCanvasScaleX = placeableViewportScaleX;
+		emfPlusCanvasScaleY = placeableViewportScaleY;
 		initDc();
 		dc.setWindowExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
 		setViewportExtEx(Math.abs(vex - vsx), Math.abs(vey - vsy), null);
@@ -248,12 +258,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				millimetersWidth);
 		emfHeaderFrameCanvasHeight = emfHeaderFrameCanvasSize(Math.abs(frameBottom - frameTop), deviceHeight,
 				millimetersHeight);
+		emfHeaderLogicalCanvasWidth = width;
+		emfHeaderLogicalCanvasHeight = height;
 		emfHeaderCanvas = true;
 		growCanvas = false;
 		canvasMinX = left;
 		canvasMinY = top;
 		canvasWidth = emfHeaderCanvasSize(width, emfHeaderFrameCanvasWidth);
 		canvasHeight = emfHeaderCanvasSize(height, emfHeaderFrameCanvasHeight);
+		emfPlusCanvasScaleX = (double) canvasWidth / Math.max(emfHeaderLogicalCanvasWidth, 1);
+		emfPlusCanvasScaleY = (double) canvasHeight / Math.max(emfHeaderLogicalCanvasHeight, 1);
 		if (frameTop < 0 && emfHeaderFrameCanvasHeight > height) {
 			canvasMinY -= emfHeaderFrameCanvasHeight - height;
 		}
@@ -279,6 +293,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		canvasMinY = 0;
 		canvasWidth = Math.min(emfHeaderFrameCanvasWidth, MAX_CANVAS_SIZE);
 		canvasHeight = Math.min(emfHeaderFrameCanvasHeight, MAX_CANVAS_SIZE);
+		emfPlusCanvasScaleX = (double) canvasWidth / Math.max(emfHeaderLogicalCanvasWidth, 1);
+		emfPlusCanvasScaleY = (double) canvasHeight / Math.max(emfHeaderLogicalCanvasHeight, 1);
 	}
 
 	public void header() {
@@ -484,6 +500,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	public void beginPath() {
 		currentPath = new Path2D.Double(
 				dc.getPolyFillMode() == Gdi.WINDING ? Path2D.WIND_NON_ZERO : Path2D.WIND_EVEN_ODD);
+		currentPathFigureClosed = false;
 	}
 
 	public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
@@ -525,6 +542,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	public void closeFigure() {
 		if (currentPath != null) {
 			currentPath.closePath();
+			currentPathFigureClosed = true;
 		}
 	}
 
@@ -635,6 +653,27 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
+			boolean dualHeader = isDualEmfPlusHeaderComment(data);
+			if (dualHeader) {
+				emfPlusDualActive = true;
+			}
+			if (emfPlusDualActive) {
+				if (emfPlusDualComments == null) {
+					emfPlusDualComments = new LinkedList<byte[]>();
+				}
+				emfPlusDualComments.add(data);
+				if (hasRenderableEmfPlusRecord(data)) {
+					emfPlusDualRenderable = true;
+					suppressEmfPlusFallback = true;
+				}
+				if (containsEmfPlusRecord(data, EMF_PLUS_GET_DC)) {
+					replayPendingEmfPlusDualComments();
+					clearPendingEmfPlusDualComments();
+					emfPlusGetDCActive = false;
+					suppressEmfPlusFallback = false;
+				}
+				return;
+			}
 			useEmfPlusHeaderCanvas();
 			if (emfPlusGetDCActive) {
 				endEmfPlusGetDCMode();
@@ -715,8 +754,8 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			clipped = true;
 		}
 		try {
-			drawText(x, y, GdiUtils.convertString(text, dc.getFont() != null ? dc.getFont().getCharset() : 0), lpdx,
-					options);
+			int charset = dc.getFont() != null ? dc.getFont().getCharset() : GdiFont.DEFAULT_CHARSET;
+			drawText(x, y, GdiUtils.convertString(text, charset), GdiUtils.fixTextDx(charset, text, lpdx), options);
 		} finally {
 			if (clipped) {
 				graphics.setClip(oldClip);
@@ -834,6 +873,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		if (currentPath != null) {
 			currentPath.lineTo(ix(ex), iy(ey));
+			currentPathFigureClosed = false;
 			dc.moveToEx(ex, ey, null);
 			return;
 		}
@@ -844,7 +884,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void moveToEx(int x, int y, Point old) {
 		if (currentPath != null) {
-			currentPath.moveTo(ix(x), iy(y));
+			if (currentPath.getCurrentPoint() != null && !currentPathFigureClosed) {
+				currentPath.lineTo(ix(x), iy(y));
+			} else {
+				currentPath.moveTo(ix(x), iy(y));
+			}
+			currentPathFigureClosed = false;
 		}
 		dc.moveToEx(x, y, old);
 	}
@@ -1085,6 +1130,37 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private void endEmfPlusGetDCMode() {
 		emfPlusGetDCActive = false;
 		suppressEmfPlusFallback = false;
+	}
+
+	private void replayPendingEmfPlusDualComments() {
+		if (emfPlusDualComments == null) {
+			return;
+		}
+		for (byte[] comment : emfPlusDualComments) {
+			replayEmfPlusComment(comment);
+		}
+	}
+
+	private void replayEmfPlusComment(byte[] data) {
+		useEmfPlusHeaderCanvas();
+		if (emfPlusGetDCActive) {
+			endEmfPlusGetDCMode();
+		} else {
+			suppressEmfPlusFallback = false;
+		}
+		emfPlusParser.parse(data, new EmfPlusParser.Handler() {
+			public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
+					int totalObjectSize) {
+				AwtGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
+			}
+		});
+	}
+
+	private void clearPendingEmfPlusDualComments() {
+		if (emfPlusDualComments != null) {
+			emfPlusDualComments.clear();
+		}
+		emfPlusDualRenderable = false;
 	}
 
 	private void saveEmfPlusState() {
@@ -2687,8 +2763,18 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void footer() {
+		flushPendingEmfPlusDualComments();
 		flushPendingEmf();
 		ensureGraphics();
+	}
+
+	private void flushPendingEmfPlusDualComments() {
+		if (emfPlusDualComments == null || emfPlusDualComments.isEmpty()) {
+			return;
+		}
+		replayPendingEmfPlusDualComments();
+		clearPendingEmfPlusDualComments();
+		emfPlusGetDCActive = false;
 	}
 
 	private void flushPendingEmf() {
@@ -3127,7 +3213,19 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (currentPath == null || points == null || points.length == 0) {
 			return;
 		}
-		appendPoints(currentPath, points, close);
+		if (currentPath.getCurrentPoint() != null && !currentPathFigureClosed) {
+			currentPath.lineTo(ix(points[0].x), iy(points[0].y));
+		} else {
+			currentPath.moveTo(ix(points[0].x), iy(points[0].y));
+		}
+		currentPathFigureClosed = false;
+		for (int i = 1; i < points.length; i++) {
+			currentPath.lineTo(ix(points[i].x), iy(points[i].y));
+		}
+		if (close) {
+			currentPath.closePath();
+			currentPathFigureClosed = true;
+		}
 	}
 
 	private void appendPoints(Path2D.Double path, Point[] points, boolean close) {
@@ -4724,6 +4822,101 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		return suppressEmfPlusFallback && !emfPlusGetDCActive;
 	}
 
+	private boolean isDualEmfPlusHeaderComment(byte[] data) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int size = readInt32(data, offset + 4);
+			int dataSize = readInt32(data, offset + 8);
+			int payloadOffset = offset + EMF_PLUS_HEADER_SIZE;
+			if (size < EMF_PLUS_HEADER_SIZE || dataSize < 0 || dataSize > size - EMF_PLUS_HEADER_SIZE
+					|| offset + size > data.length) {
+				return false;
+			}
+			if (type == EMF_PLUS_HEADER && dataSize >= 8) {
+				return (readInt32(data, payloadOffset + 4) & 0x00000001) != 0;
+			}
+			offset += size;
+		}
+		return false;
+	}
+
+	private boolean containsEmfPlusRecord(byte[] data, int recordType) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int flags = readUInt16(data, offset + 2);
+			int size = readInt32(data, offset + 4);
+			boolean continuableObject = type == EMF_PLUS_OBJECT && (flags & EMF_PLUS_OBJECT_CONTINUABLE) != 0;
+			int headerSize = continuableObject ? EMF_PLUS_HEADER_SIZE + 4 : EMF_PLUS_HEADER_SIZE;
+			if (offset + headerSize > data.length) {
+				return false;
+			}
+			int dataSize = readInt32(data, offset + headerSize - 4);
+			if (size < headerSize || dataSize < 0 || dataSize > size - headerSize || offset + size > data.length) {
+				return false;
+			}
+			if (type == recordType) {
+				return true;
+			}
+			offset += size;
+		}
+		return false;
+	}
+
+	private boolean hasRenderableEmfPlusRecord(byte[] data) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int flags = readUInt16(data, offset + 2);
+			int size = readInt32(data, offset + 4);
+			boolean continuableObject = type == EMF_PLUS_OBJECT && (flags & EMF_PLUS_OBJECT_CONTINUABLE) != 0;
+			int headerSize = continuableObject ? EMF_PLUS_HEADER_SIZE + 4 : EMF_PLUS_HEADER_SIZE;
+			if (offset + headerSize > data.length) {
+				return false;
+			}
+			int dataSize = readInt32(data, offset + headerSize - 4);
+			if (size < headerSize || dataSize < 0 || dataSize > size - headerSize || offset + size > data.length) {
+				return false;
+			}
+			if (isRenderableEmfPlusRecord(type)) {
+				return true;
+			}
+			offset += size;
+		}
+		return false;
+	}
+
+	private boolean isRenderableEmfPlusRecord(int type) {
+		switch (type) {
+			case EMF_PLUS_CLEAR :
+			case EMF_PLUS_FILL_RECTS :
+			case EMF_PLUS_DRAW_RECTS :
+			case EMF_PLUS_FILL_POLYGON :
+			case EMF_PLUS_DRAW_LINES :
+			case EMF_PLUS_FILL_ELLIPSE :
+			case EMF_PLUS_DRAW_ELLIPSE :
+			case EMF_PLUS_FILL_PIE :
+			case EMF_PLUS_DRAW_PIE :
+			case EMF_PLUS_DRAW_ARC :
+			case EMF_PLUS_FILL_REGION :
+			case EMF_PLUS_FILL_PATH :
+			case EMF_PLUS_DRAW_PATH :
+			case EMF_PLUS_FILL_CLOSED_CURVE :
+			case EMF_PLUS_DRAW_CLOSED_CURVE :
+			case EMF_PLUS_DRAW_CURVE :
+			case EMF_PLUS_DRAW_BEZIERS :
+			case EMF_PLUS_DRAW_IMAGE :
+			case EMF_PLUS_DRAW_IMAGE_POINTS :
+			case EMF_PLUS_DRAW_STRING :
+			case EMF_PLUS_DRAW_DRIVER_STRING :
+			case EMF_PLUS_STROKE_FILL_PATH :
+				return true;
+			default :
+				return false;
+		}
+	}
+
 	private EmfPlusBrush getEmfPlusBrush(int flags, int brushId) {
 		if ((flags & EMF_PLUS_FLAG_SOLID_COLOR) != 0) {
 			return new EmfPlusBrush(brushId);
@@ -5973,12 +6166,21 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private double getEmfPlusPenScale(EmfPlusPen pen) {
+		double canvasScale = getEmfPlusCanvasScale();
 		if (pen.transform == null) {
-			return 1.0;
+			return canvasScale;
 		}
 		double xScale = Math.hypot(pen.transform[0], pen.transform[1]);
 		double yScale = Math.hypot(pen.transform[2], pen.transform[3]);
 		double scale = (xScale + yScale) / 2.0;
+		if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
+			return canvasScale;
+		}
+		return scale * canvasScale;
+	}
+
+	private double getEmfPlusCanvasScale() {
+		double scale = (Math.abs(emfPlusCanvasScaleX) + Math.abs(emfPlusCanvasScaleY)) / 2.0;
 		if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
 			return 1.0;
 		}
@@ -6085,7 +6287,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		int i = 0;
 		while (i < source.points.length) {
 			int rawType = source.types[i] & 0xFF;
-			int type = rawType & EMF_PLUS_PATH_POINT_TYPE_MASK;
+			int type = toEmfPlusPathPointType(rawType, path.getCurrentPoint() == null);
 			if (type == EMF_PLUS_PATH_POINT_TYPE_START || path.getCurrentPoint() == null) {
 				double[] p = toEmfPlusLogicalPoint(source.points[i][0], source.points[i][1]);
 				path.moveTo(p[0], p[1]);
@@ -6114,6 +6316,14 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			}
 		}
 		return path;
+	}
+
+	private int toEmfPlusPathPointType(int rawType, boolean emptyPath) {
+		int type = rawType & EMF_PLUS_PATH_POINT_TYPE_MASK;
+		if (type == EMF_PLUS_PATH_POINT_TYPE_START && !emptyPath && (rawType & EMF_PLUS_PATH_POINT_TYPE_MARKER) != 0) {
+			return EMF_PLUS_PATH_POINT_TYPE_LINE;
+		}
+		return type;
 	}
 
 	private Area createEmfPlusRegionArea(EmfPlusRegion region) {
@@ -6362,14 +6572,15 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		double scale = emfPlusPageScale * emfPlusPageUnitScale;
 		double tx = emfPlusWorldTransform[0] * x + emfPlusWorldTransform[2] * y + emfPlusWorldTransform[4];
 		double ty = emfPlusWorldTransform[1] * x + emfPlusWorldTransform[3] * y + emfPlusWorldTransform[5];
-		return new double[]{tx * scale + emfPlusPixelOffsetX, ty * scale + emfPlusPixelOffsetY};
+		return new double[]{tx * scale * emfPlusCanvasScaleX + emfPlusPixelOffsetX,
+				ty * scale * emfPlusCanvasScaleY + emfPlusPixelOffsetY};
 	}
 
 	private double[] toEmfPlusLogicalSize(double width, double height) {
 		double scale = emfPlusPageScale * emfPlusPageUnitScale;
 		double x = emfPlusWorldTransform[0] * width + emfPlusWorldTransform[2] * height;
 		double y = emfPlusWorldTransform[1] * width + emfPlusWorldTransform[3] * height;
-		return new double[]{Math.abs(x * scale), Math.abs(y * scale)};
+		return new double[]{Math.abs(x * scale * emfPlusCanvasScaleX), Math.abs(y * scale * emfPlusCanvasScaleY)};
 	}
 
 	private double[] getEmfPlusPointBounds(double[][] points) {
@@ -6412,8 +6623,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private AffineTransform createEmfPlusDriverStringTransform(double[] matrix) {
 		double scale = emfPlusPageScale * emfPlusPageUnitScale;
 		double[] combined = multiplyEmfPlusMatrix(matrix, emfPlusWorldTransform);
-		return new AffineTransform(combined[0] * scale, combined[1] * scale, combined[2] * scale, combined[3] * scale,
-				combined[4] * scale + emfPlusPixelOffsetX, combined[5] * scale + emfPlusPixelOffsetY);
+		return new AffineTransform(combined[0] * scale * emfPlusCanvasScaleX, combined[1] * scale * emfPlusCanvasScaleY,
+				combined[2] * scale * emfPlusCanvasScaleX, combined[3] * scale * emfPlusCanvasScaleY,
+				combined[4] * scale * emfPlusCanvasScaleX + emfPlusPixelOffsetX,
+				combined[5] * scale * emfPlusCanvasScaleY + emfPlusPixelOffsetY);
 	}
 
 	private double[] getEmfPlusImageUnitScale(double[] p0, double[] p1, double[] p2, double srcWidth,

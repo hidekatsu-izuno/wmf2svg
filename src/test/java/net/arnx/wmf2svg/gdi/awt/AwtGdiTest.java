@@ -228,6 +228,36 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testPendingEmfFooterMappingKeepsEmfViewportScale() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.escape(createEscapeRecord(0x1234, createIsotropicArcEmf()));
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(200, 200, null);
+		gdi.footer();
+
+		Rectangle bounds = paintedBounds(gdi.getImage());
+		assertTrue(bounds.width >= 95);
+		assertTrue(bounds.height < 90);
+	}
+
+	@Test
+	public void testPlaceablePendingEmfFooterMappingScalesEmfViewportToTargetDpi() throws Exception {
+		AwtGdi gdi = new AwtGdi();
+		gdi.placeableHeader(0, 0, 28000, 21000, 2540);
+		gdi.header();
+		gdi.escape(createEscapeRecord(0x1234, createCssViewportBackgroundEmf()));
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setWindowOrgEx(0, 0, null);
+		gdi.setWindowExtEx(28000, 21000, null);
+		gdi.footer();
+
+		Rectangle bounds = paintedBounds(gdi.getImage());
+		assertTrue(bounds.width >= 145);
+		assertTrue(bounds.height >= 145);
+	}
+
+	@Test
 	public void testPendingEmfUsesCapturedOuterMappingWhenMappingPrecedesComment() throws Exception {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -1466,6 +1496,17 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testDualEmfPlusBitmapReplaysBeforeBitmapFallback() throws Exception {
+		AwtGdi gdi = createMappedGdi(20, 10);
+		gdi.comment(createDualEmfPlusBitmapDrawImagePointsComment());
+		gdi.stretchDIBits(0, 0, 20, 10, 0, 0, 1, 1, createRgbDib(0x0000FF), Gdi.DIB_RGB_COLORS, Gdi.SRCCOPY);
+
+		BufferedImage image = gdi.getImage();
+		assertEquals(0xFF0000, image.getRGB(5, 5) & 0x00FFFFFF);
+		assertEquals(0x00FF00, image.getRGB(15, 5) & 0x00FFFFFF);
+	}
+
+	@Test
 	public void testDualEmfPlusGetDcKeepsGdiInteropRecords() {
 		AwtGdi gdi = createMappedGdi(20, 20);
 		gdi.comment(createDualEmfPlusSolidFillComment());
@@ -1985,6 +2026,28 @@ public class AwtGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusDashedDrawLinesUsesCustomArrowStartCap() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusDashedCustomArrowStartCapPenComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue((image.getRGB(12, 20) >>> 24) != 0);
+	}
+
+	@Test
+	public void testEmfPlusDrawPathUsesDefaultCustomArrowEndCap() {
+		AwtGdi gdi = new AwtGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusDefaultCustomArrowEndCapDrawPathComment());
+		gdi.footer();
+
+		BufferedImage image = gdi.getImage();
+		assertTrue((image.getRGB(31, 17) >>> 24) != 0);
+	}
+
+	@Test
 	public void testEmfPlusPenTransformScalesStrokeWidth() {
 		AwtGdi gdi = new AwtGdi();
 		gdi.header();
@@ -2200,6 +2263,31 @@ public class AwtGdiTest {
 		return data;
 	}
 
+	private byte[] createIsotropicArcEmf() throws IOException {
+		EmfGdi gdi = new EmfGdi();
+		gdi.setMapMode(Gdi.MM_ISOTROPIC);
+		gdi.setWindowExtEx(100, 100, null);
+		gdi.setViewportExtEx(100, 80, null);
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.arc(10, 10, 110, 110, 60, 10, 60, 10);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		return out.toByteArray();
+	}
+
+	private byte[] createCssViewportBackgroundEmf() throws IOException {
+		EmfGdi gdi = new EmfGdi();
+		gdi.setMapMode(Gdi.MM_ANISOTROPIC);
+		gdi.setViewportExtEx(96, 96, null);
+		gdi.setWindowExtEx(2540, 2540, null);
+		gdi.rectangle(0, 0, 2540, 2540);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		return out.toByteArray();
+	}
+
 	private byte[] createBackgroundEmf() throws IOException {
 		EmfGdi gdi = new EmfGdi();
 		gdi.rectangle(0, 0, 100, 100);
@@ -2277,6 +2365,40 @@ public class AwtGdiTest {
 			payload.reset();
 			writeEmfPlusRecord(comment, 0x4004, 0, payload.toByteArray());
 		}
+		return comment.toByteArray();
+	}
+
+	private byte[] createDualEmfPlusBitmapDrawImagePointsComment() throws IOException {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0x00000001);
+		writeInt(payload, 96);
+		writeInt(payload, 96);
+		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
+
+		payload.reset();
+		byte[] png = createTwoPixelPng();
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, 0x0000, payload.toByteArray());
 		return comment.toByteArray();
 	}
 
@@ -3329,6 +3451,107 @@ public class AwtGdiTest {
 		writeFloat(payload, 40);
 		writeFloat(payload, 20);
 		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDashedCustomArrowStartCapPenComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00000820);
+		writeInt(payload, 2);
+		writeFloat(payload, 2);
+		writeInt(payload, 1);
+		writeInt(payload, 60);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeFloat(payload, 4);
+		writeFloat(payload, 6);
+		writeFloat(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 10);
+		writeFloat(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 2);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeFloat(payload, 40);
+		writeFloat(payload, 20);
+		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDefaultCustomArrowEndCapDrawPathComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeFloat(payload, 40);
+		writeFloat(payload, 20);
+		payload.write(0);
+		payload.write(1);
+		writeEmfPlusRecord(comment, 0x4008, 0x0301, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00001004);
+		writeInt(payload, 2);
+		writeFloat(payload, 4);
+		writeInt(payload, 255);
+		writeInt(payload, 100);
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 40);
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 3);
+		writeInt(payload, 0);
+		writeFloat(payload, 1.5f);
+		writeFloat(payload, -3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, -1.5f);
+		writeFloat(payload, -3);
+		payload.write(0);
+		payload.write(1);
+		payload.write(0x81);
+		payload.write(0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeEmfPlusRecord(comment, 0x4015, 0x0001, payload.toByteArray());
 		return comment.toByteArray();
 	}
 

@@ -128,6 +128,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private int emfTotalSize;
 	private ArrayList<PendingEmf> pendingEmfList = new ArrayList<PendingEmf>();
 	private boolean replayingPendingEmf;
+	private boolean scalePendingEmfViewportToTargetDpi;
 	private int ignoredPendingEmfHeaderMappings;
 	private boolean parseEmfPlusComments = true;
 	private EmfPlusParser emfPlusParser = new EmfPlusParser();
@@ -145,6 +146,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private boolean suppressEmfPlusFallback;
 	private boolean emfPlusGetDCActive;
 	private boolean emfPlusDualActive;
+	private boolean replayingEmfPlusDualComments;
 	private LinkedList<byte[]> emfPlusDualComments;
 	private double[] emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
 	private double emfPlusPageScale = 1.0;
@@ -1104,9 +1106,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return false;
 		}
 		bufferDualEmfPlusComment(data);
-		if (hasRenderableEmfPlusRecord(data)) {
-			markEmfPlusFallbackCovered();
-		}
 		if (containsEmfPlusRecord(data, EMF_PLUS_GET_DC)) {
 			flushPendingEmfPlusDualComments();
 		}
@@ -1134,7 +1133,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		useEmfPlusHeaderCanvas();
 		if (emfPlusGetDCActive) {
 			leaveEmfPlusGetDCMode();
-		} else {
+		} else if (!replayingEmfPlusDualComments) {
 			clearEmfPlusFallbackCoverage();
 		}
 	}
@@ -1161,8 +1160,19 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (emfPlusDualComments == null) {
 			return;
 		}
-		for (byte[] comment : emfPlusDualComments) {
-			parseEmfPlusComment(comment);
+		if (!emfPlusGetDCActive) {
+			clearEmfPlusFallbackCoverage();
+		}
+		replayingEmfPlusDualComments = true;
+		try {
+			for (byte[] comment : emfPlusDualComments) {
+				parseEmfPlusComment(comment);
+			}
+			if (!emfPlusGetDCActive) {
+				markEmfPlusFallbackCovered();
+			}
+		} finally {
+			replayingEmfPlusDualComments = false;
 		}
 	}
 
@@ -1400,6 +1410,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(readInt32(payload, 0) & 0xFF));
 		EmfPlusPath path = emfPlusPaths.get(Integer.valueOf(flags & 0xFF));
 		if (pen == null || path == null) {
+			return;
+		}
+		double[][] polyline = getEmfPlusOpenPolyline(path);
+		if (polyline != null && hasDistinctSolidLineCaps(pen)) {
+			strokeEmfPlusPolyline(polyline, false, pen);
 			return;
 		}
 		Shape shape = createEmfPlusPath(path);
@@ -2688,6 +2703,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		if (placeableHeader && !replayingPendingEmf) {
 			x = placeableViewportX(x);
 			y = placeableViewportY(y);
+		} else if (scalePendingEmfViewportToTargetDpi) {
+			x = targetDpiViewport(x);
+			y = targetDpiViewport(y);
 		}
 		dc.setViewportExtEx(x, y, old);
 		if (!replayingPendingEmf && !placeableHeader && !emfHeaderCanvas && x != 0 && y != 0 && image == null) {
@@ -2714,6 +2732,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private int placeableViewportY(int value) {
 		return (int) Math.round(value * placeableViewportScaleY);
+	}
+
+	private int targetDpiViewport(int value) {
+		return (int) Math.round(value * TARGET_DPI / 96.0);
 	}
 
 	public void setWindowExtEx(int width, int height, Size old) {
@@ -2783,7 +2805,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		replayPendingEmfPlusDualComments();
 		clearPendingEmfPlusDualComments();
-		leaveEmfPlusGetDCMode();
 	}
 
 	private void flushPendingEmf() {
@@ -2802,8 +2823,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 				boolean useFooterDc = !useCapturedDc && hasExplicitMapping(savedDc);
 				AwtDc replayDc = useFooterDc ? savedDc : pendingEmf.dc;
 				dc = (AwtDc) replayDc.clone();
+				dc.setScaleWindowOrigin(!useFooterDc);
 				replayingPendingEmf = true;
-				ignoredPendingEmfHeaderMappings = useCapturedDc || useFooterDc ? 2 : 0;
+				scalePendingEmfViewportToTargetDpi = useFooterDc && placeableHeader;
+				ignoredPendingEmfHeaderMappings = useCapturedDc ? 2 : 0;
 				if (!useCapturedDc && !useFooterDc) {
 					applyPendingEmfFrame(pendingEmf.header);
 				} else if (pendingEmf.header != null && useCapturedDc) {
@@ -2823,6 +2846,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 					graphics.setClip(oldClip);
 				}
 				replayingPendingEmf = false;
+				scalePendingEmfViewportToTargetDpi = false;
 				ignoredPendingEmfHeaderMappings = 0;
 				dc = savedDc;
 			}
@@ -3344,6 +3368,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void fillShape(Shape shape, GdiBrush brush) {
 		ensureGraphics();
+		flushPendingEmfPlusDualComments();
 		if (shouldSuppressEmfPlusFallback()) {
 			return;
 		}
@@ -3415,6 +3440,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void strokeShape(Shape shape, GdiPen pen) {
 		ensureGraphics();
+		flushPendingEmfPlusDualComments();
 		if (shouldSuppressEmfPlusFallback()) {
 			return;
 		}
@@ -3600,6 +3626,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private void drawText(int x, int y, String text, int[] lpdx, int options) {
 		ensureGraphics();
+		flushPendingEmfPlusDualComments();
 		if (shouldSuppressEmfPlusFallback()) {
 			return;
 		}
@@ -4010,6 +4037,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private void drawBitmap(byte[] data, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, int usage,
 			Object ropOrTransparentColor, boolean preserveAlpha) {
 		ensureGraphics();
+		flushPendingEmfPlusDualComments();
 		if (shouldSuppressEmfPlusFallback()) {
 			return;
 		}
@@ -5294,8 +5322,16 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private EmfPlusCustomLineCap readEmfPlusCustomLineCap(byte[] payload, int offset, int size) {
-		if (size < 60 || payload.length < offset + size
-				|| readInt32(payload, offset + 4) != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
+		if (size < 60 || payload.length < offset + size) {
+			return null;
+		}
+		int dataType = readInt32(payload, offset + 4);
+		if (dataType == EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_DEFAULT) {
+			int fillPathSize = readInt32(payload, offset + 56);
+			EmfPlusPath fillPath = readEmfPlusPath(payload, offset + 60, fillPathSize, false);
+			return fillPath != null ? new EmfPlusCustomLineCap(fillPath) : null;
+		}
+		if (dataType != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
 			return null;
 		}
 		int dataOffset = offset + 8;
@@ -5310,24 +5346,28 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private EmfPlusPath readEmfPlusPath(byte[] payload) {
-		if (payload.length < 12) {
+		return readEmfPlusPath(payload, 0, payload.length, true);
+	}
+
+	private EmfPlusPath readEmfPlusPath(byte[] payload, int offset, int size, boolean hasFillMode) {
+		if (size < 12 || offset < 0 || payload.length < offset + size) {
 			return null;
 		}
-		int fillMode = readInt32(payload, 0);
-		int count = readInt32(payload, 4);
-		int pathPointFlags = readInt32(payload, 8);
+		int fillMode = hasFillMode ? readInt32(payload, offset) : 1;
+		int count = readInt32(payload, offset + 4);
+		int pathPointFlags = readInt32(payload, offset + 8);
 		if (count < 0) {
 			return null;
 		}
 		boolean relative = (pathPointFlags & EMF_PLUS_PATH_FLAG_RELATIVE) != 0;
 		boolean compressed = (pathPointFlags & EMF_PLUS_FLAG_COMPRESSED) != 0;
-		double[][] points = readEmfPlusDrawingPoints(payload, 12, count, pathPointFlags);
+		double[][] points = readEmfPlusDrawingPoints(payload, offset + 12, count, pathPointFlags);
 		if (points == null) {
 			return null;
 		}
 
-		int typesOffset = 12 + count * (relative ? 2 : (compressed ? 4 : 8));
-		if (payload.length < typesOffset || payload.length - typesOffset < count) {
+		int typesOffset = offset + 12 + count * (relative ? 2 : (compressed ? 4 : 8));
+		if (typesOffset < offset || offset + size < typesOffset || offset + size - typesOffset < count) {
 			return null;
 		}
 		byte[] types = new byte[count];
@@ -6045,9 +6085,12 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 		Shape line = createEmfPlusPolyline(points, false, Path2D.WIND_NON_ZERO);
 		float width = (float) Math.max(1.0, pen.width * getEmfPlusPenScale(pen));
-		Shape startCap = createEmfPlusLineCapShape(pen.startCap, pen.customStartCap, points[0], points[1], width);
-		Shape endCap = createEmfPlusLineCapShape(pen.endCap, pen.customEndCap, points[points.length - 1],
-				points[points.length - 2], width);
+		double[] start = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
+		double[] startAdjacent = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
+		double[] end = toEmfPlusLogicalPoint(points[points.length - 1][0], points[points.length - 1][1]);
+		double[] endAdjacent = toEmfPlusLogicalPoint(points[points.length - 2][0], points[points.length - 2][1]);
+		Shape startCap = createEmfPlusLineCapShape(pen.startCap, pen.customStartCap, start, startAdjacent, width);
+		Shape endCap = createEmfPlusLineCapShape(pen.endCap, pen.customEndCap, end, endAdjacent, width);
 
 		ensureGraphics();
 		ensureCanvasContains(line);
@@ -6078,8 +6121,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private boolean hasDistinctSolidLineCaps(EmfPlusPen pen) {
-		return pen != null && !hasEmfPlusDash(pen)
-				&& (pen.customStartCap != null || pen.customEndCap != null || pen.startCap != pen.endCap)
+		if (pen == null) {
+			return false;
+		}
+		if (pen.customStartCap != null || pen.customEndCap != null) {
+			return true;
+		}
+		return !hasEmfPlusDash(pen) && pen.startCap != pen.endCap
 				&& (isSupportedEmfPlusLineCap(pen.startCap) || isSupportedEmfPlusLineCap(pen.endCap));
 	}
 
@@ -6137,6 +6185,9 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		double uy = dy / length;
 		double nx = -uy;
 		double ny = ux;
+		if (cap.path != null) {
+			return createEmfPlusCustomLineCapPathShape(cap.path, end, ux, uy, nx, ny, penWidth);
+		}
 		double width = cap.width * penWidth * cap.widthScale;
 		double height = cap.height * penWidth * cap.widthScale;
 		Path2D path = new Path2D.Double();
@@ -6145,6 +6196,51 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		path.lineTo(end[0] - nx * width / 2.0, end[1] - ny * width / 2.0);
 		path.closePath();
 		return path;
+	}
+
+	private Path2D.Double createEmfPlusCustomLineCapPathShape(EmfPlusPath source, double[] end, double ux, double uy,
+			double nx, double ny, float penWidth) {
+		Path2D.Double path = new Path2D.Double(
+				source.fillMode == EMF_PLUS_FILL_MODE_ALTERNATE ? Path2D.WIND_EVEN_ODD : Path2D.WIND_NON_ZERO);
+		int i = 0;
+		while (i < source.points.length) {
+			int rawType = source.types[i] & 0xFF;
+			int type = toEmfPlusPathPointType(rawType, path.getCurrentPoint() == null);
+			if (type == EMF_PLUS_PATH_POINT_TYPE_START || path.getCurrentPoint() == null) {
+				double[] p = toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth);
+				path.moveTo(p[0], p[1]);
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					path.closePath();
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_LINE) {
+				double[] p = toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth);
+				path.lineTo(p[0], p[1]);
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					path.closePath();
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_BEZIER && i + 2 < source.points.length) {
+				double[] p1 = toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth);
+				double[] p2 = toEmfPlusCustomLineCapPoint(source.points[i + 1], end, ux, uy, nx, ny, penWidth);
+				double[] p3 = toEmfPlusCustomLineCapPoint(source.points[i + 2], end, ux, uy, nx, ny, penWidth);
+				path.curveTo(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]);
+				if (((source.types[i + 2] & 0xFF) & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					path.closePath();
+				}
+				i += 3;
+			} else {
+				i++;
+			}
+		}
+		return path;
+	}
+
+	private double[] toEmfPlusCustomLineCapPoint(double[] point, double[] end, double ux, double uy, double nx,
+			double ny, float penWidth) {
+		double x = point[0] * penWidth;
+		double y = point[1] * penWidth;
+		return new double[]{end[0] + nx * x + ux * y, end[1] + ny * x + uy * y};
 	}
 
 	private BasicStroke toEmfPlusStroke(EmfPlusPen pen) {
@@ -6325,6 +6421,22 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			}
 		}
 		return path;
+	}
+
+	private double[][] getEmfPlusOpenPolyline(EmfPlusPath source) {
+		double[][] points = new double[source.points.length][2];
+		for (int i = 0; i < source.points.length; i++) {
+			int rawType = source.types[i] & 0xFF;
+			int type = toEmfPlusPathPointType(rawType, i == 0);
+			if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0 || type == EMF_PLUS_PATH_POINT_TYPE_BEZIER
+					|| (i == 0 && type != EMF_PLUS_PATH_POINT_TYPE_START)
+					|| (i > 0 && type != EMF_PLUS_PATH_POINT_TYPE_LINE)) {
+				return null;
+			}
+			points[i][0] = source.points[i][0];
+			points[i][1] = source.points[i][1];
+		}
+		return points.length >= 2 ? points : null;
 	}
 
 	private int toEmfPlusPathPointType(int rawType, boolean emptyPath) {
@@ -7009,12 +7121,22 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private static class EmfPlusCustomLineCap {
+		private final EmfPlusPath path;
 		private final double width;
 		private final double height;
 		private final boolean fill;
 		private final double widthScale;
 
+		private EmfPlusCustomLineCap(EmfPlusPath path) {
+			this.path = path;
+			this.width = 0.0;
+			this.height = 0.0;
+			this.fill = true;
+			this.widthScale = 1.0;
+		}
+
 		private EmfPlusCustomLineCap(double width, double height, boolean fill, double widthScale) {
+			this.path = null;
 			this.width = width;
 			this.height = height;
 			this.fill = fill;

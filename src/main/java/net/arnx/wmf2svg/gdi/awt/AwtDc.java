@@ -41,6 +41,7 @@ class AwtDc implements Cloneable {
 	private int voy;
 	private double vsx = 1.0;
 	private double vsy = 1.0;
+	private boolean scaleWindowOrigin = true;
 	private int cx;
 	private int cy;
 	private int box;
@@ -72,11 +73,15 @@ class AwtDc implements Cloneable {
 	}
 
 	public double toAbsoluteX(double x) {
-		return (vx + vox) * dpi / CSS_DPI + ((mx * x - (wx + wox)) / wsx) * viewportScaleX();
+		return (vx + vox) * dpi / CSS_DPI + (scaleWindowOrigin
+				? ((mx * x - (wx + wox)) / wsx) * viewportScaleX()
+				: (mx * x / wsx) * viewportScaleX() - (wx + wox));
 	}
 
 	public double toAbsoluteY(double y) {
-		return (vy + voy) * dpi / CSS_DPI + ((my * y - (wy + woy)) / wsy) * viewportScaleY();
+		return (vy + voy) * dpi / CSS_DPI + (scaleWindowOrigin
+				? ((my * y - (wy + woy)) / wsy) * viewportScaleY()
+				: (my * y / wsy) * viewportScaleY() - (wy + woy));
 	}
 
 	public double toRelativeX(double x) {
@@ -253,6 +258,10 @@ class AwtDc implements Cloneable {
 				mx = 1.0;
 				my = 1.0;
 		}
+	}
+
+	public void setScaleWindowOrigin(boolean scaleWindowOrigin) {
+		this.scaleWindowOrigin = scaleWindowOrigin;
 	}
 
 	public void moveToEx(int x, int y, Point old) {

@@ -2417,6 +2417,50 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testSupportedDualEmfPlusCommentSuppressesGdiFallback() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createDualEmfPlusSolidFillComment(false));
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.rectangle(1, 1, 12, 12);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("fill=\"rgb(51,102,153)\""));
+		Assert.assertFalse(svg.contains("class=\"pen0 brush"));
+	}
+
+	@Test
+	public void testDualEmfPlusBitmapReplaysBeforeBitmapFallback() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createDualEmfPlusBitmapDrawImagePointsComment());
+		gdi.stretchDIBits(0, 0, 20, 10, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0x0000FF}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(1, count(svg, "<image "));
+		Assert.assertTrue(svg.contains("width=\"2\""));
+		Assert.assertTrue(svg.contains("height=\"1\""));
+		Assert.assertTrue(svg.contains("transform=\"matrix(10 0 0 10 0 0)\""));
+	}
+
+	@Test
+	public void testDualEmfPlusGetDCKeepsGdiInteropRecords() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createDualEmfPlusSolidFillComment());
+		gdi.selectObject(gdi.createBrushIndirect(GdiBrush.BS_SOLID, 0x0000FF, 0));
+		gdi.rectangle(1, 1, 12, 12);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("fill=\"rgb(51,102,153)\""));
+		Assert.assertTrue(svg.contains("class=\"pen0 brush"));
+	}
+
+	@Test
 	public void testEmfPlusSolidFillRecordsRenderBasicShapes() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -2989,6 +3033,35 @@ public class SvgGdiTest {
 		String svg = out.toString("UTF-8");
 		Assert.assertTrue(svg.contains("stroke-linecap=\"round\""));
 		Assert.assertTrue(svg.contains("stroke-dasharray=\"2,6\""));
+	}
+
+	@Test
+	public void testEmfPlusDashedDrawLinesUsesCustomArrowStartCap() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusDashedCustomArrowStartCapPenComment());
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<g>"));
+		Assert.assertTrue(svg.contains("<polyline "));
+		Assert.assertTrue(svg.contains("stroke-dasharray=\"6,6\""));
+		Assert.assertTrue(svg.contains("stroke-linecap=\"butt\""));
+		Assert.assertTrue(svg.contains("<path d=\"M 8,20 L 20,16 L 20,24 Z\""));
+	}
+
+	@Test
+	public void testEmfPlusDrawPathUsesDefaultCustomArrowEndCap() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusDefaultCustomArrowEndCapDrawPathComment());
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("<g>"));
+		Assert.assertTrue(svg.contains("<polyline "));
+		Assert.assertTrue(svg, svg.contains("points=\"20,20 28,20\""));
+		Assert.assertTrue(svg.contains("<path d=\"M 28,26 L 40,20 L 28,14 Z\""));
 	}
 
 	@Test
@@ -3904,6 +3977,20 @@ public class SvgGdiTest {
 		Assert.assertTrue(svg.contains("dy=\"0.88em\""));
 		Assert.assertTrue(svg.contains("dominant-baseline: alphabetic"));
 		Assert.assertTrue(svg.contains("<rect "));
+	}
+
+	@Test
+	public void testNoPlaceableHeaderExpandsDefaultCanvasForLargePositiveBitmapContent() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.stretchDIBits(0, 0, 700, 600, 0, 0, 1, 1, createTopDown24BitDib(new int[]{0xFF0000}), Gdi.DIB_RGB_COLORS,
+				Gdi.SRCCOPY);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertTrue(svg.contains("width=\"700\""));
+		Assert.assertTrue(svg.contains("height=\"600\""));
+		Assert.assertTrue(svg.contains("viewBox=\"0 0 700 600\""));
 	}
 
 	@Test
@@ -5381,6 +5468,107 @@ public class SvgGdiTest {
 		return comment.toByteArray();
 	}
 
+	private byte[] createEmfPlusDashedCustomArrowStartCapPenComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00000820);
+		writeInt(payload, 2);
+		writeFloat(payload, 2);
+		writeInt(payload, 1);
+		writeInt(payload, 60);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeFloat(payload, 4);
+		writeFloat(payload, 6);
+		writeFloat(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 10);
+		writeFloat(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 2);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeFloat(payload, 40);
+		writeFloat(payload, 20);
+		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusDefaultCustomArrowEndCapDrawPathComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeInt(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeFloat(payload, 40);
+		writeFloat(payload, 20);
+		payload.write(0);
+		payload.write(1);
+		writeEmfPlusRecord(comment, 0x4008, 0x0301, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0x00001004);
+		writeInt(payload, 2);
+		writeFloat(payload, 4);
+		writeInt(payload, 255);
+		writeInt(payload, 100);
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		writeInt(payload, 2);
+		writeFloat(payload, 3);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeInt(payload, 40);
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 3);
+		writeInt(payload, 0);
+		writeFloat(payload, 1.5f);
+		writeFloat(payload, -3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, -1.5f);
+		writeFloat(payload, -3);
+		payload.write(0);
+		payload.write(1);
+		payload.write(0x81);
+		payload.write(0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF0000FF);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeEmfPlusRecord(comment, 0x4015, 0x0001, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
 	private byte[] createEmfPlusDrawImageComment(int objectId, byte[] png) {
 		ByteArrayOutputStream comment = createEmfPlusComment();
 		ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -6694,6 +6882,69 @@ public class SvgGdiTest {
 		comment.write('F');
 		comment.write('+');
 		return comment;
+	}
+
+	private byte[] createDualEmfPlusSolidFillComment() {
+		return createDualEmfPlusSolidFillComment(true);
+	}
+
+	private byte[] createDualEmfPlusSolidFillComment(boolean getDc) {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0x00000001);
+		writeInt(payload, 96);
+		writeInt(payload, 96);
+		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0xFF336699);
+		writeInt(payload, 1);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 20);
+		writeEmfPlusRecord(comment, 0x400A, 0x8000, payload.toByteArray());
+
+		if (getDc) {
+			payload.reset();
+			writeEmfPlusRecord(comment, 0x4004, 0, payload.toByteArray());
+		}
+		return comment.toByteArray();
+	}
+
+	private byte[] createDualEmfPlusBitmapDrawImagePointsComment() throws Exception {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0xDBC01002);
+		writeInt(payload, 0x00000001);
+		writeInt(payload, 96);
+		writeInt(payload, 96);
+		writeEmfPlusRecord(comment, 0x4001, 0x0001, payload.toByteArray());
+
+		payload.reset();
+		byte[] png = createPng(2, 1);
+		writeInt(payload, 0);
+		writeInt(payload, 1);
+		payload.write(png, 0, png.length);
+		writeEmfPlusRecord(comment, 0x4008, 0x0500, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 0);
+		writeInt(payload, 2);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 2);
+		writeFloat(payload, 1);
+		writeInt(payload, 3);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10);
+		writeEmfPlusRecord(comment, 0x401B, 0x0000, payload.toByteArray());
+		return comment.toByteArray();
 	}
 
 	private void writeEmfPlusDrawImagePointsRecord(ByteArrayOutputStream comment, int objectId) {

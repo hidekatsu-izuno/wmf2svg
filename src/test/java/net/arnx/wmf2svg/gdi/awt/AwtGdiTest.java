@@ -2045,6 +2045,7 @@ public class AwtGdiTest {
 
 		BufferedImage image = gdi.getImage();
 		assertTrue((image.getRGB(31, 17) >>> 24) != 0);
+		assertEquals(0, (image.getRGB(39, 18) >>> 24) & 0xFF);
 	}
 
 	@Test
@@ -3520,7 +3521,7 @@ public class AwtGdiTest {
 		writeInt(payload, 0);
 		writeInt(payload, 1);
 		writeInt(payload, 2);
-		writeInt(payload, 0);
+		writeFloat(payload, 3);
 		writeInt(payload, 0);
 		writeInt(payload, 0);
 		writeInt(payload, 0);

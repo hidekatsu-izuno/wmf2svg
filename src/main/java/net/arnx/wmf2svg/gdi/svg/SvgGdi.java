@@ -139,7 +139,11 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private Node emfPlusFallbackParent = null;
 	private Node emfPlusFallbackKeepNode = null;
 	private Node emfPlusFallbackRootKeepNode = null;
+	private boolean suppressEmfPlusFallback = false;
 	private boolean emfPlusGetDCActive = false;
+	private boolean emfPlusDualActive = false;
+	private boolean replayingEmfPlusDualComments = false;
+	private LinkedList<byte[]> emfPlusDualComments = null;
 	private boolean pendingEmfBoundsSet = false;
 	private int pendingEmfBoundsLeft = 0;
 	private int pendingEmfBoundsTop = 0;
@@ -470,6 +474,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void alphaBlend(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
 			int blendFunction) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		int sourceConstantAlpha = (blendFunction >> 16) & 0xFF;
 		if (sourceConstantAlpha == 0) {
 			return;
@@ -500,6 +507,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		double svgRy = Math.abs(dc.toRelativeY(ry));
 		if (currentPath != null) {
 			currentPath.addArc(sxr, syr, exr, eyr, sxa, sya, exa, eya, dc.getArcDirection() == Gdi.AD_CLOCKWISE);
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			return;
 		}
 		if (!isRenderablePen(dc.getPen())) {
@@ -574,6 +584,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void bitBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, long rop) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (image == null || image.length == 0) {
 			patBltWithoutSource(dx, dy, dw, dh, rop);
 			return;
@@ -589,6 +602,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void maskBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, byte[] mask, int mx, int my,
 			long rop) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (mask == null) {
 			bitBlt(image, dx, dy, dw, dh, sx, sy, rop);
 			return;
@@ -649,6 +665,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void plgBlt(byte[] image, Point[] points, int sx, int sy, int sw, int sh, byte[] mask, int mx, int my) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (points == null || points.length < 3) {
 			return;
 		}
@@ -721,6 +740,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		double ry = Math.abs(eyr - syr) / 2.0;
 		if (rx <= 0 || ry <= 0)
 			return;
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (!hasRenderableSelectedShapeStyle()) {
 			return;
 		}
@@ -891,6 +913,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			currentPath.addEllipse(sx, sy, ex, ey);
 			return;
 		}
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (!hasRenderableSelectedShapeStyle()) {
 			return;
 		}
@@ -921,6 +946,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
+			if (handleDualEmfPlusComment(data)) {
+				return;
+			}
 			parseEmfPlusComment(data);
 			return;
 		}
@@ -1699,8 +1727,18 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private EmfPlusCustomLineCap readEmfPlusCustomLineCap(byte[] payload, int offset, int size) {
-		if (size < 60 || payload.length < offset + size
-				|| readInt32(payload, offset + 4) != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
+		if (size < 60 || payload.length < offset + size) {
+			return null;
+		}
+		int dataType = readInt32(payload, offset + 4);
+		if (dataType == EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_DEFAULT) {
+			double baseInset = Math.max(0.0, readFloat(payload, offset + 16));
+			double widthScale = Math.max(0.0, readFloat(payload, offset + 36));
+			int fillPathSize = readInt32(payload, offset + 56);
+			EmfPlusPath fillPath = readEmfPlusPath(payload, offset + 60, fillPathSize, false);
+			return fillPath != null ? new EmfPlusCustomLineCap(fillPath, baseInset, widthScale) : null;
+		}
+		if (dataType != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
 			return null;
 		}
 		int dataOffset = offset + 8;
@@ -1799,23 +1837,30 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private EmfPlusPath readEmfPlusPath(byte[] payload) {
-		if (payload.length < 12) {
+		return readEmfPlusPath(payload, 0, payload.length, true);
+	}
+
+	private EmfPlusPath readEmfPlusPath(byte[] payload, int offset, int size, boolean hasFillMode) {
+		if (size < 12 || offset < 0 || payload.length < offset + size) {
 			return null;
 		}
-		int fillMode = readInt32(payload, 0);
-		int count = readInt32(payload, 4);
-		int pathPointFlags = readInt32(payload, 8);
+		int fillMode = hasFillMode ? readInt32(payload, offset) : 1;
+		int count = readInt32(payload, offset + 4);
+		int pathPointFlags = readInt32(payload, offset + 8);
 		if (count < 0) {
 			return null;
 		}
 		boolean relative = (pathPointFlags & EMF_PLUS_PATH_FLAG_RELATIVE) != 0;
 		boolean compressed = (pathPointFlags & EMF_PLUS_FLAG_COMPRESSED) != 0;
-		double[][] points = readEmfPlusDrawingPoints(payload, 12, count, pathPointFlags);
+		double[][] points = readEmfPlusDrawingPoints(payload, offset + 12, count, pathPointFlags);
 		if (points == null) {
 			return null;
 		}
 
-		int typesOffset = 12 + count * (relative ? 2 : (compressed ? 4 : 8));
+		int typesOffset = offset + 12 + count * (relative ? 2 : (compressed ? 4 : 8));
+		if (typesOffset < offset || offset + size < typesOffset || offset + size - typesOffset < count) {
+			return null;
+		}
 		byte[] types = relative
 				? readEmfPlusPathPointTypesRle(payload, typesOffset, count)
 				: readEmfPlusPathPointTypes(payload, typesOffset, count);
@@ -2077,6 +2122,12 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		EmfPlusPen pen = emfPlusPens.get(Integer.valueOf(readInt32(payload, 0) & 0xFF));
 		EmfPlusPath path = emfPlusPaths.get(Integer.valueOf(flags & 0xFF));
 		if (pen == null || path == null) {
+			return;
+		}
+		double[][] polyline = getEmfPlusOpenPolyline(path);
+		if (polyline != null && hasDistinctSolidLineCaps(pen)) {
+			Node keepNode = appendEmfPlusPolyline(polyline, false, pen);
+			markEmfPlusFallbackCovered(keepNode);
 			return;
 		}
 		Element elem = createEmfPlusPathElement(path);
@@ -2669,17 +2720,106 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 		Element group = doc.createElement("g");
 		Element polyline = doc.createElement("polyline");
-		polyline.setAttribute("points", toEmfPlusSvgPoints(points));
+		double penWidth = Math.max(1.0, pen.width) * getEmfPlusPenScale(pen);
+		double[][] linePoints = trimEmfPlusPolylineForLineCaps(points, pen, penWidth);
+		polyline.setAttribute("points", toEmfPlusLogicalSvgPoints(linePoints));
 		applyEmfPlusStroke(polyline, pen);
 		polyline.setAttribute("stroke-linecap", "butt");
-		group.appendChild(polyline);
-
-		double penWidth = Math.max(1.0, pen.width) * getEmfPlusPenScale(pen);
+		if (linePoints.length >= 2) {
+			group.appendChild(polyline);
+		}
 		appendEmfPlusLineCap(group, pen.startCap, pen.customStartCap, points[0], points[1], penWidth, pen);
 		appendEmfPlusLineCap(group, pen.endCap, pen.customEndCap, points[points.length - 1], points[points.length - 2],
 				penWidth, pen);
 		parentNode.appendChild(group);
 		return group;
+	}
+
+	private double[][] trimEmfPlusPolylineForLineCaps(double[][] points, EmfPlusPen pen, double penWidth) {
+		double[][] logicalPoints = toEmfPlusLogicalPoints(points);
+		double startInset = getEmfPlusCustomLineCapInset(pen.customStartCap, penWidth);
+		double endInset = getEmfPlusCustomLineCapInset(pen.customEndCap, penWidth);
+		return trimPolyline(logicalPoints, startInset, endInset);
+	}
+
+	private double[][] toEmfPlusLogicalPoints(double[][] points) {
+		double[][] logicalPoints = new double[points.length][2];
+		for (int i = 0; i < points.length; i++) {
+			logicalPoints[i] = toEmfPlusLogicalPoint(points[i][0], points[i][1]);
+		}
+		return logicalPoints;
+	}
+
+	private String toEmfPlusLogicalSvgPoints(double[][] points) {
+		buffer.setLength(0);
+		for (int i = 0; i < points.length; i++) {
+			if (buffer.length() > 0) {
+				buffer.append(" ");
+			}
+			buffer.append(formatDouble(points[i][0])).append(",").append(formatDouble(points[i][1]));
+		}
+		return buffer.toString();
+	}
+
+	private double getEmfPlusCustomLineCapInset(EmfPlusCustomLineCap cap, double penWidth) {
+		if (cap == null || cap.baseInset <= 0.0) {
+			return 0.0;
+		}
+		double widthScale = cap.widthScale > 0.0 ? cap.widthScale : 1.0;
+		return cap.baseInset * penWidth * widthScale;
+	}
+
+	private double[][] trimPolyline(double[][] points, double startInset, double endInset) {
+		ArrayList<double[]> trimmed = new ArrayList<double[]>(points.length);
+		for (double[] point : points) {
+			trimmed.add(new double[]{point[0], point[1]});
+		}
+		trimPolylineStart(trimmed, startInset);
+		trimPolylineEnd(trimmed, endInset);
+		return trimmed.toArray(new double[trimmed.size()][]);
+	}
+
+	private void trimPolylineStart(ArrayList<double[]> points, double inset) {
+		double remaining = inset;
+		while (remaining > 0.0 && points.size() > 1) {
+			double[] p0 = points.get(0);
+			double[] p1 = points.get(1);
+			double dx = p1[0] - p0[0];
+			double dy = p1[1] - p0[1];
+			double length = Math.hypot(dx, dy);
+			if (length <= 0.0) {
+				points.remove(0);
+			} else if (remaining < length) {
+				p0[0] += dx * remaining / length;
+				p0[1] += dy * remaining / length;
+				return;
+			} else {
+				points.remove(0);
+				remaining -= length;
+			}
+		}
+	}
+
+	private void trimPolylineEnd(ArrayList<double[]> points, double inset) {
+		double remaining = inset;
+		while (remaining > 0.0 && points.size() > 1) {
+			int last = points.size() - 1;
+			double[] p0 = points.get(last);
+			double[] p1 = points.get(last - 1);
+			double dx = p1[0] - p0[0];
+			double dy = p1[1] - p0[1];
+			double length = Math.hypot(dx, dy);
+			if (length <= 0.0) {
+				points.remove(last);
+			} else if (remaining < length) {
+				p0[0] += dx * remaining / length;
+				p0[1] += dy * remaining / length;
+				return;
+			} else {
+				points.remove(last);
+				remaining -= length;
+			}
+		}
 	}
 
 	private void appendEmfPlusLineCap(Element group, int cap, EmfPlusCustomLineCap customCap, double[] rawEnd,
@@ -2743,11 +2883,84 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		double uy = dy / length;
 		double nx = -uy;
 		double ny = ux;
+		if (cap.path != null) {
+			return createEmfPlusCustomLineCapPathElement(cap.path, end, ux, uy, nx, ny, penWidth);
+		}
 		double width = cap.width * penWidth * cap.widthScale;
 		double height = cap.height * penWidth * cap.widthScale;
 		return createEmfPlusPolygonPath(new double[][]{{end[0] + ux * height, end[1] + uy * height},
 				{end[0] + nx * width / 2.0, end[1] + ny * width / 2.0},
 				{end[0] - nx * width / 2.0, end[1] - ny * width / 2.0}});
+	}
+
+	private Element createEmfPlusCustomLineCapPathElement(EmfPlusPath source, double[] end, double ux, double uy,
+			double nx, double ny, double penWidth) {
+		Element path = doc.createElement("path");
+		if (source.fillMode == EMF_PLUS_FILL_MODE_ALTERNATE) {
+			path.setAttribute("fill-rule", "evenodd");
+		}
+		String d = toEmfPlusCustomLineCapSvgPath(source, end, ux, uy, nx, ny, penWidth);
+		if (d.length() == 0) {
+			return null;
+		}
+		path.setAttribute("d", d);
+		return path;
+	}
+
+	private String toEmfPlusCustomLineCapSvgPath(EmfPlusPath source, double[] end, double ux, double uy, double nx,
+			double ny, double penWidth) {
+		StringBuffer result = new StringBuffer();
+		int i = 0;
+		while (i < source.points.length) {
+			int rawType = source.types[i] & 0xFF;
+			int type = toEmfPlusPathPointType(rawType, result.length() == 0);
+			if (type == EMF_PLUS_PATH_POINT_TYPE_START || result.length() == 0) {
+				appendEmfPlusLineCapPathCommand(result, "M",
+						toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth));
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_LINE) {
+				appendEmfPlusLineCapPathCommand(result, "L",
+						toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth));
+				if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i++;
+			} else if (type == EMF_PLUS_PATH_POINT_TYPE_BEZIER && i + 2 < source.points.length) {
+				double[] p1 = toEmfPlusCustomLineCapPoint(source.points[i], end, ux, uy, nx, ny, penWidth);
+				double[] p2 = toEmfPlusCustomLineCapPoint(source.points[i + 1], end, ux, uy, nx, ny, penWidth);
+				double[] p3 = toEmfPlusCustomLineCapPoint(source.points[i + 2], end, ux, uy, nx, ny, penWidth);
+				if (result.length() > 0) {
+					result.append(" ");
+				}
+				result.append("C ").append(formatDouble(p1[0])).append(",").append(formatDouble(p1[1])).append(" ")
+						.append(formatDouble(p2[0])).append(",").append(formatDouble(p2[1])).append(" ")
+						.append(formatDouble(p3[0])).append(",").append(formatDouble(p3[1]));
+				if (((source.types[i + 2] & 0xFF) & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0) {
+					result.append(" Z");
+				}
+				i += 3;
+			} else {
+				i++;
+			}
+		}
+		return result.toString();
+	}
+
+	private void appendEmfPlusLineCapPathCommand(StringBuffer result, String command, double[] point) {
+		if (result.length() > 0) {
+			result.append(" ");
+		}
+		result.append(command).append(" ").append(formatDouble(point[0])).append(",").append(formatDouble(point[1]));
+	}
+
+	private double[] toEmfPlusCustomLineCapPoint(double[] point, double[] end, double ux, double uy, double nx,
+			double ny, double penWidth) {
+		double x = point[0] * penWidth;
+		double y = point[1] * penWidth;
+		return new double[]{end[0] + nx * x + ux * y, end[1] + ny * x + uy * y};
 	}
 
 	private Element createEmfPlusPolygonPath(double[][] points) {
@@ -2766,8 +2979,13 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private boolean hasDistinctSolidLineCaps(EmfPlusPen pen) {
-		return pen != null && !hasEmfPlusDash(pen)
-				&& (pen.customStartCap != null || pen.customEndCap != null || pen.startCap != pen.endCap)
+		if (pen == null) {
+			return false;
+		}
+		if (pen.customStartCap != null || pen.customEndCap != null) {
+			return true;
+		}
+		return !hasEmfPlusDash(pen) && pen.startCap != pen.endCap
 				&& (isSupportedEmfPlusLineCap(pen.startCap) || isSupportedEmfPlusLineCap(pen.endCap));
 	}
 
@@ -2779,6 +2997,22 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	private boolean isSupportedEmfPlusLineCap(int cap) {
 		return cap == EMF_PLUS_LINE_CAP_FLAT || cap == EMF_PLUS_LINE_CAP_SQUARE || cap == EMF_PLUS_LINE_CAP_ROUND;
+	}
+
+	private double[][] getEmfPlusOpenPolyline(EmfPlusPath source) {
+		double[][] points = new double[source.points.length][2];
+		for (int i = 0; i < source.points.length; i++) {
+			int rawType = source.types[i] & 0xFF;
+			int type = toEmfPlusPathPointType(rawType, i == 0);
+			if ((rawType & EMF_PLUS_PATH_POINT_TYPE_CLOSE) != 0 || type == EMF_PLUS_PATH_POINT_TYPE_BEZIER
+					|| (i == 0 && type != EMF_PLUS_PATH_POINT_TYPE_START)
+					|| (i > 0 && type != EMF_PLUS_PATH_POINT_TYPE_LINE)) {
+				return null;
+			}
+			points[i][0] = source.points[i][0];
+			points[i][1] = source.points[i][1];
+		}
+		return points.length >= 2 ? points : null;
 	}
 
 	private double[] toEmfPlusLogicalSize(double width, double height) {
@@ -4151,7 +4385,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		useEmfPlusHeaderCanvas();
 		if (emfPlusGetDCActive) {
 			leaveEmfPlusGetDCMode();
-		} else {
+		} else if (!replayingEmfPlusDualComments) {
 			removeEmfPlusFallbackAfterSupportedDraw();
 		}
 	}
@@ -4202,6 +4436,113 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		emfPlusFallbackParent = null;
 		emfPlusFallbackKeepNode = null;
 		emfPlusFallbackRootKeepNode = null;
+		suppressEmfPlusFallback = false;
+	}
+
+	private boolean handleDualEmfPlusComment(byte[] data) {
+		if (emfPlusDualActive || isDualEmfPlusHeaderComment(data)) {
+			emfPlusDualActive = true;
+			bufferDualEmfPlusComment(data);
+			if (containsEmfPlusRecord(data, EMF_PLUS_GET_DC)) {
+				flushPendingEmfPlusDualComments();
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private void bufferDualEmfPlusComment(byte[] data) {
+		if (emfPlusDualComments == null) {
+			emfPlusDualComments = new LinkedList<byte[]>();
+		}
+		emfPlusDualComments.add(data);
+	}
+
+	private void flushPendingEmfPlusDualComments() {
+		if (emfPlusDualComments == null) {
+			return;
+		}
+		try {
+			replayPendingEmfPlusDualComments();
+		} finally {
+			clearPendingEmfPlusDualComments();
+		}
+	}
+
+	private void replayPendingEmfPlusDualComments() {
+		if (emfPlusDualComments == null) {
+			return;
+		}
+		if (!emfPlusGetDCActive) {
+			removeEmfPlusFallbackAfterSupportedDraw();
+		}
+		replayingEmfPlusDualComments = true;
+		try {
+			for (byte[] comment : emfPlusDualComments) {
+				parseEmfPlusComment(comment);
+			}
+			if (!emfPlusGetDCActive) {
+				suppressEmfPlusFallback = true;
+			}
+		} finally {
+			replayingEmfPlusDualComments = false;
+		}
+	}
+
+	private void clearPendingEmfPlusDualComments() {
+		emfPlusDualComments = null;
+		emfPlusDualActive = false;
+	}
+
+	private boolean shouldSuppressEmfPlusFallback() {
+		return suppressEmfPlusFallback && !emfPlusGetDCActive;
+	}
+
+	private boolean beginGdiFallbackDraw() {
+		flushPendingEmfPlusDualComments();
+		return shouldSuppressEmfPlusFallback();
+	}
+
+	private boolean isDualEmfPlusHeaderComment(byte[] data) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int size = readInt32(data, offset + 4);
+			int dataSize = readInt32(data, offset + 8);
+			int payloadOffset = offset + EMF_PLUS_HEADER_SIZE;
+			if (size < EMF_PLUS_HEADER_SIZE || dataSize < 0 || dataSize > size - EMF_PLUS_HEADER_SIZE
+					|| offset + size > data.length) {
+				return false;
+			}
+			if (type == EMF_PLUS_HEADER && dataSize >= 8) {
+				return (readInt32(data, payloadOffset + 4) & 0x00000001) != 0;
+			}
+			offset += size;
+		}
+		return false;
+	}
+
+	private boolean containsEmfPlusRecord(byte[] data, int recordType) {
+		int offset = 4;
+		while (offset + EMF_PLUS_HEADER_SIZE <= data.length) {
+			int type = readUInt16(data, offset);
+			int flags = readUInt16(data, offset + 2);
+			int size = readInt32(data, offset + 4);
+			boolean continuableObject = type == EMF_PLUS_OBJECT && (flags & EMF_PLUS_OBJECT_CONTINUABLE) != 0;
+			int headerSize = continuableObject ? EMF_PLUS_HEADER_SIZE + 4 : EMF_PLUS_HEADER_SIZE;
+			if (offset + headerSize > data.length) {
+				return false;
+			}
+			int dataSize = readInt32(data, offset + headerSize - 4);
+			if (size < headerSize || dataSize < 0 || dataSize > size - headerSize || offset + size > data.length) {
+				return false;
+			}
+			if (type == recordType) {
+				return true;
+			}
+			offset += size;
+		}
+		return false;
 	}
 
 	private boolean isInDocument(Node node) {
@@ -4588,16 +4929,29 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	private static class EmfPlusCustomLineCap {
+		private final EmfPlusPath path;
 		private final double width;
 		private final double height;
 		private final boolean fill;
 		private final double widthScale;
+		private final double baseInset;
+
+		private EmfPlusCustomLineCap(EmfPlusPath path, double baseInset, double widthScale) {
+			this.path = path;
+			this.width = 0.0;
+			this.height = 0.0;
+			this.fill = true;
+			this.widthScale = widthScale > 0.0 ? widthScale : 1.0;
+			this.baseInset = baseInset;
+		}
 
 		private EmfPlusCustomLineCap(double width, double height, boolean fill, double widthScale) {
+			this.path = null;
 			this.width = width;
 			this.height = height;
 			this.fill = fill;
 			this.widthScale = widthScale;
+			this.baseInset = 0.0;
 		}
 	}
 
@@ -4760,6 +5114,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void extFloodFill(int x, int y, int color, int type) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		appendFloodFillSeed(x, y);
 	}
 
@@ -4903,6 +5260,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void extTextOut(int x, int y, int options, int[] rect, byte[] text, int[] dx) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		Element elem = doc.createElement("text");
 
 		int escapement = 0;
@@ -5159,6 +5519,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void fillRgn(GdiRegion rgn, GdiBrush brush) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		SvgBrush sbrush = toRenderableBrush(brush);
 		if (!isSvgRegion(rgn) || sbrush == null)
 			return;
@@ -5172,10 +5535,16 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void floodFill(int x, int y, int color) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		appendFloodFillSeed(x, y);
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientRect[] mesh, int mode) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (vertex == null || mesh == null) {
 			return;
 		}
@@ -5185,6 +5554,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void gradientFill(Trivertex[] vertex, GradientTriangle[] mesh, int mode) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (vertex == null || mesh == null) {
 			return;
 		}
@@ -5194,6 +5566,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void frameRgn(GdiRegion rgn, GdiBrush brush, int width, int height) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		SvgBrush sbrush = toRenderableBrush(brush);
 		if (!(rgn instanceof SvgRegion) || sbrush == null)
 			return;
@@ -5287,6 +5662,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void invertRgn(GdiRegion rgn) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (!isSvgRegion(rgn))
 			return;
 
@@ -5311,6 +5689,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 		if (!isRenderablePen(dc.getPen())) {
+			dc.moveToEx(ex, ey, null);
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			dc.moveToEx(ex, ey, null);
 			return;
 		}
@@ -5371,6 +5753,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void patBlt(int x, int y, int width, int height, long rop) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		Element elem = doc.createElement("rect");
 
 		SvgBrush brush = dc.getBrush();
@@ -5421,6 +5806,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 		if (currentPath != null) {
 			currentPath.addPie(sxr, syr, exr, eyr, sxa, sya, exa, eya, dc.getArcDirection() == Gdi.AD_CLOCKWISE);
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			return;
 		}
 		if (!hasRenderableSelectedShapeStyle()) {
@@ -5475,6 +5863,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			currentPath.addPolyBezier(points);
 			return;
 		}
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		appendBezier(points, false);
 	}
 
@@ -5486,12 +5877,21 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			}
 			return;
 		}
+		if (beginGdiFallbackDraw()) {
+			if (points != null && points.length > 0) {
+				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
+			}
+			return;
+		}
 		appendBezier(points, true);
 	}
 
 	public void polygon(Point[] points) {
 		if (currentPath != null) {
 			currentPath.addClosedPolyline(points);
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			return;
 		}
 		if (points == null || points.length == 0) {
@@ -5527,6 +5927,14 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	public void polyline(Point[] points) {
 		if (currentPath != null) {
 			currentPath.addPolyline(points);
+			if (points != null && points.length > 0) {
+				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
+			}
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
+			pendingOutlineOnlyPolygon = null;
+			pendingOutlineOnlyPolygonPoints = null;
 			if (points != null && points.length > 0) {
 				dc.moveToEx(points[points.length - 1].x, points[points.length - 1].y, null);
 			}
@@ -5571,6 +5979,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			for (int i = 0; i < points.length; i++) {
 				currentPath.addClosedPolyline(points[i]);
 			}
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			return;
 		}
 		if (!hasRenderableSelectedShapeStyle()) {
@@ -5618,6 +6029,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void fillPath() {
+		if (beginGdiFallbackDraw()) {
+			currentPath = null;
+			return;
+		}
 		if (currentPath != null && currentPath.isWidened()) {
 			appendWidenedPath(currentPath, dc.getBrush());
 		} else {
@@ -5639,11 +6054,19 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void strokePath() {
+		if (beginGdiFallbackDraw()) {
+			currentPath = null;
+			return;
+		}
 		appendPath(currentPath, true, false);
 		currentPath = null;
 	}
 
 	public void strokeAndFillPath() {
+		if (beginGdiFallbackDraw()) {
+			currentPath = null;
+			return;
+		}
 		if (currentPath != null && currentPath.isWidened()) {
 			appendWidenedPath(currentPath, dc.getBrush());
 		} else {
@@ -5695,6 +6118,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 					new Point[]{new Point(sx, sy), new Point(ex, sy), new Point(ex, ey), new Point(sx, ey)});
 			return;
 		}
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (!hasRenderableSelectedShapeStyle()) {
 			return;
 		}
@@ -5726,6 +6152,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	public void roundRect(int sx, int sy, int ex, int ey, int rw, int rh) {
 		if (currentPath != null) {
 			currentPath.addRoundRect(sx, sy, ex, ey, rw, rh);
+			return;
+		}
+		if (beginGdiFallbackDraw()) {
 			return;
 		}
 		if (!hasRenderableSelectedShapeStyle()) {
@@ -6776,6 +7205,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void setPixel(int x, int y, int color) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		Element elem = doc.createElement("rect");
 		elem.setAttribute("stroke", "none");
 		elem.setAttribute("fill", SvgPen.toColor(color));
@@ -6865,6 +7297,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void stretchBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, long rop) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (image == null || image.length == 0) {
 			patBltWithoutSource(dx, dy, dw, dh, rop);
 			return;
@@ -6880,6 +7315,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void stretchDIBits(int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh, byte[] image, int usage,
 			long rop) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		if (handlePatternRasterOp(image, dx, dy, dw, dh, sx, sy, sw, sh, usage, rop)) {
 			return;
 		}
@@ -6888,11 +7326,17 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void transparentBlt(byte[] image, int dx, int dy, int dw, int dh, int sx, int sy, int sw, int sh,
 			int transparentColor) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		bmpToSvg(image, dx, dy, dw, dh, sx, sy, sw, sh, Gdi.DIB_RGB_COLORS, SRCCOPY, 1.0f,
 				Integer.valueOf(transparentColor));
 	}
 
 	public void textOut(int x, int y, byte[] text) {
+		if (beginGdiFallbackDraw()) {
+			return;
+		}
 		Element elem = doc.createElement("text");
 
 		int escapement = 0;
@@ -7009,7 +7453,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	}
 
 	public void footer() {
+		flushPendingEmfPlusDualComments();
 		flushPendingEmf();
+		flushPendingEmfPlusDualComments();
 		if (emfPlusGetDCActive) {
 			leaveEmfPlusGetDCMode();
 		} else {
@@ -7104,6 +7550,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				}
 				return contentBounds;
 			}
+			if (isLargePositiveCanvasContent(contentBounds)) {
+				return new double[]{0.0, 0.0, Math.ceil(contentBounds[2]), Math.ceil(contentBounds[3])};
+			}
 			return new double[]{0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT};
 		}
 		if (contentBounds != null) {
@@ -7113,6 +7562,11 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			return new double[]{0.0, 0.0, DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT};
 		}
 		return null;
+	}
+
+	private boolean isLargePositiveCanvasContent(double[] contentBounds) {
+		return contentBounds != null && contentBounds[0] == 0.0 && contentBounds[1] == 0.0
+				&& contentBounds[2] > DEFAULT_CANVAS_WIDTH && contentBounds[3] > DEFAULT_CANVAS_HEIGHT;
 	}
 
 	private double[] getPlaceablePendingEmfBounds() {

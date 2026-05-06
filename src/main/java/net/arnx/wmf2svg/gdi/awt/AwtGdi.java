@@ -5327,9 +5327,11 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		int dataType = readInt32(payload, offset + 4);
 		if (dataType == EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_DEFAULT) {
+			double baseInset = Math.max(0.0, readFloat(payload, offset + 16));
+			double widthScale = Math.max(0.0, readFloat(payload, offset + 36));
 			int fillPathSize = readInt32(payload, offset + 56);
 			EmfPlusPath fillPath = readEmfPlusPath(payload, offset + 60, fillPathSize, false);
-			return fillPath != null ? new EmfPlusCustomLineCap(fillPath) : null;
+			return fillPath != null ? new EmfPlusCustomLineCap(fillPath, baseInset, widthScale) : null;
 		}
 		if (dataType != EMF_PLUS_CUSTOM_LINE_CAP_DATA_TYPE_ADJUSTABLE_ARROW) {
 			return null;
@@ -6083,12 +6085,13 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			return;
 		}
 
-		Shape line = createEmfPlusPolyline(points, false, Path2D.WIND_NON_ZERO);
 		float width = (float) Math.max(1.0, pen.width * getEmfPlusPenScale(pen));
 		double[] start = toEmfPlusLogicalPoint(points[0][0], points[0][1]);
 		double[] startAdjacent = toEmfPlusLogicalPoint(points[1][0], points[1][1]);
 		double[] end = toEmfPlusLogicalPoint(points[points.length - 1][0], points[points.length - 1][1]);
 		double[] endAdjacent = toEmfPlusLogicalPoint(points[points.length - 2][0], points[points.length - 2][1]);
+		double[][] linePoints = trimEmfPlusPolylineForLineCaps(points, pen, width);
+		Shape line = createEmfPlusLogicalPolyline(linePoints, false, Path2D.WIND_NON_ZERO);
 		Shape startCap = createEmfPlusLineCapShape(pen.startCap, pen.customStartCap, start, startAdjacent, width);
 		Shape endCap = createEmfPlusLineCapShape(pen.endCap, pen.customEndCap, end, endAdjacent, width);
 
@@ -6117,6 +6120,82 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			graphics.fill(shape);
 		} else {
 			graphics.draw(shape);
+		}
+	}
+
+	private double[][] trimEmfPlusPolylineForLineCaps(double[][] points, EmfPlusPen pen, double penWidth) {
+		double[][] logicalPoints = toEmfPlusLogicalPoints(points);
+		double startInset = getEmfPlusCustomLineCapInset(pen.customStartCap, penWidth);
+		double endInset = getEmfPlusCustomLineCapInset(pen.customEndCap, penWidth);
+		return trimPolyline(logicalPoints, startInset, endInset);
+	}
+
+	private double[][] toEmfPlusLogicalPoints(double[][] points) {
+		double[][] logicalPoints = new double[points.length][2];
+		for (int i = 0; i < points.length; i++) {
+			logicalPoints[i] = toEmfPlusLogicalPoint(points[i][0], points[i][1]);
+		}
+		return logicalPoints;
+	}
+
+	private double getEmfPlusCustomLineCapInset(EmfPlusCustomLineCap cap, double penWidth) {
+		if (cap == null || cap.baseInset <= 0.0) {
+			return 0.0;
+		}
+		double widthScale = cap.widthScale > 0.0 ? cap.widthScale : 1.0;
+		return cap.baseInset * penWidth * widthScale;
+	}
+
+	private double[][] trimPolyline(double[][] points, double startInset, double endInset) {
+		ArrayList<double[]> trimmed = new ArrayList<double[]>(points.length);
+		for (double[] point : points) {
+			trimmed.add(new double[]{point[0], point[1]});
+		}
+		trimPolylineStart(trimmed, startInset);
+		trimPolylineEnd(trimmed, endInset);
+		return trimmed.toArray(new double[trimmed.size()][]);
+	}
+
+	private void trimPolylineStart(ArrayList<double[]> points, double inset) {
+		double remaining = inset;
+		while (remaining > 0.0 && points.size() > 1) {
+			double[] p0 = points.get(0);
+			double[] p1 = points.get(1);
+			double dx = p1[0] - p0[0];
+			double dy = p1[1] - p0[1];
+			double length = Math.hypot(dx, dy);
+			if (length <= 0.0) {
+				points.remove(0);
+			} else if (remaining < length) {
+				p0[0] += dx * remaining / length;
+				p0[1] += dy * remaining / length;
+				return;
+			} else {
+				points.remove(0);
+				remaining -= length;
+			}
+		}
+	}
+
+	private void trimPolylineEnd(ArrayList<double[]> points, double inset) {
+		double remaining = inset;
+		while (remaining > 0.0 && points.size() > 1) {
+			int last = points.size() - 1;
+			double[] p0 = points.get(last);
+			double[] p1 = points.get(last - 1);
+			double dx = p1[0] - p0[0];
+			double dy = p1[1] - p0[1];
+			double length = Math.hypot(dx, dy);
+			if (length <= 0.0) {
+				points.remove(last);
+			} else if (remaining < length) {
+				p0[0] += dx * remaining / length;
+				p0[1] += dy * remaining / length;
+				return;
+			} else {
+				points.remove(last);
+				remaining -= length;
+			}
 		}
 	}
 
@@ -6369,6 +6448,21 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		for (int i = 1; i < points.length; i++) {
 			p = toEmfPlusLogicalPoint(points[i][0], points[i][1]);
 			path.lineTo(p[0], p[1]);
+		}
+		if (close) {
+			path.closePath();
+		}
+		return path;
+	}
+
+	private Path2D.Double createEmfPlusLogicalPolyline(double[][] points, boolean close, int windingRule) {
+		Path2D.Double path = new Path2D.Double(windingRule);
+		if (points == null || points.length == 0) {
+			return path;
+		}
+		path.moveTo(points[0][0], points[0][1]);
+		for (int i = 1; i < points.length; i++) {
+			path.lineTo(points[i][0], points[i][1]);
 		}
 		if (close) {
 			path.closePath();
@@ -7126,13 +7220,15 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		private final double height;
 		private final boolean fill;
 		private final double widthScale;
+		private final double baseInset;
 
-		private EmfPlusCustomLineCap(EmfPlusPath path) {
+		private EmfPlusCustomLineCap(EmfPlusPath path, double baseInset, double widthScale) {
 			this.path = path;
 			this.width = 0.0;
 			this.height = 0.0;
 			this.fill = true;
-			this.widthScale = 1.0;
+			this.widthScale = widthScale > 0.0 ? widthScale : 1.0;
+			this.baseInset = baseInset;
 		}
 
 		private EmfPlusCustomLineCap(double width, double height, boolean fill, double widthScale) {
@@ -7141,6 +7237,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			this.height = height;
 			this.fill = fill;
 			this.widthScale = widthScale;
+			this.baseInset = 0.0;
 		}
 	}
 

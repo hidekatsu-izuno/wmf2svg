@@ -146,7 +146,6 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private boolean emfPlusGetDCActive;
 	private boolean emfPlusDualActive;
 	private LinkedList<byte[]> emfPlusDualComments;
-	private boolean emfPlusDualRenderable;
 	private double[] emfPlusWorldTransform = new double[]{1, 0, 0, 1, 0, 0};
 	private double emfPlusPageScale = 1.0;
 	private double emfPlusPageUnitScale = 1.0;
@@ -653,39 +652,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
-			boolean dualHeader = isDualEmfPlusHeaderComment(data);
-			if (dualHeader) {
-				emfPlusDualActive = true;
-			}
-			if (emfPlusDualActive) {
-				if (emfPlusDualComments == null) {
-					emfPlusDualComments = new LinkedList<byte[]>();
-				}
-				emfPlusDualComments.add(data);
-				if (hasRenderableEmfPlusRecord(data)) {
-					emfPlusDualRenderable = true;
-					suppressEmfPlusFallback = true;
-				}
-				if (containsEmfPlusRecord(data, EMF_PLUS_GET_DC)) {
-					replayPendingEmfPlusDualComments();
-					clearPendingEmfPlusDualComments();
-					emfPlusGetDCActive = false;
-					suppressEmfPlusFallback = false;
-				}
+			if (handleDualEmfPlusComment(data)) {
 				return;
 			}
-			useEmfPlusHeaderCanvas();
-			if (emfPlusGetDCActive) {
-				endEmfPlusGetDCMode();
-			} else {
-				suppressEmfPlusFallback = false;
-			}
-			emfPlusParser.parse(data, new EmfPlusParser.Handler() {
-				public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
-						int totalObjectSize) {
-					AwtGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
-				}
-			});
+			parseEmfPlusComment(data);
 			return;
 		}
 
@@ -993,11 +963,10 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 	private void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
 			int totalObjectSize) {
 		if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
-			endEmfPlusGetDCMode();
+			leaveEmfPlusGetDCMode();
 		}
 		if (type == EMF_PLUS_GET_DC) {
-			emfPlusGetDCActive = true;
-			suppressEmfPlusFallback = false;
+			enterEmfPlusGetDCMode();
 		} else if (type == EMF_PLUS_OBJECT) {
 			handleEmfPlusObjectRecord(flags, payload, continuableObject, totalObjectSize);
 		} else if (type == EMF_PLUS_CLEAR) {
@@ -1127,27 +1096,32 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 	}
 
-	private void endEmfPlusGetDCMode() {
-		emfPlusGetDCActive = false;
-		suppressEmfPlusFallback = false;
+	private boolean handleDualEmfPlusComment(byte[] data) {
+		if (isDualEmfPlusHeaderComment(data)) {
+			emfPlusDualActive = true;
+		}
+		if (!emfPlusDualActive) {
+			return false;
+		}
+		bufferDualEmfPlusComment(data);
+		if (hasRenderableEmfPlusRecord(data)) {
+			markEmfPlusFallbackCovered();
+		}
+		if (containsEmfPlusRecord(data, EMF_PLUS_GET_DC)) {
+			flushPendingEmfPlusDualComments();
+		}
+		return true;
 	}
 
-	private void replayPendingEmfPlusDualComments() {
+	private void bufferDualEmfPlusComment(byte[] data) {
 		if (emfPlusDualComments == null) {
-			return;
+			emfPlusDualComments = new LinkedList<byte[]>();
 		}
-		for (byte[] comment : emfPlusDualComments) {
-			replayEmfPlusComment(comment);
-		}
+		emfPlusDualComments.add(data);
 	}
 
-	private void replayEmfPlusComment(byte[] data) {
-		useEmfPlusHeaderCanvas();
-		if (emfPlusGetDCActive) {
-			endEmfPlusGetDCMode();
-		} else {
-			suppressEmfPlusFallback = false;
-		}
+	private void parseEmfPlusComment(byte[] data) {
+		beginEmfPlusCommentReplay();
 		emfPlusParser.parse(data, new EmfPlusParser.Handler() {
 			public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
 					int totalObjectSize) {
@@ -1156,11 +1130,46 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		});
 	}
 
+	private void beginEmfPlusCommentReplay() {
+		useEmfPlusHeaderCanvas();
+		if (emfPlusGetDCActive) {
+			leaveEmfPlusGetDCMode();
+		} else {
+			clearEmfPlusFallbackCoverage();
+		}
+	}
+
+	private void enterEmfPlusGetDCMode() {
+		emfPlusGetDCActive = true;
+		clearEmfPlusFallbackCoverage();
+	}
+
+	private void leaveEmfPlusGetDCMode() {
+		emfPlusGetDCActive = false;
+		clearEmfPlusFallbackCoverage();
+	}
+
+	private void markEmfPlusFallbackCovered() {
+		suppressEmfPlusFallback = true;
+	}
+
+	private void clearEmfPlusFallbackCoverage() {
+		suppressEmfPlusFallback = false;
+	}
+
+	private void replayPendingEmfPlusDualComments() {
+		if (emfPlusDualComments == null) {
+			return;
+		}
+		for (byte[] comment : emfPlusDualComments) {
+			parseEmfPlusComment(comment);
+		}
+	}
+
 	private void clearPendingEmfPlusDualComments() {
 		if (emfPlusDualComments != null) {
 			emfPlusDualComments.clear();
 		}
-		emfPlusDualRenderable = false;
 	}
 
 	private void saveEmfPlusState() {
@@ -1293,7 +1302,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setPaint(paint);
 		graphics.fillRect(0, 0, canvasWidth, canvasHeight);
 		graphics.setPaint(oldPaint);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private void handleEmfPlusRects(int flags, byte[] payload, boolean fill) {
@@ -1573,7 +1582,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setClip(oldClip);
 		graphics.setPaint(oldPaint);
 		graphics.setFont(oldFont);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private void handleEmfPlusDrawDriverString(int flags, byte[] payload) {
@@ -1670,7 +1679,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		graphics.setPaint(oldPaint);
 		graphics.setFont(oldFont);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private AffineTransform applyEmfPlusDriverStringTransform(double[] matrix) {
@@ -2131,7 +2140,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 			}
 		}
 		graphics.setClip(oldClip);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private BufferedImage createEmfPlusClampedBitmap(BufferedImage image, double srcX, double srcY, double srcWidth,
@@ -2774,7 +2783,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		replayPendingEmfPlusDualComments();
 		clearPendingEmfPlusDualComments();
-		emfPlusGetDCActive = false;
+		leaveEmfPlusGetDCMode();
 	}
 
 	private void flushPendingEmf() {
@@ -6004,7 +6013,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.setPaint(paint);
 		graphics.fill(shape);
 		graphics.setPaint(oldPaint);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private void strokeEmfPlusShape(Shape shape, EmfPlusPen pen) {
@@ -6021,7 +6030,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		graphics.draw(shape);
 		graphics.setStroke(oldStroke);
 		graphics.setPaint(oldPaint);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private void strokeEmfPlusPolyline(double[][] points, boolean closed, EmfPlusPen pen) {
@@ -6057,7 +6066,7 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 		}
 		graphics.setStroke(oldStroke);
 		graphics.setPaint(oldPaint);
-		suppressEmfPlusFallback = true;
+		markEmfPlusFallbackCovered();
 	}
 
 	private void drawEmfPlusLineCap(Shape shape, EmfPlusCustomLineCap customCap) {

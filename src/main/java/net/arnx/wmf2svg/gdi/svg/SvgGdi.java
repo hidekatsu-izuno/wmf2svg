@@ -921,18 +921,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 
 	public void comment(byte[] data) {
 		if (parseEmfPlusComments && EmfPlusParser.isEmfPlusComment(data)) {
-			useEmfPlusHeaderCanvas();
-			if (emfPlusGetDCActive) {
-				endEmfPlusGetDCMode();
-			} else {
-				removeEmfPlusFallbackAfterSupportedDraw();
-			}
-			emfPlusParser.parse(data, new EmfPlusParser.Handler() {
-				public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
-						int totalObjectSize) {
-					SvgGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
-				}
-			});
+			parseEmfPlusComment(data);
 			return;
 		}
 
@@ -961,11 +950,10 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	private void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
 			int totalObjectSize) {
 		if (emfPlusGetDCActive && type != EMF_PLUS_GET_DC) {
-			endEmfPlusGetDCMode();
+			leaveEmfPlusGetDCMode();
 		}
 		if (type == EMF_PLUS_GET_DC) {
-			emfPlusGetDCActive = true;
-			clearEmfPlusFallbackSuppression();
+			enterEmfPlusGetDCMode();
 		} else if (type == EMF_PLUS_OBJECT) {
 			handleEmfPlusObjectRecord(flags, payload, continuableObject, totalObjectSize);
 		} else if (type == EMF_PLUS_CLEAR) {
@@ -1985,7 +1973,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			points = closeEmfPlusPoints(points);
 		}
 		Node keepNode = appendEmfPlusPolyline(points, (flags & EMF_PLUS_FLAG_CLOSE) != 0, pen);
-		markEmfPlusFallbackSuppression(keepNode);
+		markEmfPlusFallbackCovered(keepNode);
 	}
 
 	private void handleEmfPlusPie(int flags, byte[] payload, boolean fill) {
@@ -3856,9 +3844,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			parentNode.appendChild(image);
 		}
 		if (suppressFallback) {
-			emfPlusFallbackParent = parentNode;
-			emfPlusFallbackKeepNode = keepNode;
-			emfPlusFallbackRootKeepNode = doc.getDocumentElement().getLastChild();
+			markEmfPlusFallbackCovered(keepNode, true);
 		}
 	}
 
@@ -4151,6 +4137,35 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		return new double[]{point[0] / unit[0], point[1] / unit[1]};
 	}
 
+	private void parseEmfPlusComment(byte[] data) {
+		beginEmfPlusCommentReplay();
+		emfPlusParser.parse(data, new EmfPlusParser.Handler() {
+			public void handleEmfPlusRecord(int type, int flags, byte[] payload, boolean continuableObject,
+					int totalObjectSize) {
+				SvgGdi.this.handleEmfPlusRecord(type, flags, payload, continuableObject, totalObjectSize);
+			}
+		});
+	}
+
+	private void beginEmfPlusCommentReplay() {
+		useEmfPlusHeaderCanvas();
+		if (emfPlusGetDCActive) {
+			leaveEmfPlusGetDCMode();
+		} else {
+			removeEmfPlusFallbackAfterSupportedDraw();
+		}
+	}
+
+	private void enterEmfPlusGetDCMode() {
+		emfPlusGetDCActive = true;
+		clearEmfPlusFallbackCoverage();
+	}
+
+	private void leaveEmfPlusGetDCMode() {
+		emfPlusGetDCActive = false;
+		clearEmfPlusFallbackCoverage();
+	}
+
 	private void removeEmfPlusFallbackAfterSupportedDraw() {
 		if (emfPlusFallbackParent == null || emfPlusFallbackKeepNode == null) {
 			return;
@@ -4167,11 +4182,15 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 				doc.getDocumentElement().appendChild(parentNode);
 			}
 		}
-		clearEmfPlusFallbackSuppression();
+		clearEmfPlusFallbackCoverage();
 	}
 
-	private void markEmfPlusFallbackSuppression(Node keepNode) {
-		if (keepNode == null || !replayingPendingEmf) {
+	private void markEmfPlusFallbackCovered(Node keepNode) {
+		markEmfPlusFallbackCovered(keepNode, false);
+	}
+
+	private void markEmfPlusFallbackCovered(Node keepNode, boolean detachedFallback) {
+		if (keepNode == null || !replayingPendingEmf && !detachedFallback) {
 			return;
 		}
 		emfPlusFallbackParent = parentNode;
@@ -4179,12 +4198,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		emfPlusFallbackRootKeepNode = doc.getDocumentElement().getLastChild();
 	}
 
-	private void endEmfPlusGetDCMode() {
-		emfPlusGetDCActive = false;
-		clearEmfPlusFallbackSuppression();
-	}
-
-	private void clearEmfPlusFallbackSuppression() {
+	private void clearEmfPlusFallbackCoverage() {
 		emfPlusFallbackParent = null;
 		emfPlusFallbackKeepNode = null;
 		emfPlusFallbackRootKeepNode = null;
@@ -6997,7 +7011,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 	public void footer() {
 		flushPendingEmf();
 		if (emfPlusGetDCActive) {
-			endEmfPlusGetDCMode();
+			leaveEmfPlusGetDCMode();
 		} else {
 			removeEmfPlusFallbackAfterSupportedDraw();
 		}

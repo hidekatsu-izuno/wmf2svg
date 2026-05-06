@@ -99,7 +99,7 @@ Some advanced records are format-specific and may not be representable in the ta
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>0.10.3</version>
+<version>0.10.4</version>
 ```
 
 ## Build
@@ -112,7 +112,8 @@ mvn package
 
 ## History
 
-- 2026-05-03: Fix many busg.
+- 2026-05-06: Fix many bugs.
+- 2026-05-03: Fix many bugs.
 - 2026-04-30: Improve EMF+ support. And add PNG/JPEG output through AWT/ImageIO and improve AWT PNG rendering fidelity.
 - 2026-04-29: Fix some bugs
 - 2026-04-28: Implements an EMF support (by OpenAI Codex and human instructions)

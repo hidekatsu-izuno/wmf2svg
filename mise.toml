@@ -2,3 +2,8 @@
 maven = "3.9.15"
 java = "21"
 imagemagick = "latest"
+
+[tasks]
+build = "mvn -q package"
+test = "mvn -q test"
+publish = "mvn -Prelease clean deploy"

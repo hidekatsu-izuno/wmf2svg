@@ -104,10 +104,16 @@ Some advanced records are format-specific and may not be representable in the ta
 
 ## Build
 
-This project uses Maven to build a wmf2svg jar file.
+This project uses mise to run Maven build tasks.
 
 ```
-mvn package
+mise run build
+```
+
+Run tests with:
+
+```
+mise run test
 ```
 
 ## History
@@ -140,8 +146,8 @@ mvn package
 Copyright (c) 2007-2026 Hidekatsu Izuno, Shunsuke Mori All right reserved.
 
 <!--
-- mvn verify
+- mise run test
 - git tag vX.XX.X && git push origin --tags
 - revert: git tag -d vX.XX.X && git push origin :refs/tags/vX.XX.X
-- mvn -Prelease clean deploy
+- mise run publish
 -->

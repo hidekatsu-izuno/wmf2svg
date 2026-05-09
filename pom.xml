@@ -42,6 +42,7 @@
         <maven.compiler.release>8</maven.compiler.release>
         <maven.compiler.showWarnings>true</maven.compiler.showWarnings>
         <junit.version>4.13.2</junit.version>
+        <jshell-maven-plugin.version>1.4</jshell-maven-plugin.version>
         <spotless.version>3.4.0</spotless.version>
     </properties>
 
@@ -97,6 +98,18 @@
                     <systemPropertyVariables>
                         <java.awt.headless>true</java.awt.headless>
                     </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>com.github.johnpoth</groupId>
+                <artifactId>jshell-maven-plugin</artifactId>
+                <version>${jshell-maven-plugin.version}</version>
+                <configuration>
+                    <scripts>
+                        <script>src/test/jshell/main-test.jsh</script>
+                    </scripts>
+                    <testClasspath>true</testClasspath>
                 </configuration>
             </plugin>
 

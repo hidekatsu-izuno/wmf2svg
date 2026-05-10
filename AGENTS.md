@@ -13,7 +13,7 @@
 - Save to `.tasks/<5digits seq>_<title>.md`
 - Plan must include:
   - purpose
-  - context (if generated from Codex plan mode, its output)
+  - context (if generated from plan mode, its plan text)
   - tasks (each independently executable)
   - goals (outputs, verification, or observable results)
   - file list (if applicable)

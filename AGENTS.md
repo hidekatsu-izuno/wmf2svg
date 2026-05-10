@@ -7,14 +7,13 @@
 - Do not confirm when creating, updating, and renaming files under `.tasks/`.
 
 ## Planning
-- Plan before execution (by plan mode); no work without a plan, and the plan is the task file whose "tasks" are its executable steps
+- Plan before execution (by plan mode); no work without a plan, except for trivial operational requests such as committing, showing status, listing files, or running a specified command
 - Ask questions until requirements are unambiguous
 - Do not assume or plan with unresolved questions
-- Do not create a task file for trivial operational requests such as committing, showing status, listing files, or running a specified command
 - Save to `.tasks/<5digits seq>_<title>.md`
 - Plan must include:
   - purpose
-  - context
+  - context (if generated from Codex plan mode, its output)
   - tasks (each independently executable)
   - goals (outputs, verification, or observable results)
   - file list (if applicable)

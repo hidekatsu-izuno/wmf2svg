@@ -1,7 +1,6 @@
 [tools]
-maven = "3.9.15"
+maven = "latest"
 java = "21"
-imagemagick = "latest"
 
 [tasks]
 build = "mvn -q package"

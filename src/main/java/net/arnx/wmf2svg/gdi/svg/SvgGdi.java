@@ -2522,7 +2522,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (combineMode == EMF_PLUS_COMBINE_MODE_REPLACE) {
 			mask = createMask();
 		} else if (combineMode == EMF_PLUS_COMBINE_MODE_UNION && emfPlusClipMask != null) {
-			mask = cloneEmfPlusClipMask(emfPlusClipMask);
+			mask = isPendingMask(emfPlusClipMask) ? emfPlusClipMask : cloneEmfPlusClipMask(emfPlusClipMask);
 		} else if (combineMode == EMF_PLUS_COMBINE_MODE_XOR && emfPlusClipMask != null) {
 			mask = cloneEmfPlusClipMask(emfPlusClipMask);
 			appendEmfPlusMaskShape(mask, shape, "white");
@@ -2531,7 +2531,9 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			startEmfPlusClipGroup(mask, false);
 			return;
 		} else if (combineMode == EMF_PLUS_COMBINE_MODE_EXCLUDE) {
-			mask = emfPlusClipMask != null ? cloneEmfPlusClipMask(emfPlusClipMask) : createMask();
+			mask = emfPlusClipMask != null
+					? isPendingMask(emfPlusClipMask) ? emfPlusClipMask : cloneEmfPlusClipMask(emfPlusClipMask)
+					: createMask();
 			if (emfPlusClipMask == null) {
 				appendFullMaskRect(mask, "white");
 			}
@@ -5085,20 +5087,35 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		parent.appendChild(parentNode);
 	}
 
+	private boolean isPendingMask(Element mask) {
+		return mask != null && !parentNode.hasChildNodes()
+				&& ("url(#" + mask.getAttribute("id") + ")").equals(parentNode.getAttribute("mask"));
+	}
+
+	private void setCurrentMask(Element mask, boolean nestInCurrentMask) {
+		dc.setMask(mask);
+		if (!isPendingMask(mask)) {
+			beginMaskedGroup(mask, nestInCurrentMask);
+		}
+	}
+
 	public int excludeClipRect(int left, int top, int right, int bottom) {
 		Element mask = dc.getMask();
 		if (mask != null) {
-			mask = (Element) mask.cloneNode(true);
-			String name = "mask" + (maskNo++);
-			mask.setAttribute("id", name);
-			mask.setIdAttribute("id", true);
-			defsNode.appendChild(mask);
-
 			Element unclip = doc.createElement("rect");
 			setRectAttributes(unclip, left, top, right, bottom);
 			unclip.setAttribute("fill", "black");
-			mask.appendChild(unclip);
-			dc.setMask(mask);
+			if (!isPendingMask(mask)) {
+				mask = (Element) mask.cloneNode(true);
+				String name = "mask" + (maskNo++);
+				mask.setAttribute("id", name);
+				mask.setIdAttribute("id", true);
+				defsNode.appendChild(mask);
+				mask.appendChild(unclip);
+				setCurrentMask(mask, true);
+			} else {
+				mask.appendChild(unclip);
+			}
 		} else {
 			mask = createMask();
 			appendFullMaskRect(mask, "white");
@@ -5107,9 +5124,8 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 			setRectAttributes(unclip, left, top, right, bottom);
 			unclip.setAttribute("fill", "black");
 			mask.appendChild(unclip);
-			dc.setMask(mask);
+			setCurrentMask(mask, true);
 		}
-		beginMaskedGroup(mask);
 		return GdiRegion.COMPLEXREGION;
 	}
 
@@ -5657,8 +5673,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		clip.setAttribute("fill", "white");
 		mask.appendChild(clip);
 
-		dc.setMask(mask);
-		beginMaskedGroup(mask);
+		setCurrentMask(mask, true);
 	}
 
 	public void invertRgn(GdiRegion rgn) {
@@ -5727,16 +5742,20 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		dc.offsetClipRgn(x, y);
 		Element mask = dc.getMask();
 		if (mask != null) {
-			mask = (Element) mask.cloneNode(true);
-			String name = "mask" + (maskNo++);
-			mask.setAttribute("id", name);
+			if (!isPendingMask(mask)) {
+				mask = (Element) mask.cloneNode(true);
+				String name = "mask" + (maskNo++);
+				mask.setAttribute("id", name);
+				mask.setIdAttribute("id", true);
+				defsNode.appendChild(mask);
+			}
 			if (dc.getOffsetClipX() != 0 || dc.getOffsetClipY() != 0) {
 				mask.setAttribute("transform", "translate(" + dc.getOffsetClipX() + "," + dc.getOffsetClipY() + ")");
+			} else {
+				mask.removeAttribute("transform");
 			}
-			defsNode.appendChild(mask);
 
-			dc.setMask(mask);
-			beginMaskedGroup(mask);
+			setCurrentMask(mask, true);
 		}
 	}
 
@@ -6206,8 +6225,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (rgn != null) {
 			Element mask = createClipRgnMask(mode);
 			mask.appendChild(createRegionUse(rgn, mode == GdiRegion.RGN_DIFF ? "black" : "white"));
-			dc.setMask(mask);
-			beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
+			setCurrentMask(mask, mode == GdiRegion.RGN_AND);
 			return GdiRegion.COMPLEXREGION;
 		} else {
 			if (mode == GdiRegion.RGN_COPY) {
@@ -6226,17 +6244,17 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		Element mask;
 		if (mode == GdiRegion.RGN_OR || mode == GdiRegion.RGN_XOR || mode == GdiRegion.RGN_DIFF) {
 			mask = dc.getMask();
-			if (mask != null) {
+			if (mask == null) {
+				mask = createMask();
+				if (mode == GdiRegion.RGN_DIFF) {
+					appendFullMaskRect(mask, "white");
+				}
+			} else if (!isPendingMask(mask)) {
 				mask = (Element) mask.cloneNode(true);
 				String name = "mask" + (maskNo++);
 				mask.setAttribute("id", name);
 				mask.setIdAttribute("id", true);
 				defsNode.appendChild(mask);
-			} else {
-				mask = createMask();
-				if (mode == GdiRegion.RGN_DIFF) {
-					appendFullMaskRect(mask, "white");
-				}
 			}
 		} else {
 			mask = createMask();
@@ -6273,8 +6291,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		if (currentPath.isEmpty()) {
 			if (mode == GdiRegion.RGN_COPY || mode == GdiRegion.RGN_AND) {
 				Element mask = createMask();
-				dc.setMask(mask);
-				beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
+				setCurrentMask(mask, mode == GdiRegion.RGN_AND);
 			}
 			currentPath = null;
 			return;
@@ -6284,8 +6301,7 @@ public class SvgGdi implements Gdi, EmfPlusConstants {
 		Element clip = createPathClip(mode == GdiRegion.RGN_DIFF ? "black" : "white");
 		mask.appendChild(clip);
 
-		dc.setMask(mask);
-		beginMaskedGroup(mask, mode == GdiRegion.RGN_AND);
+		setCurrentMask(mask, mode == GdiRegion.RGN_AND);
 		currentPath = null;
 	}
 

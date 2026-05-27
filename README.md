@@ -99,7 +99,7 @@ Some advanced records are format-specific and may not be representable in the ta
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>0.10.4</version>
+<version>0.10.5</version>
 ```
 
 ## Build
@@ -118,6 +118,7 @@ mise run test
 
 ## History
 
+- 2026-05-27: Fix a mask program (#25).
 - 2026-05-06: Fix many bugs.
 - 2026-05-03: Fix many bugs.
 - 2026-04-30: Improve EMF+ support. And add PNG/JPEG output through AWT/ImageIO and improve AWT PNG rendering fidelity.
@@ -146,6 +147,8 @@ mise run test
 Copyright (c) 2007-2026 Hidekatsu Izuno, Shunsuke Mori All right reserved.
 
 <!--
+- mvn jshell:run
+
 - mise run test
 - git tag vX.XX.X && git push origin --tags
 - revert: git tag -d vX.XX.X && git push origin :refs/tags/vX.XX.X

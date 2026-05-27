@@ -864,6 +864,59 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testConsecutiveExcludeClipRectsBeforeDrawingReusePendingMask() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.intersectClipRect(0, 0, 50, 50);
+		gdi.excludeClipRect(1, 1, 10, 10);
+		gdi.excludeClipRect(20, 20, 30, 30);
+		gdi.rectangle(0, 0, 50, 50);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(1, count(svg, "<mask "));
+		Assert.assertEquals(1, count(svg, "mask=\"url(#mask"));
+		Assert.assertEquals(2, count(svg, "fill=\"black\""));
+		Assert.assertTrue(svg.contains("x=\"20\""));
+		Assert.assertTrue(svg.contains("y=\"20\""));
+	}
+
+	@Test
+	public void testConsecutiveDiffClipRegionsBeforeDrawingReusePendingMask() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.intersectClipRect(0, 0, 50, 50);
+		gdi.extSelectClipRgn(gdi.createRectRgn(1, 1, 10, 10), GdiRegion.RGN_DIFF);
+		gdi.extSelectClipRgn(gdi.createRectRgn(20, 20, 30, 30), GdiRegion.RGN_DIFF);
+		gdi.rectangle(0, 0, 50, 50);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(1, count(svg, "<mask "));
+		Assert.assertEquals(1, count(svg, "mask=\"url(#mask"));
+		Assert.assertEquals(2, count(svg, "fill=\"black\""));
+		Assert.assertTrue(svg.contains("x=\"20\""));
+		Assert.assertTrue(svg.contains("y=\"20\""));
+	}
+
+	@Test
+	public void testConsecutiveOffsetClipRgnBeforeDrawingReusesPendingMask() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.intersectClipRect(0, 0, 50, 50);
+		gdi.offsetClipRgn(2, 3);
+		gdi.offsetClipRgn(4, 5);
+		gdi.rectangle(0, 0, 50, 50);
+		gdi.footer();
+
+		String svg = writeSvg(gdi);
+		Assert.assertEquals(1, count(svg, "<mask "));
+		Assert.assertEquals(1, count(svg, "mask=\"url(#mask"));
+		Assert.assertTrue(svg.contains("transform=\"translate(6,8)\""));
+		Assert.assertFalse(svg.contains("transform=\"translate(2,3)\""));
+	}
+
+	@Test
 	public void testSelectObjectWithRegionSelectsClipRegion() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();

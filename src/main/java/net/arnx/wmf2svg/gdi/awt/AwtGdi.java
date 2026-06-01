@@ -6351,12 +6351,14 @@ public class AwtGdi implements Gdi, EmfPlusConstants {
 
 	private double getEmfPlusPenScale(EmfPlusPen pen) {
 		double canvasScale = getEmfPlusCanvasScale();
-		if (pen.transform == null) {
-			return canvasScale;
+		double xScale = Math.hypot(emfPlusWorldTransform[0], emfPlusWorldTransform[1]);
+		double yScale = Math.hypot(emfPlusWorldTransform[2], emfPlusWorldTransform[3]);
+		double scale = ((xScale + yScale) / 2.0) * emfPlusPageScale * emfPlusPageUnitScale;
+		if (pen.transform != null) {
+			double penXScale = Math.hypot(pen.transform[0], pen.transform[1]);
+			double penYScale = Math.hypot(pen.transform[2], pen.transform[3]);
+			scale *= (penXScale + penYScale) / 2.0;
 		}
-		double xScale = Math.hypot(pen.transform[0], pen.transform[1]);
-		double yScale = Math.hypot(pen.transform[2], pen.transform[3]);
-		double scale = (xScale + yScale) / 2.0;
 		if (scale <= 0.0 || Double.isNaN(scale) || Double.isInfinite(scale)) {
 			return canvasScale;
 		}

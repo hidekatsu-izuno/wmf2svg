@@ -3049,6 +3049,20 @@ public class SvgGdiTest {
 	}
 
 	@Test
+	public void testEmfPlusWorldTransformScalesWorldUnitPenWidth() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		gdi.header();
+		gdi.comment(createEmfPlusWorldUnitPenWidthComment());
+		gdi.footer();
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = out.toString("UTF-8");
+		Assert.assertTrue(svg.contains("stroke-width=\"2\""));
+		Assert.assertFalse(svg.contains("stroke-width=\"4096\""));
+	}
+
+	@Test
 	public void testEmfPlusPenUnitConvertsStrokeWidth() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		gdi.header();
@@ -5440,6 +5454,38 @@ public class SvgGdiTest {
 		writeFloat(payload, 0);
 		writeFloat(payload, 0);
 		writeFloat(payload, 20);
+		writeFloat(payload, 0);
+		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
+		return comment.toByteArray();
+	}
+
+	private byte[] createEmfPlusWorldUnitPenWidthComment() {
+		ByteArrayOutputStream comment = createEmfPlusComment();
+		ByteArrayOutputStream payload = new ByteArrayOutputStream();
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeFloat(payload, 4096);
+		writeInt(payload, 0);
+		writeInt(payload, 0);
+		writeInt(payload, 0xFF000000);
+		writeEmfPlusRecord(comment, 0x4008, 0x0200, payload.toByteArray());
+
+		payload.reset();
+		writeFloat(payload, 1.0f / 2048);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 1.0f / 2048);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeEmfPlusRecord(comment, 0x402A, 0, payload.toByteArray());
+
+		payload.reset();
+		writeInt(payload, 2);
+		writeFloat(payload, 0);
+		writeFloat(payload, 0);
+		writeFloat(payload, 10000);
 		writeFloat(payload, 0);
 		writeEmfPlusRecord(comment, 0x400D, 0, payload.toByteArray());
 		return comment.toByteArray();

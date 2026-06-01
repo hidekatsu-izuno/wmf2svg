@@ -39,6 +39,19 @@ public class EmfParserTest {
 	}
 
 	@Test
+	public void testExtTextOutWUsesWorldTransformRotationForTextEscapement() throws Exception {
+		SvgGdi gdi = new SvgGdi();
+		new EmfParser().parse(new ByteArrayInputStream(createEmfWithRotatedText()), gdi);
+
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		gdi.write(out);
+		String svg = new String(out.toByteArray(), "UTF-8");
+
+		assertTrue(svg.indexOf(">Vertical<") >= 0);
+		assertTrue(svg.indexOf("transform=\"rotate(-90.0, ") >= 0);
+	}
+
+	@Test
 	public void testExtSelectClipRgnKeepsDeviceRegionCoordinates() throws Exception {
 		SvgGdi gdi = new SvgGdi();
 		new EmfParser().parse(new ByteArrayInputStream(createEmfWithTranslatedClipRegion()), gdi);
@@ -130,6 +143,17 @@ public class EmfParserTest {
 		writeFont(out);
 		writeRecord(out, 37, intData(1));
 		writeUtf16Text(out, "徒然なる", new int[]{14, 14, 14, 14, 14, 14});
+		writeRecord(out, 14, new byte[12]);
+		return out.toByteArray();
+	}
+
+	private static byte[] createEmfWithRotatedText() {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		writeHeader(out);
+		writeFont(out);
+		writeRecord(out, 37, intData(1));
+		writeWorldTransform(out, 0, -1, 1, 0, 20, 80);
+		writeUtf16Text(out, "Vertical", new int[]{12, 12, 12, 12, 12, 12, 12, 12});
 		writeRecord(out, 14, new byte[12]);
 		return out.toByteArray();
 	}

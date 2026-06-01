@@ -87,8 +87,10 @@ public class EmfParser implements Parser, EmfConstants {
 		Map<Integer, GdiObject> stockObjects = new HashMap<Integer, GdiObject>();
 		Map<Integer, Integer> fontCharsets = new HashMap<Integer, Integer>();
 		LinkedList<double[]> transforms = new LinkedList<double[]>();
+		LinkedList<GdiFont> selectedFonts = new LinkedList<GdiFont>();
 		double[] transform = identity();
 		int textCharset = GdiFont.ANSI_CHARSET;
+		GdiFont selectedFont = null;
 
 		while (true) {
 			int type = (int) in.readUint32();
@@ -215,19 +217,24 @@ public class EmfParser implements Parser, EmfConstants {
 					break;
 				case EMR_SAVEDC :
 					transforms.push(copy(transform));
+					selectedFonts.push(selectedFont);
 					gdi.seveDC();
 					break;
 				case EMR_RESTOREDC : {
 					int saved = readInt32(data, 0);
 					if (saved == -1 && !transforms.isEmpty()) {
 						transform = transforms.pop();
+						selectedFont = selectedFonts.pop();
 					} else if (saved < -1 && transforms.size() >= -saved) {
 						for (int i = -1; i >= saved; i--) {
 							transform = transforms.pop();
+							selectedFont = selectedFonts.pop();
 						}
 					} else if (saved == 0) {
 						transform = identity();
 						transforms.clear();
+						selectedFont = null;
+						selectedFonts.clear();
 					}
 					gdi.restoreDC(saved);
 					break;
@@ -245,6 +252,10 @@ public class EmfParser implements Parser, EmfConstants {
 					if (charset != null) {
 						textCharset = charset.intValue();
 					}
+					GdiObject obj = getObject(objects, stockObjects, id);
+					if (obj instanceof GdiFont) {
+						selectedFont = (GdiFont) obj;
+					}
 					break;
 				}
 				case EMR_CREATEPEN :
@@ -259,6 +270,9 @@ public class EmfParser implements Parser, EmfConstants {
 					int id = readInt32(data, 0);
 					GdiObject obj = objects.remove(id);
 					fontCharsets.remove(id);
+					if (obj == selectedFont) {
+						selectedFont = null;
+					}
 					if (obj != null) {
 						gdi.deleteObject(obj);
 					}
@@ -531,16 +545,16 @@ public class EmfParser implements Parser, EmfConstants {
 					break;
 				}
 				case EMR_EXTTEXTOUTA :
-					readExtTextOut(data, transform, gdi, false, textCharset);
+					readExtTextOut(data, transform, gdi, false, textCharset, selectedFont);
 					break;
 				case EMR_EXTTEXTOUTW :
-					readExtTextOut(data, transform, gdi, true, textCharset);
+					readExtTextOut(data, transform, gdi, true, textCharset, selectedFont);
 					break;
 				case EMR_POLYTEXTOUTA :
-					readPolyTextOut(data, transform, gdi, false, textCharset);
+					readPolyTextOut(data, transform, gdi, false, textCharset, selectedFont);
 					break;
 				case EMR_POLYTEXTOUTW :
-					readPolyTextOut(data, transform, gdi, true, textCharset);
+					readPolyTextOut(data, transform, gdi, true, textCharset, selectedFont);
 					break;
 				case EMR_ALPHABLEND :
 					readAlphaBlend(data, transform, gdi);
@@ -555,7 +569,7 @@ public class EmfParser implements Parser, EmfConstants {
 					readGradientFill(data, transform, gdi);
 					break;
 				case EMR_SMALLTEXTOUT :
-					readSmallTextOut(data, transform, gdi, textCharset);
+					readSmallTextOut(data, transform, gdi, textCharset, selectedFont);
 					break;
 				case EMR_SETTEXTJUSTIFICATION :
 					gdi.setTextJustification(readInt32(data, 0), readInt32(data, 4));
@@ -1020,7 +1034,7 @@ public class EmfParser implements Parser, EmfConstants {
 		gdi.gradientFill(vertex, mesh, mode);
 	}
 
-	private static void readSmallTextOut(byte[] data, double[] transform, Gdi gdi, int charset) {
+	private static void readSmallTextOut(byte[] data, double[] transform, Gdi gdi, int charset, GdiFont selectedFont) {
 		if (data.length < 28) {
 			return;
 		}
@@ -1046,14 +1060,16 @@ public class EmfParser implements Parser, EmfConstants {
 		} else {
 			text = readUtf16StringBytes(data, textOffset, count, charset);
 		}
-		gdi.extTextOut(point.x, point.y, options, rect, text, null);
+		extTextOut(gdi, selectedFont, transform, point.x, point.y, options, rect, text, null);
 	}
 
-	private static void readExtTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset) {
-		readEmrText(data, 28, transform, gdi, unicode, charset);
+	private static void readExtTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset,
+			GdiFont selectedFont) {
+		readEmrText(data, 28, transform, gdi, unicode, charset, selectedFont);
 	}
 
-	private static void readPolyTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset) {
+	private static void readPolyTextOut(byte[] data, double[] transform, Gdi gdi, boolean unicode, int charset,
+			GdiFont selectedFont) {
 		if (data.length < 32) {
 			return;
 		}
@@ -1063,13 +1079,13 @@ public class EmfParser implements Parser, EmfConstants {
 			if (textOffset + 40 > data.length) {
 				return;
 			}
-			readEmrText(data, textOffset, transform, gdi, unicode, charset);
+			readEmrText(data, textOffset, transform, gdi, unicode, charset, selectedFont);
 			textOffset += 40;
 		}
 	}
 
 	private static void readEmrText(byte[] data, int textOffset, double[] transform, Gdi gdi, boolean unicode,
-			int charset) {
+			int charset, GdiFont selectedFont) {
 		if (textOffset < 0 || textOffset + 40 > data.length) {
 			return;
 		}
@@ -1102,7 +1118,48 @@ public class EmfParser implements Parser, EmfConstants {
 				}
 			}
 		}
-		gdi.extTextOut(point.x, point.y, options, rect, text, dx);
+		extTextOut(gdi, selectedFont, transform, point.x, point.y, options, rect, text, dx);
+	}
+
+	private static void extTextOut(Gdi gdi, GdiFont selectedFont, double[] transform, int x, int y, int options,
+			int[] rect, byte[] text, int[] dx) {
+		GdiFont transformedFont = createTransformedTextFont(gdi, selectedFont, transform);
+		if (transformedFont != null) {
+			gdi.selectObject(transformedFont);
+		}
+		gdi.extTextOut(x, y, options, rect, text, dx);
+		if (transformedFont != null) {
+			gdi.selectObject(selectedFont);
+		}
+	}
+
+	private static GdiFont createTransformedTextFont(Gdi gdi, GdiFont font, double[] transform) {
+		if (font == null) {
+			return null;
+		}
+		int escapement = textEscapement(transform);
+		if (escapement == 0) {
+			return null;
+		}
+		byte[] faceName = font.getFaceName().getBytes();
+		try {
+			faceName = font.getFaceName().getBytes(GdiUtils.getCharset(font.getCharset()));
+		} catch (UnsupportedEncodingException e) {
+			// Keep the platform-default bytes as a last-resort fallback.
+		}
+		return gdi.createFontIndirect(font.getHeight(), font.getWidth(), font.getEscapement() + escapement,
+				font.getOrientation() + escapement, font.getWeight(), font.isItalic(), font.isUnderlined(),
+				font.isStrikedOut(), font.getCharset(), font.getOutPrecision(), font.getClipPrecision(),
+				font.getQuality(), font.getPitchAndFamily(), faceName);
+	}
+
+	private static int textEscapement(double[] transform) {
+		if (isIdentity(transform)) {
+			return 0;
+		}
+		double angle = Math.toDegrees(Math.atan2(transform[1], transform[0]));
+		int escapement = (int) Math.round(-angle * 10.0);
+		return Math.abs(escapement) >= 1 ? escapement : 0;
 	}
 
 	private static int[] transformDestRect(double[] transform, byte[] data, int xOffset, int yOffset, int widthOffset,

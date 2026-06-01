@@ -118,6 +118,7 @@ mise run test
 
 ## History
 
+- 2026-06-02: Fix a EMF+ bugs (#26).
 - 2026-05-27: Fix a mask program (#25).
 - 2026-05-06: Fix many bugs.
 - 2026-05-03: Fix many bugs.

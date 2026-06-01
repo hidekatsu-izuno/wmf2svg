@@ -99,7 +99,7 @@ Some advanced records are format-specific and may not be representable in the ta
 ```xml
 <groupId>net.arnx</groupId>
 <artifactId>wmf2svg</artifactId>
-<version>0.10.5</version>
+<version>0.10.6</version>
 ```
 
 ## Build
